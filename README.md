@@ -18,6 +18,7 @@ Run:
 ```sh
 npm run check
 node ./bin/codex-watch.js setup
+npm run install-hook
 ```
 
 Then edit `.env`:

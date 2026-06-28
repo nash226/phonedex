@@ -9,6 +9,7 @@
   "scripts": {
     "server": "node ./bin/codex-watch.js server",
     "hook": "node ./bin/codex-watch.js hook",
+    "install-hook": "node ./scripts/install-codex-hook.js",
     "test-notify": "node ./bin/codex-watch.js notify --title \"Codex test\" --text \"Watch bridge test notification\"",
     "replies": "node ./bin/codex-watch.js replies",
     "tasks": "node ./bin/codex-watch.js tasks",
