@@ -17,6 +17,7 @@ Python virtualenv:
 
 ```sh
 npm run ha:install
+npm run ha:init-config
 npm run ha:start
 ```
 

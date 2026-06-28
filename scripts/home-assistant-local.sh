@@ -10,6 +10,7 @@ usage() {
   cat <<'EOF'
 Usage:
   scripts/home-assistant-local.sh install
+  scripts/home-assistant-local.sh init-config
   scripts/home-assistant-local.sh start
   scripts/home-assistant-local.sh doctor
 
@@ -22,6 +23,34 @@ EOF
 
 command="${1:-}"
 
+write_minimal_config() {
+  mkdir -p "$CONFIG_DIR"
+  cat > "$CONFIG_DIR/configuration.yaml" <<'EOF'
+homeassistant:
+  name: Codex Watch Local
+  latitude: 40.7128
+  longitude: -74.0060
+  elevation: 10
+  unit_system: us_customary
+  time_zone: America/New_York
+
+http:
+
+frontend:
+
+api:
+
+mobile_app:
+
+automation: !include automations.yaml
+script: !include scripts.yaml
+EOF
+  [[ -f "$CONFIG_DIR/automations.yaml" ]] || printf '[]\n' > "$CONFIG_DIR/automations.yaml"
+  [[ -f "$CONFIG_DIR/scripts.yaml" ]] || printf '{}\n' > "$CONFIG_DIR/scripts.yaml"
+  [[ -f "$CONFIG_DIR/scenes.yaml" ]] || printf '[]\n' > "$CONFIG_DIR/scenes.yaml"
+  echo "Wrote minimal Home Assistant config to $CONFIG_DIR"
+}
+
 case "$command" in
   install)
     mkdir -p "$CONFIG_DIR"
@@ -31,6 +60,10 @@ case "$command" in
     "$VENV_DIR/bin/python" -m pip install --upgrade pip wheel
     "$VENV_DIR/bin/python" -m pip install --upgrade homeassistant
     echo "Home Assistant Core installed in $VENV_DIR"
+    ;;
+
+  init-config)
+    write_minimal_config
     ;;
 
   start)
