@@ -1,30 +1,153 @@
 # WatchDex
 
-WatchDex is a local bridge that turns completed Codex tasks into Apple
-Watch-friendly notifications with quick replies.
+[![Node.js](https://img.shields.io/badge/node-%3E%3D18-339933)](#requirements)
+[![Apple Watch](https://img.shields.io/badge/apple-watch-111111)](#providers)
+[![Home Assistant](https://img.shields.io/badge/provider-home%20assistant-18BCF2)](docs/home-assistant.md)
+[![Pushcut](https://img.shields.io/badge/provider-pushcut-5A67D8)](#pushcut)
 
-1. Codex finishes a turn.
-2. A Codex `Stop` hook runs `bin/codex-watch.js hook`.
-3. The bridge sends a notification with two watch actions:
-   - `Okay, what's next`
-   - `Let's do that`
-4. Tapping an action calls this bridge's `/reply` endpoint and records the response in `data/replies.jsonl`.
+WatchDex sends completed Codex task alerts to your Apple Watch and records
+quick replies from your wrist.
 
-WatchDex supports Pushcut and a free Home Assistant provider. A native
-iOS/watchOS app would remove third-party dependencies, but it needs APNs,
-signing, and more setup.
+It is a local bridge for people who start Codex work on a Mac, walk away, and
+still want a fast way to answer the next obvious prompt: "Okay, what's next?"
+or "Let's do that."
 
-## Setup
+## What It Does
 
-Run:
+- Installs a Codex `Stop` hook that fires when a Codex turn completes.
+- Sends an actionable notification through Home Assistant or Pushcut.
+- Shows two premade Apple Watch actions:
+  - `Okay, what's next`
+  - `Let's do that`
+- Records replies in `data/replies.jsonl` so you have a local decision log.
+- Can wrap any shell command and notify you when it finishes.
+- Includes an experimental auto-resume mode for sending replies back to Codex.
+
+WatchDex is Mac-first and local-first. The free path uses Home Assistant
+Companion for iPhone and Apple Watch. Pushcut is also supported if you already
+prefer its notification workflow.
+
+## Project Status
+
+WatchDex is currently a working local bridge, not a native iOS/watchOS app.
+
+The reliable path today is:
+
+```text
+Codex finishes work
+  -> Codex Stop hook runs WatchDex
+  -> WatchDex sends a provider notification
+  -> Apple Watch shows quick actions
+  -> provider calls WatchDex /reply
+  -> WatchDex records the response locally
+```
+
+Auto-continuing Codex from a watch tap is intentionally off by default. Replies
+are recorded first so the bridge stays safe while Codex session resume behavior
+is verified.
+
+## Requirements
+
+- macOS
+- Node.js 18 or newer
+- Codex desktop app with hooks enabled
+- Apple Watch paired to an iPhone
+- One notification provider:
+  - Home Assistant Companion for the free route
+  - Pushcut for the simpler webhook route
+
+No npm package dependencies are required for the bridge itself.
+
+## Quick Start
+
+Clone the repo, then from the project root:
 
 ```sh
+git clone https://github.com/nash226/WatchDex.git
+cd WatchDex
 npm run check
 node ./bin/codex-watch.js setup
 npm run install-hook
 ```
 
-Then edit `.env`:
+Edit `.env` and choose a provider. For the free Home Assistant route:
+
+```sh
+WATCH_BRIDGE_PROVIDER=home-assistant
+HOME_ASSISTANT_URL=http://homeassistant.local:8123
+HOME_ASSISTANT_TOKEN=YOUR_LONG_LIVED_ACCESS_TOKEN
+HOME_ASSISTANT_NOTIFY_SERVICE=notify.mobile_app_your_iphone
+WATCH_BRIDGE_PUBLIC_URL=http://YOUR_MAC_LAN_IP:8765
+WATCH_BRIDGE_HOST=0.0.0.0
+```
+
+If you do not have Home Assistant running yet, use the local setup in the
+[Home Assistant](#home-assistant) section before testing notifications.
+
+Start the reply server:
+
+```sh
+npm run server
+```
+
+In Codex, open `/hooks`, review the `WatchDex` hook, and trust it. Codex
+requires approval before changed user hooks are allowed to run.
+
+Send a test notification:
+
+```sh
+npm run test-notify
+```
+
+Read replies:
+
+```sh
+npm run replies
+```
+
+## Providers
+
+| Provider | Cost | Best For | Notes |
+| --- | --- | --- | --- |
+| Home Assistant | Free | Local-first Apple Watch replies without Pushcut | Requires Home Assistant Companion on iPhone and Watch plus callback automations. |
+| Pushcut | Pushcut plan may be required for dynamic actions | Fast webhook setup if you already use Pushcut | Dynamic notification fields and actions may require Pushcut Pro. |
+
+## Home Assistant
+
+Home Assistant is the recommended free path. WatchDex sends an actionable
+mobile notification to the Home Assistant Companion app, and Home Assistant
+automations call back into WatchDex when you tap a watch action.
+
+For a local Mac test, WatchDex includes scripts to install Home Assistant Core
+inside an ignored virtualenv:
+
+```sh
+brew install libjpeg-turbo
+npm run ha:install
+npm run ha:init-config
+npm run ha:start
+```
+
+Then open:
+
+```text
+http://localhost:8123
+```
+
+For a longer-running local setup, install macOS LaunchAgents for both Home
+Assistant and the WatchDex bridge:
+
+```sh
+npm run services:install
+npm run services:status
+```
+
+For setup details, callback automations, and temporary remote access through
+Cloudflare Quick Tunnel, see [docs/home-assistant.md](docs/home-assistant.md).
+
+## Pushcut
+
+Create a Pushcut notification, copy its webhook URL, and configure:
 
 ```sh
 WATCH_BRIDGE_PROVIDER=pushcut
@@ -33,87 +156,99 @@ WATCH_BRIDGE_PUBLIC_URL=http://YOUR_MAC_LAN_IP:8765
 WATCH_BRIDGE_HOST=0.0.0.0
 ```
 
-Use a public HTTPS tunnel, such as Cloudflare Tunnel or ngrok, for `WATCH_BRIDGE_PUBLIC_URL` if your watch/iPhone will not be on the same network as your Mac.
-
-Start the reply server:
-
-```sh
-npm run server
-```
-
-In Codex, open `/hooks`, review the "WatchDex" hook, and trust it. Codex requires trust for changed user hooks before running them.
-
-Send a test alert:
-
-```sh
-npm run test-notify
-```
-
-View replies:
-
-```sh
-npm run replies
-```
-
-## Pushcut Notification
-
-Create a Pushcut notification named something like `codex-task`, copy its webhook URL, and paste that into `.env`.
-
-The bridge sends dynamic `title`, `text`, and `actions` in the Pushcut JSON body. Pushcut documents dynamic JSON support for notification text, title, input, and actions; those dynamic fields may require Pushcut Pro.
-
-The two actions are background web requests back to:
+WatchDex sends dynamic `title`, `text`, and `actions` fields in the Pushcut
+JSON body. Each action performs a background web request to:
 
 ```text
 ${WATCH_BRIDGE_PUBLIC_URL}/reply
 ```
 
-The `WATCH_BRIDGE_TOKEN` is included in both the query string and JSON body so random callers cannot record replies.
+`WATCH_BRIDGE_TOKEN` is included in the query string and request body so random
+callers cannot record replies.
 
-## Home Assistant Provider
+## Commands
 
-Use Home Assistant for a free Apple Watch reply path. Configure:
+| Command | Purpose |
+| --- | --- |
+| `npm run check` | Syntax-check the WatchDex CLI. |
+| `node ./bin/codex-watch.js setup` | Create `.env` with a generated reply token. |
+| `npm run install-hook` | Install the Codex `Stop` hook. |
+| `npm run server` | Start the local WatchDex reply server. |
+| `npm run test-notify` | Send a manual provider notification. |
+| `npm run replies` | Print recent watch replies. |
+| `npm run tasks` | Print recent recorded tasks. |
+| `node ./bin/codex-watch.js run -- <command>` | Run a command and notify when it exits. |
+| `npm run ha:install` | Install Home Assistant Core into `.local/`. |
+| `npm run ha:init-config` | Create a minimal local Home Assistant config. |
+| `npm run ha:start` | Start local Home Assistant Core. |
+| `npm run ha:doctor` | Inspect the local Home Assistant install. |
+| `npm run services:install` | Install macOS LaunchAgents for Home Assistant and WatchDex. |
+| `npm run services:start` | Start the LaunchAgents. |
+| `npm run services:stop` | Stop the LaunchAgents. |
+| `npm run services:status` | Print LaunchAgent status. |
+| `npm run remote:install` | Install a Cloudflare Quick Tunnel LaunchAgent for Home Assistant. |
+| `npm run remote:start` | Start the Cloudflare Quick Tunnel LaunchAgent. |
+| `npm run remote:stop` | Stop the Cloudflare Quick Tunnel LaunchAgent. |
+| `npm run remote:status` | Print Cloudflare Quick Tunnel LaunchAgent status. |
+| `npm run remote:url` | Print the current temporary Cloudflare tunnel URL. |
 
-```sh
-WATCH_BRIDGE_PROVIDER=home-assistant
-HOME_ASSISTANT_URL=http://homeassistant.local:8123
-HOME_ASSISTANT_TOKEN=YOUR_LONG_LIVED_ACCESS_TOKEN
-HOME_ASSISTANT_NOTIFY_SERVICE=notify.mobile_app_your_iphone
-```
+## Configuration
 
-Then add the Home Assistant callback automations in
-[docs/home-assistant.md](docs/home-assistant.md).
+WatchDex reads `.env` from the repo root.
 
-## Auto-Continuing Codex
+| Variable | Required | Description |
+| --- | --- | --- |
+| `WATCH_BRIDGE_PROVIDER` | Yes | `home-assistant` or `pushcut`. |
+| `WATCH_BRIDGE_PUBLIC_URL` | Yes | URL your provider can call back to, ending before `/reply`. |
+| `WATCH_BRIDGE_TOKEN` | Recommended | Shared secret required by `/reply`. Generated by setup. |
+| `WATCH_BRIDGE_HOST` | No | Server bind host. Use `0.0.0.0` for LAN callbacks. |
+| `WATCH_BRIDGE_PORT` | No | Server port. Defaults to `8765`. |
+| `WATCH_BRIDGE_DATA_DIR` | No | Directory for `tasks.jsonl`, `replies.jsonl`, and `events.jsonl`. |
+| `HOME_ASSISTANT_URL` | Home Assistant | Base URL for Home Assistant. |
+| `HOME_ASSISTANT_TOKEN` | Home Assistant | Long-lived access token. |
+| `HOME_ASSISTANT_NOTIFY_SERVICE` | Home Assistant | Mobile app notify service, for example `notify.mobile_app_your_iphone`. |
+| `HOME_ASSISTANT_INTERRUPTION_LEVEL` | No | iOS interruption level. Defaults to `time-sensitive`. |
+| `PUSHCUT_WEBHOOK_URL` | Pushcut | Pushcut notification webhook URL. |
+| `PUSHCUT_SOUND` | No | Pushcut sound name. Defaults to `jobDone`. |
+| `PUSHCUT_TIME_SENSITIVE` | No | Send Pushcut alerts as time-sensitive. Defaults to `true`. |
+| `WATCH_BRIDGE_AUTO_RESUME` | No | Experimental Codex resume behavior. Defaults to `false`. |
+| `CODEX_BIN` | No | Path to the Codex CLI used by auto-resume. |
 
-By default, replies are recorded only. That gives us a reliable human-in-the-loop inbox before letting wrist taps start new agent work.
+## Data And Security
 
-There is an experimental setting:
+- `.env` is ignored by git and should contain your local tokens only.
+- `.local/` is ignored and stores local Home Assistant and launchd logs.
+- `data/tasks.jsonl` stores completion events.
+- `data/replies.jsonl` stores watch replies.
+- `data/events.jsonl` stores provider delivery attempts.
+- `/reply` rejects requests with an invalid token when `WATCH_BRIDGE_TOKEN` is
+  set.
 
-```sh
-WATCH_BRIDGE_AUTO_RESUME=true
-```
+If your watch or phone is not on the same network as your Mac, expose the
+callback URL through a trusted tunnel such as Cloudflare Tunnel, ngrok, or
+Tailscale. Keep the token private either way.
 
-When enabled, a reply attempts:
+## Current Limitations
 
-```sh
-codex exec resume <session-id> "<premade response>"
-```
+- Home Assistant callback automations currently map replies to the latest task
+  if they do not include a task id.
+- The built-in reply choices are fixed in code.
+- Auto-resume is experimental and depends on usable Codex session ids in hook
+  payloads.
+- There is no native iOS/watchOS app yet, so WatchDex relies on Home Assistant
+  or Pushcut for notification delivery.
 
-Leave this off until `data/tasks.jsonl` shows that Codex hook payloads include a usable `sessionId`.
+## Roadmap
 
-## Manual Wrapper
-
-You can also wrap any command:
-
-```sh
-node ./bin/codex-watch.js run -- npm test
-```
-
-When the command exits, WatchDex sends the same watch notification.
+- Per-notification task ids for Home Assistant callbacks.
+- Configurable reply choices.
+- Safer Codex resume queue with reviewable pending actions.
+- Packaged install flow.
+- Native iOS/watchOS app exploration.
 
 ## References
 
-- Pushcut notification webhooks and Apple Watch action behavior: https://www.pushcut.io/support/notifications
+- Pushcut notification webhooks and Apple Watch actions: https://www.pushcut.io/support/notifications
 - Home Assistant actionable notifications: https://companion.home-assistant.io/docs/notifications/actionable-notifications/
 - Codex hooks and the `Stop` event: https://developers.openai.com/codex/hooks
 - Codex user-level config and hook locations: https://developers.openai.com/codex/config-advanced
