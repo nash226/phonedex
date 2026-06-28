@@ -31,6 +31,19 @@ This local setup is good for proving the notification provider. Home Assistant
 OS in a VM or on dedicated hardware is still the better long-term setup if you
 want add-ons, one-click updates, and an always-on smart-home hub.
 
+For local testing on macOS, install user LaunchAgents so Home Assistant and the
+bridge keep running outside your current terminal:
+
+```sh
+npm run services:install
+```
+
+Check them with:
+
+```sh
+npm run services:status
+```
+
 ## Bridge Configuration
 
 Set these values in `.env`:
