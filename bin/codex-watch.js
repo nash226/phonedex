@@ -10,6 +10,7 @@ const { spawn } = require("node:child_process");
 const ROOT = path.resolve(__dirname, "..");
 const DATA_DIR_DEFAULT = path.join(ROOT, "data");
 const SESSION_WATCH_STATE = "session-watch-state.json";
+const APP_SERVER_RESUME_TIMEOUT_MS = 30 * 60 * 1000;
 
 const RESPONSE_CHOICES = {
   okay_whats_next: "okay whats next",
@@ -75,6 +76,11 @@ async function main() {
     return;
   }
 
+  if (command === "app-server-resume") {
+    await appServerResumeCommand(args);
+    return;
+  }
+
   if (command === "run") {
     await runAndNotify(args);
     return;
@@ -111,12 +117,23 @@ function config() {
     pushcutSound: env.PUSHCUT_SOUND || "jobDone",
     pushcutTimeSensitive: parseBoolean(env.PUSHCUT_TIME_SENSITIVE, true),
     autoResume: parseBoolean(env.WATCH_BRIDGE_AUTO_RESUME, false),
+    autoResumeMode: env.WATCH_BRIDGE_AUTO_RESUME_MODE || "cli",
     codexHome: env.CODEX_HOME || path.join(os.homedir(), ".codex"),
     sessionWatchIntervalMs: Number(env.WATCHDEX_SESSION_WATCH_INTERVAL_MS || "15000"),
     sessionWatchDebounceMs: Number(env.WATCHDEX_SESSION_WATCH_DEBOUNCE_MS || "45000"),
     codexBin:
-      env.CODEX_BIN || "/Applications/Codex.app/Contents/Resources/codex"
+      env.CODEX_BIN || "/Applications/Codex.app/Contents/Resources/codex",
+    codexAppServerBin:
+      env.CODEX_APP_SERVER_BIN ||
+      env.CODEX_BIN ||
+      defaultAppServerCodexBin()
   };
+}
+
+function defaultAppServerCodexBin() {
+  const standaloneBin = path.join(os.homedir(), ".local", "bin", "codex");
+  if (fs.existsSync(standaloneBin)) return standaloneBin;
+  return "/Applications/Codex.app/Contents/Resources/codex";
 }
 
 async function setup() {
@@ -491,6 +508,11 @@ function attemptAutoResume(cfg, task, reply) {
     return;
   }
 
+  if (cfg.autoResumeMode === "app-server") {
+    attemptAppServerAutoResume(cfg, task, reply);
+    return;
+  }
+
   const logPath = path.join(cfg.dataDir, "auto-resume.log");
   const out = fs.openSync(logPath, "a");
   const child = spawn(
@@ -511,10 +533,262 @@ function attemptAutoResume(cfg, task, reply) {
   appendJsonl(cfg.dataDir, "events.jsonl", {
     at: new Date().toISOString(),
     type: "auto-resume-started",
+    mode: "cli",
     taskId: reply.taskId,
     sessionId: task.sessionId,
     pid: child.pid
   });
+}
+
+function attemptAppServerAutoResume(cfg, task, reply) {
+  const logPath = path.join(cfg.dataDir, "app-server-resume.log");
+  const out = fs.openSync(logPath, "a");
+  const child = spawn(
+    process.execPath,
+    [
+      __filename,
+      "app-server-resume",
+      "--taskId",
+      reply.taskId,
+      "--prompt",
+      reply.prompt
+    ],
+    {
+      cwd: task.cwd || ROOT,
+      detached: true,
+      stdio: ["ignore", out, out],
+      env: {
+        ...process.env,
+        CODEX_WATCH_AUTO_RESUME: "1"
+      }
+    }
+  );
+
+  child.unref();
+  appendJsonl(cfg.dataDir, "events.jsonl", {
+    at: new Date().toISOString(),
+    type: "auto-resume-started",
+    mode: "app-server",
+    taskId: reply.taskId,
+    sessionId: task.sessionId,
+    pid: child.pid
+  });
+}
+
+async function appServerResumeCommand(args) {
+  const cfg = config();
+  ensureDataDir(cfg.dataDir);
+  const flags = parseFlags(args);
+  const taskId = flags.taskId || flags.task || "";
+  const task = taskId ? findTask(cfg.dataDir, taskId) : latestJsonl(cfg.dataDir, "tasks.jsonl");
+  if (!task) throw new Error(`No task found for app-server resume: ${taskId || "(latest)"}`);
+  if (!task.sessionId) throw new Error(`Task ${task.id} does not have a Codex session id`);
+
+  const prompt = flags.prompt || RESPONSE_CHOICES[normalizeChoice(flags.choice || "")] || "";
+  if (!prompt) throw new Error("Missing --prompt for app-server resume");
+
+  await runAppServerTurn(cfg, task, prompt);
+}
+
+async function runAppServerTurn(cfg, task, prompt) {
+  const startedAt = new Date().toISOString();
+  const cwd = task.cwd || ROOT;
+  const logPath = path.join(cfg.dataDir, "app-server-resume.log");
+  fs.appendFileSync(logPath, `[${startedAt}] starting ${task.id} ${task.sessionId}\n`);
+
+  appendJsonl(cfg.dataDir, "events.jsonl", {
+    at: startedAt,
+    type: "app-server-resume-worker-started",
+    taskId: task.id,
+    sessionId: task.sessionId,
+    cwd,
+    codexBin: cfg.codexAppServerBin
+  });
+
+  const child = spawn(cfg.codexAppServerBin, ["app-server", "--stdio"], {
+    cwd,
+    stdio: ["pipe", "pipe", "pipe"],
+    env: {
+      ...process.env,
+      CODEX_WATCH_AUTO_RESUME: "1"
+    }
+  });
+
+  let nextId = 1;
+  let stdoutBuffer = "";
+  let completed = false;
+  const pending = new Map();
+
+  const send = (method, params, wantsResponse = true) => {
+    const message = wantsResponse
+      ? { id: nextId++, method, params }
+      : { method, params };
+    fs.appendFileSync(logPath, `> ${formatAppServerLogMessage(message)}\n`);
+    child.stdin.write(`${JSON.stringify(message)}\n`);
+    if (!wantsResponse) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      pending.set(message.id, { method, resolve, reject });
+    });
+  };
+
+  const cleanup = () => {
+    clearTimeout(timer);
+    for (const { reject, method } of pending.values()) {
+      reject(new Error(`app-server exited before ${method} completed`));
+    }
+    pending.clear();
+  };
+
+  const timer = setTimeout(() => {
+    child.kill("SIGTERM");
+    appendJsonl(cfg.dataDir, "events.jsonl", {
+      at: new Date().toISOString(),
+      type: "app-server-resume-timeout",
+      taskId: task.id,
+      sessionId: task.sessionId
+    });
+  }, APP_SERVER_RESUME_TIMEOUT_MS);
+
+  child.stderr.on("data", (chunk) => {
+    fs.appendFileSync(logPath, chunk);
+  });
+
+  child.stdout.on("data", (chunk) => {
+    stdoutBuffer += chunk.toString("utf8");
+    let newlineIndex;
+    while ((newlineIndex = stdoutBuffer.indexOf("\n")) >= 0) {
+      const line = stdoutBuffer.slice(0, newlineIndex).trim();
+      stdoutBuffer = stdoutBuffer.slice(newlineIndex + 1);
+      if (!line) continue;
+      const message = parseMaybeJson(line);
+      fs.appendFileSync(logPath, `< ${formatAppServerLogMessage(message)}\n`);
+      if (message.id && pending.has(message.id)) {
+        const waiter = pending.get(message.id);
+        pending.delete(message.id);
+        if (message.error) waiter.reject(new Error(JSON.stringify(message.error)));
+        else waiter.resolve(message.result);
+      }
+
+      if (message.method === "turn/started" && message.params?.threadId === task.sessionId) {
+        appendJsonl(cfg.dataDir, "events.jsonl", {
+          at: new Date().toISOString(),
+          type: "app-server-resume-turn-started",
+          taskId: task.id,
+          sessionId: task.sessionId
+        });
+      }
+
+      if (message.method === "turn/completed" && message.params?.threadId === task.sessionId) {
+        completed = true;
+        appendJsonl(cfg.dataDir, "events.jsonl", {
+          at: new Date().toISOString(),
+          type: "app-server-resume-completed",
+          taskId: task.id,
+          sessionId: task.sessionId,
+          turnId: message.params?.turn?.id || ""
+        });
+        child.kill("SIGTERM");
+      }
+    }
+  });
+
+  const exitPromise = new Promise((resolve, reject) => {
+    child.on("error", reject);
+    child.on("close", (code, signal) => {
+      cleanup();
+      if (completed || signal === "SIGTERM") resolve({ code, signal });
+      else reject(new Error(`app-server exited with code ${code || ""} signal ${signal || ""}`));
+    });
+  });
+
+  try {
+    await send("initialize", {
+      clientInfo: {
+        name: "watchdex",
+        title: "WatchDex",
+        version: "0.1.0"
+      },
+      capabilities: {
+        experimentalApi: true,
+        requestAttestation: false
+      }
+    });
+    await send("initialized", {}, false);
+    await send("thread/resume", {
+      threadId: task.sessionId,
+      cwd
+    });
+    appendJsonl(cfg.dataDir, "events.jsonl", {
+      at: new Date().toISOString(),
+      type: "app-server-resume-thread-resumed",
+      taskId: task.id,
+      sessionId: task.sessionId
+    });
+    await send("turn/start", {
+      threadId: task.sessionId,
+      cwd,
+      input: [
+        {
+          type: "text",
+          text: prompt,
+          text_elements: []
+        }
+      ]
+    });
+    await exitPromise;
+  } catch (error) {
+    child.kill("SIGTERM");
+    appendJsonl(cfg.dataDir, "events.jsonl", {
+      at: new Date().toISOString(),
+      type: "app-server-resume-failed",
+      taskId: task.id,
+      sessionId: task.sessionId,
+      error: error.message
+    });
+    throw error;
+  }
+}
+
+function formatAppServerLogMessage(message) {
+  if (!message || typeof message !== "object" || message.raw) {
+    return redactSensitiveText(JSON.stringify(message)).slice(0, 1000);
+  }
+
+  const summary = {
+    id: message.id,
+    method: message.method
+  };
+
+  if (message.error) {
+    summary.error = message.error;
+    return redactSensitiveText(JSON.stringify(summary)).slice(0, 1000);
+  }
+
+  const params = message.params || {};
+  const result = message.result || {};
+  const thread = result.thread || {};
+  const turn = result.turn || params.turn || {};
+  const item = params.item || {};
+
+  if (params.threadId || thread.id) summary.threadId = params.threadId || thread.id;
+  if (params.turnId || turn.id) summary.turnId = params.turnId || turn.id;
+  if (params.itemId || item.id) summary.itemId = params.itemId || item.id;
+  if (item.type) summary.itemType = item.type;
+  if (turn.status) summary.turnStatus = turn.status;
+  if (thread.status) summary.threadStatus = thread.status;
+  if (message.method === "turn/start") {
+    const text = message.params?.input?.find((part) => part.type === "text")?.text || "";
+    summary.input = truncate(redactSensitiveText(text).replace(/\s+/g, " ").trim(), 160);
+  }
+  if (message.method === "item/agentMessage/delta") {
+    summary.deltaLength = String(params.delta || "").length;
+  }
+  if (message.method === "item/completed" && item.type === "agentMessage") {
+    summary.text = truncate(redactSensitiveText(item.text || "").replace(/\s+/g, " ").trim(), 160);
+  }
+  if (message.id && result.userAgent) summary.userAgent = result.userAgent;
+
+  return JSON.stringify(summary);
 }
 
 async function runAndNotify(args) {

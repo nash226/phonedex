@@ -21,7 +21,7 @@ or "Let's do that."
   - `Let's do that`
 - Records replies in `data/replies.jsonl` so you have a local decision log.
 - Can wrap any shell command and notify you when it finishes.
-- Includes an experimental auto-resume mode for sending replies back to Codex.
+- Includes auto-resume modes for sending replies back to Codex.
 
 WatchDex is Mac-first and local-first. The free path uses Home Assistant
 Companion for iPhone and Apple Watch. Pushcut is also supported if you already
@@ -41,11 +41,12 @@ Codex finishes work
   -> Apple Watch shows quick actions
   -> provider calls WatchDex /reply
   -> WatchDex records the response locally
+  -> optional auto-resume starts a Codex turn with that response
 ```
 
-Auto-continuing Codex from a watch tap is intentionally off by default. Replies
-are recorded first so the bridge stays safe while Codex session resume behavior
-is verified.
+Auto-continuing Codex from a watch tap is off by default. When enabled,
+`app-server` mode uses Codex's local app-server protocol to resume the recorded
+session and submit the watch reply as a new turn.
 
 ## Requirements
 
@@ -214,10 +215,25 @@ WatchDex reads `.env` from the repo root.
 | `PUSHCUT_WEBHOOK_URL` | Pushcut | Pushcut notification webhook URL. |
 | `PUSHCUT_SOUND` | No | Pushcut sound name. Defaults to `jobDone`. |
 | `PUSHCUT_TIME_SENSITIVE` | No | Send Pushcut alerts as time-sensitive. Defaults to `true`. |
-| `WATCH_BRIDGE_AUTO_RESUME` | No | Experimental Codex resume behavior. Defaults to `false`. |
+| `WATCH_BRIDGE_AUTO_RESUME` | No | Continue Codex from watch replies. Defaults to `false`. |
+| `WATCH_BRIDGE_AUTO_RESUME_MODE` | No | `cli` for `codex exec resume`, or `app-server` for Codex app-server turns. Defaults to `cli`. |
 | `WATCHDEX_SESSION_WATCH_INTERVAL_MS` | No | Session watcher polling interval. Defaults to `15000`. |
 | `WATCHDEX_SESSION_WATCH_DEBOUNCE_MS` | No | Delay before notifying a completed session message. Defaults to `45000`. |
-| `CODEX_BIN` | No | Path to the Codex CLI used by auto-resume. |
+| `CODEX_BIN` | No | Path to the Codex CLI used by `cli` auto-resume. |
+| `CODEX_APP_SERVER_BIN` | No | Path to the Codex CLI used by `app-server` auto-resume. Defaults to `~/.local/bin/codex` when installed. |
+
+To make watch replies start a Codex turn, install the standalone Codex CLI and
+enable app-server mode:
+
+```sh
+curl -fsSL https://chatgpt.com/codex/install.sh | sh
+```
+
+```sh
+WATCH_BRIDGE_AUTO_RESUME=true
+WATCH_BRIDGE_AUTO_RESUME_MODE=app-server
+CODEX_APP_SERVER_BIN=/Users/YOUR_USER/.local/bin/codex
+```
 
 ## Data And Security
 
@@ -240,8 +256,8 @@ Tailscale. Keep the token private either way.
 - Home Assistant replies include per-task action data for new notifications;
   older static actions still fall back to the latest task.
 - The built-in reply choices are fixed in code.
-- Auto-resume is experimental and depends on usable Codex session ids in hook
-  payloads.
+- Auto-resume depends on usable Codex session ids in hook payloads or the
+  session watcher fallback.
 - There is no native iOS/watchOS app yet, so WatchDex relies on Home Assistant
   or Pushcut for notification delivery.
 

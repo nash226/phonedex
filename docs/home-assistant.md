@@ -159,6 +159,23 @@ After tapping an action on your watch, check the bridge reply log:
 npm run replies
 ```
 
+To have a watch action continue Codex instead of only recording the reply,
+install the standalone Codex CLI and enable app-server auto-resume:
+
+```sh
+curl -fsSL https://chatgpt.com/codex/install.sh | sh
+```
+
+```sh
+WATCH_BRIDGE_AUTO_RESUME=true
+WATCH_BRIDGE_AUTO_RESUME_MODE=app-server
+CODEX_APP_SERVER_BIN=/Users/YOUR_USER/.local/bin/codex
+```
+
+Restart the WatchDex bridge after changing these values. New replies will be
+logged in `data/replies.jsonl`, and app-server resume attempts will be logged
+in `data/events.jsonl` plus `data/app-server-resume.log`.
+
 ## Notes
 
 Home Assistant receives the watch action event first, then calls the bridge.
