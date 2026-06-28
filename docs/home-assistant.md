@@ -16,6 +16,7 @@ You can test without a VM by running Home Assistant Core locally in an ignored
 Python virtualenv:
 
 ```sh
+brew install libjpeg-turbo
 npm run ha:install
 npm run ha:init-config
 npm run ha:start
