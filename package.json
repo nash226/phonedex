@@ -19,6 +19,8 @@
     "services:start": "bash ./scripts/install-launch-agents.sh start",
     "services:stop": "bash ./scripts/install-launch-agents.sh stop",
     "services:status": "bash ./scripts/install-launch-agents.sh status",
+    "watch:sessions": "node ./bin/codex-watch.js watch-sessions",
+    "scan:sessions": "node ./bin/codex-watch.js scan-sessions",
     "remote:install": "bash ./scripts/home-assistant-remote-tunnel.sh install",
     "remote:start": "bash ./scripts/home-assistant-remote-tunnel.sh start",
     "remote:stop": "bash ./scripts/home-assistant-remote-tunnel.sh stop",
