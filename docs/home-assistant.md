@@ -10,6 +10,26 @@ Use this provider when you want a free Apple Watch reply path without Pushcut.
 - A Home Assistant long-lived access token.
 - The bridge server running on an address your iPhone/Watch path can reach.
 
+## Local Core Test
+
+You can test without a VM by running Home Assistant Core locally in an ignored
+Python virtualenv:
+
+```sh
+npm run ha:install
+npm run ha:start
+```
+
+Then open:
+
+```text
+http://localhost:8123
+```
+
+This local setup is good for proving the notification provider. Home Assistant
+OS in a VM or on dedicated hardware is still the better long-term setup if you
+want add-ons, one-click updates, and an always-on smart-home hub.
+
 ## Bridge Configuration
 
 Set these values in `.env`:
