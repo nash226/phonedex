@@ -136,7 +136,7 @@ automation:
     action:
       - service: rest_command.codex_watch_reply
         data:
-          task_id: "{{ trigger.event.data.action_data.taskId | default('') }}"
+          task_id: "{{ trigger.event.data.get('action_data', {}).get('taskId', '') }}"
           choice: >
             {% if trigger.event.data.action.startswith('WATCHDEX_DO_THAT_')
                   or trigger.event.data.action == 'CODEX_WATCH_LETS_DO_THAT' %}
