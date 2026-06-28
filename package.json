@@ -11,6 +11,7 @@
     "hook": "node ./bin/codex-watch.js hook",
     "install-hook": "node ./scripts/install-codex-hook.js",
     "ha:install": "bash ./scripts/home-assistant-local.sh install",
+    "ha:init-config": "bash ./scripts/home-assistant-local.sh init-config",
     "ha:start": "bash ./scripts/home-assistant-local.sh start",
     "ha:doctor": "bash ./scripts/home-assistant-local.sh doctor",
     "test-notify": "node ./bin/codex-watch.js notify --title \"Codex test\" --text \"Watch bridge test notification\"",
