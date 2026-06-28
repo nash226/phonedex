@@ -45,6 +45,23 @@ Check them with:
 npm run services:status
 ```
 
+## Temporary Remote Access
+
+For a quick free remote test, expose local Home Assistant through Cloudflare
+Quick Tunnel:
+
+```sh
+brew install cloudflared
+npm run remote:install
+npm run remote:url
+```
+
+Use the printed `https://...trycloudflare.com` URL as the remote server URL in
+the Home Assistant Companion app.
+
+Quick Tunnel URLs are temporary. For a stable address, use a named Cloudflare
+Tunnel with a domain you control, Home Assistant Cloud, or Tailscale.
+
 ## Bridge Configuration
 
 Set these values in `.env`:
