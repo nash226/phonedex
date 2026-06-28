@@ -143,7 +143,7 @@ async function handleHook() {
   ]);
 
   const title = `Codex done: ${projectName}`;
-  const text = "Tap a response: okay whats next / lets do that";
+  const text = buildTaskMessage(payload);
   const task = createTask({
     source: "codex-stop-hook",
     title,
@@ -303,27 +303,40 @@ function buildPushcutBody(cfg, task) {
 }
 
 function buildHomeAssistantBody(cfg, task) {
+  const safeTaskId = task.id.replace(/[^A-Za-z0-9_]/g, "_").toUpperCase();
+  const actionPayloads = [
+    {
+      action: `WATCHDEX_OKAY_${safeTaskId}`,
+      title: "Okay, what's next",
+      choice: "okay_whats_next"
+    },
+    {
+      action: `WATCHDEX_DO_THAT_${safeTaskId}`,
+      title: "Let's do that",
+      choice: "lets_do_that"
+    }
+  ];
+
   return {
     title: task.title,
     message: task.text,
     data: {
-      tag: "watchdex",
+      tag: task.id,
       group: "watchdex",
       push: {
         "interruption-level": cfg.homeAssistantInterruptionLevel
       },
-      actions: [
-        {
-          action: "CODEX_WATCH_OKAY_WHATS_NEXT",
-          title: "Okay, what's next",
-          activationMode: "background"
-        },
-        {
-          action: "CODEX_WATCH_LETS_DO_THAT",
-          title: "Let's do that",
-          activationMode: "background"
+      actions: actionPayloads.map((payload) => ({
+        action: payload.action,
+        title: payload.title,
+        activationMode: "background",
+        action_data: {
+          token: cfg.token,
+          taskId: task.id,
+          choice: payload.choice,
+          prompt: RESPONSE_CHOICES[payload.choice]
         }
-      ]
+      }))
     }
   };
 }
@@ -528,6 +541,26 @@ function createTask(fields) {
   };
 }
 
+function buildTaskMessage(payload) {
+  const message = findFirstKey(payload, [
+    "last_assistant_message",
+    "lastAssistantMessage",
+    "assistant_message",
+    "assistantMessage"
+  ]);
+
+  if (!message) return "Tap a response: okay whats next / lets do that";
+
+  const cleaned = redactSensitiveText(message)
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/\[[^\]]+\]\([^)]+\)/g, "$1")
+    .replace(/[`*_>#-]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return truncate(cleaned || "Tap a response: okay whats next / lets do that", 220);
+}
+
 function printRecent(fileName) {
   const cfg = config();
   const entries = readJsonl(cfg.dataDir, fileName).slice(-20);
@@ -696,6 +729,19 @@ function findFirstKey(value, keys) {
     }
   }
   return "";
+}
+
+function redactSensitiveText(value) {
+  return String(value).replace(
+    /\b(password|token|secret|api[_ -]?key)\b\s*:?\s*([^\s`"'<>]{8,})/gi,
+    "$1: [redacted]"
+  );
+}
+
+function truncate(value, maxLength) {
+  const text = String(value);
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength - 1).trimEnd()}…`;
 }
 
 function sendJson(res, status, value) {

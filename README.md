@@ -230,8 +230,8 @@ Tailscale. Keep the token private either way.
 
 ## Current Limitations
 
-- Home Assistant callback automations currently map replies to the latest task
-  if they do not include a task id.
+- Home Assistant replies include per-task action data for new notifications;
+  older static actions still fall back to the latest task.
 - The built-in reply choices are fixed in code.
 - Auto-resume is experimental and depends on usable Codex session ids in hook
   payloads.

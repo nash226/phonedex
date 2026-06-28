@@ -109,38 +109,48 @@ Add these to Home Assistant. Replace `YOUR_MAC_LAN_IP` and
 
 ```yaml
 rest_command:
-  codex_watch_reply_okay_whats_next:
-    url: "http://YOUR_MAC_LAN_IP:8765/reply?token=YOUR_WATCH_BRIDGE_TOKEN&choice=okay_whats_next"
+  codex_watch_reply:
+    url: "http://YOUR_MAC_LAN_IP:8765/reply"
     method: POST
     content_type: "application/json"
-    payload: '{"token":"YOUR_WATCH_BRIDGE_TOKEN","choice":"okay_whats_next"}'
-
-  codex_watch_reply_lets_do_that:
-    url: "http://YOUR_MAC_LAN_IP:8765/reply?token=YOUR_WATCH_BRIDGE_TOKEN&choice=lets_do_that"
-    method: POST
-    content_type: "application/json"
-    payload: '{"token":"YOUR_WATCH_BRIDGE_TOKEN","choice":"lets_do_that"}'
+    payload: >
+      {
+        "token": "YOUR_WATCH_BRIDGE_TOKEN",
+        "taskId": "{{ task_id | default('') }}",
+        "choice": "{{ choice }}",
+        "prompt": "{{ prompt }}"
+      }
 
 automation:
-  - alias: "WatchDex reply: okay what's next"
+  - alias: "WatchDex reply actions"
     mode: single
     trigger:
       - platform: event
         event_type: mobile_app_notification_action
-        event_data:
-          action: CODEX_WATCH_OKAY_WHATS_NEXT
+    condition:
+      - condition: template
+        value_template: >
+          {{ trigger.event.data.action in ['CODEX_WATCH_OKAY_WHATS_NEXT', 'CODEX_WATCH_LETS_DO_THAT']
+             or trigger.event.data.action.startswith('WATCHDEX_OKAY_')
+             or trigger.event.data.action.startswith('WATCHDEX_DO_THAT_') }}
     action:
-      - service: rest_command.codex_watch_reply_okay_whats_next
-
-  - alias: "WatchDex reply: let's do that"
-    mode: single
-    trigger:
-      - platform: event
-        event_type: mobile_app_notification_action
-        event_data:
-          action: CODEX_WATCH_LETS_DO_THAT
-    action:
-      - service: rest_command.codex_watch_reply_lets_do_that
+      - service: rest_command.codex_watch_reply
+        data:
+          task_id: "{{ trigger.event.data.action_data.taskId | default('') }}"
+          choice: >
+            {% if trigger.event.data.action.startswith('WATCHDEX_DO_THAT_')
+                  or trigger.event.data.action == 'CODEX_WATCH_LETS_DO_THAT' %}
+              lets_do_that
+            {% else %}
+              okay_whats_next
+            {% endif %}
+          prompt: >
+            {% if trigger.event.data.action.startswith('WATCHDEX_DO_THAT_')
+                  or trigger.event.data.action == 'CODEX_WATCH_LETS_DO_THAT' %}
+              lets do that
+            {% else %}
+              okay whats next
+            {% endif %}
 ```
 
 After tapping an action on your watch, check the bridge reply log:
@@ -152,6 +162,7 @@ npm run replies
 ## Notes
 
 Home Assistant receives the watch action event first, then calls the bridge.
-The bridge records the reply against the latest task if the callback does not
-include a task id. That is good enough for one active Codex completion at a
-time; a later PR can add per-notification task identifiers to the callback.
+New WatchDex notifications include a per-task action id and `action_data.taskId`
+so replies are recorded against the exact Codex completion that sent the
+notification. Older static action ids still work, but they fall back to the
+latest task.
