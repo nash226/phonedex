@@ -9,6 +9,7 @@ const { spawn } = require("node:child_process");
 
 const ROOT = path.resolve(__dirname, "..");
 const DATA_DIR_DEFAULT = path.join(ROOT, "data");
+const SESSION_WATCH_STATE = "session-watch-state.json";
 
 const RESPONSE_CHOICES = {
   okay_whats_next: "okay whats next",
@@ -59,6 +60,16 @@ async function main() {
     return;
   }
 
+  if (command === "watch-sessions") {
+    await watchSessions(args);
+    return;
+  }
+
+  if (command === "scan-sessions") {
+    await scanSessionsCommand(args);
+    return;
+  }
+
   if (command === "reply") {
     await recordReplyFromCli(args);
     return;
@@ -100,6 +111,9 @@ function config() {
     pushcutSound: env.PUSHCUT_SOUND || "jobDone",
     pushcutTimeSensitive: parseBoolean(env.PUSHCUT_TIME_SENSITIVE, true),
     autoResume: parseBoolean(env.WATCH_BRIDGE_AUTO_RESUME, false),
+    codexHome: env.CODEX_HOME || path.join(os.homedir(), ".codex"),
+    sessionWatchIntervalMs: Number(env.WATCHDEX_SESSION_WATCH_INTERVAL_MS || "15000"),
+    sessionWatchDebounceMs: Number(env.WATCHDEX_SESSION_WATCH_DEBOUNCE_MS || "45000"),
     codexBin:
       env.CODEX_BIN || "/Applications/Codex.app/Contents/Resources/codex"
   };
@@ -581,6 +595,8 @@ Usage:
   watchdex server
   watchdex hook
   watchdex notify --title "Codex done" --text "Task completed"
+  watchdex watch-sessions
+  watchdex scan-sessions --notify-existing
   watchdex reply --choice okay_whats_next
   watchdex replies
   watchdex run -- <command> [args...]
@@ -659,6 +675,21 @@ function readJsonl(dataDir, fileName) {
     });
 }
 
+function readJsonFile(dataDir, fileName, fallback) {
+  const filePath = path.join(dataDir, fileName);
+  if (!fs.existsSync(filePath)) return fallback;
+  try {
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  } catch {
+    return fallback;
+  }
+}
+
+function writeJsonFile(dataDir, fileName, value) {
+  ensureDataDir(dataDir);
+  fs.writeFileSync(path.join(dataDir, fileName), `${JSON.stringify(value, null, 2)}\n`);
+}
+
 function latestJsonl(dataDir, fileName) {
   const entries = readJsonl(dataDir, fileName);
   return entries[entries.length - 1];
@@ -666,6 +697,156 @@ function latestJsonl(dataDir, fileName) {
 
 function findTask(dataDir, taskId) {
   return readJsonl(dataDir, "tasks.jsonl").find((task) => task.id === taskId);
+}
+
+async function watchSessions(args) {
+  const cfg = config();
+  ensureDataDir(cfg.dataDir);
+  const flags = parseFlags(args);
+  const notifyExisting = Boolean(flags.notifyExisting || flags["notify-existing"]);
+
+  await scanSessions({ cfg, notify: notifyExisting });
+  console.log(`Watching Codex sessions in ${path.join(cfg.codexHome, "sessions")}`);
+
+  setInterval(() => {
+    scanSessions({ cfg, notify: true }).catch(logError);
+  }, cfg.sessionWatchIntervalMs);
+}
+
+async function scanSessionsCommand(args) {
+  const cfg = config();
+  ensureDataDir(cfg.dataDir);
+  const flags = parseFlags(args);
+  const notified = await scanSessions({
+    cfg,
+    notify: Boolean(flags.notifyExisting || flags["notify-existing"])
+  });
+  console.log(JSON.stringify({ notified }, null, 2));
+}
+
+async function scanSessions({ cfg, notify }) {
+  const state = readJsonFile(cfg.dataDir, SESSION_WATCH_STATE, { seen: {} });
+  state.seen ||= {};
+
+  const existingTasks = readJsonl(cfg.dataDir, "tasks.jsonl");
+  const now = Date.now();
+  let notified = 0;
+
+  for (const filePath of recentSessionFiles(cfg.codexHome)) {
+    for (const item of readFinalSessionMessages(filePath)) {
+      if (state.seen[item.id]) continue;
+      if (now - Date.parse(item.at) < cfg.sessionWatchDebounceMs) continue;
+
+      state.seen[item.id] = new Date().toISOString();
+
+      if (!notify || hasMatchingTask(existingTasks, item)) continue;
+
+      const task = createTask({
+        source: "codex-session-watch",
+        title: `Codex done: ${path.basename(item.cwd || ROOT)}`,
+        text: truncate(redactSensitiveText(item.text).replace(/\s+/g, " ").trim(), 220),
+        cwd: item.cwd || ROOT,
+        sessionId: item.sessionId,
+        hookPayload: {
+          session_file: filePath,
+          message_id: item.messageId,
+          fallback: true
+        }
+      });
+
+      appendJsonl(cfg.dataDir, "tasks.jsonl", task);
+      await sendWatchNotification(cfg, task);
+      notified += 1;
+    }
+  }
+
+  state.seen = Object.fromEntries(Object.entries(state.seen).slice(-1000));
+  writeJsonFile(cfg.dataDir, SESSION_WATCH_STATE, state);
+  return notified;
+}
+
+function recentSessionFiles(codexHome) {
+  const sessionsDir = path.join(codexHome, "sessions");
+  if (!fs.existsSync(sessionsDir)) return [];
+  const cutoff = Date.now() - 48 * 60 * 60 * 1000;
+  const files = [];
+  walk(sessionsDir, files);
+  return files
+    .filter((filePath) => filePath.endsWith(".jsonl"))
+    .map((filePath) => ({ filePath, stat: fs.statSync(filePath) }))
+    .filter(({ stat }) => stat.mtimeMs >= cutoff)
+    .sort((a, b) => b.stat.mtimeMs - a.stat.mtimeMs)
+    .slice(0, 80)
+    .map(({ filePath }) => filePath);
+}
+
+function walk(dir, files) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) walk(fullPath, files);
+    else files.push(fullPath);
+  }
+}
+
+function readFinalSessionMessages(filePath) {
+  const sessionId = path.basename(filePath).match(/(019[a-z0-9-]+)/i)?.[1] || "";
+  const messages = [];
+  let cwd = "";
+
+  for (const line of fs.readFileSync(filePath, "utf8").split(/\r?\n/)) {
+    if (!line) continue;
+    let record;
+    try {
+      record = JSON.parse(line);
+    } catch {
+      continue;
+    }
+
+    const payload = record.payload || {};
+    if (payload.type === "function_call" && payload.arguments) {
+      try {
+        const args = JSON.parse(payload.arguments);
+        if (args.workdir) cwd = args.workdir;
+      } catch {
+        // Ignore malformed tool arguments from older session records.
+      }
+    }
+
+    if (record.type !== "response_item") continue;
+    if (payload.type !== "message" || payload.role !== "assistant") continue;
+    if (payload.phase && payload.phase !== "final") continue;
+
+    const text = extractMessageText(payload);
+    if (!text) continue;
+
+    messages.push({
+      id: `${filePath}:${payload.id || record.timestamp}`,
+      messageId: payload.id || "",
+      at: record.timestamp || new Date().toISOString(),
+      text,
+      cwd,
+      sessionId
+    });
+  }
+
+  return messages;
+}
+
+function extractMessageText(payload) {
+  return (payload.content || [])
+    .filter((part) => part && part.type === "output_text" && part.text)
+    .map((part) => part.text)
+    .join("\n")
+    .trim();
+}
+
+function hasMatchingTask(tasks, item) {
+  const clean = truncate(redactSensitiveText(item.text).replace(/\s+/g, " ").trim(), 220);
+  return tasks.some((task) =>
+    task.sessionId === item.sessionId &&
+    task.text === clean &&
+    Math.abs(Date.parse(task.at) - Date.parse(item.at)) < 5 * 60 * 1000
+  );
 }
 
 function makeId(prefix) {

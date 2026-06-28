@@ -36,6 +36,7 @@ The reliable path today is:
 ```text
 Codex finishes work
   -> Codex Stop hook runs WatchDex
+  -> WatchDex session watcher catches missed Stop hooks
   -> WatchDex sends a provider notification
   -> Apple Watch shows quick actions
   -> provider calls WatchDex /reply
@@ -186,6 +187,8 @@ callers cannot record replies.
 | `npm run services:start` | Start the LaunchAgents. |
 | `npm run services:stop` | Stop the LaunchAgents. |
 | `npm run services:status` | Print LaunchAgent status. |
+| `npm run watch:sessions` | Watch Codex session logs for completed responses missed by hooks. |
+| `npm run scan:sessions` | Scan recent Codex session logs once without notifying old history. |
 | `npm run remote:install` | Install a Cloudflare Quick Tunnel LaunchAgent for Home Assistant. |
 | `npm run remote:start` | Start the Cloudflare Quick Tunnel LaunchAgent. |
 | `npm run remote:stop` | Stop the Cloudflare Quick Tunnel LaunchAgent. |
@@ -212,6 +215,8 @@ WatchDex reads `.env` from the repo root.
 | `PUSHCUT_SOUND` | No | Pushcut sound name. Defaults to `jobDone`. |
 | `PUSHCUT_TIME_SENSITIVE` | No | Send Pushcut alerts as time-sensitive. Defaults to `true`. |
 | `WATCH_BRIDGE_AUTO_RESUME` | No | Experimental Codex resume behavior. Defaults to `false`. |
+| `WATCHDEX_SESSION_WATCH_INTERVAL_MS` | No | Session watcher polling interval. Defaults to `15000`. |
+| `WATCHDEX_SESSION_WATCH_DEBOUNCE_MS` | No | Delay before notifying a completed session message. Defaults to `45000`. |
 | `CODEX_BIN` | No | Path to the Codex CLI used by auto-resume. |
 
 ## Data And Security
@@ -221,6 +226,8 @@ WatchDex reads `.env` from the repo root.
 - `data/tasks.jsonl` stores completion events.
 - `data/replies.jsonl` stores watch replies.
 - `data/events.jsonl` stores provider delivery attempts.
+- `data/session-watch-state.json` stores session message ids already seen by
+  the fallback watcher.
 - `/reply` rejects requests with an invalid token when `WATCH_BRIDGE_TOKEN` is
   set.
 
