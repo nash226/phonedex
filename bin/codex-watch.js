@@ -9,6 +9,7 @@ const { spawn } = require("node:child_process");
 
 const ROOT = path.resolve(__dirname, "..");
 const DATA_DIR_DEFAULT = path.join(ROOT, "data");
+const SESSION_WATCH_STATE = "session-watch-state.json";
 
 const RESPONSE_CHOICES = {
   okay_whats_next: "okay whats next",
@@ -59,6 +60,16 @@ async function main() {
     return;
   }
 
+  if (command === "watch-sessions") {
+    await watchSessions(args);
+    return;
+  }
+
+  if (command === "scan-sessions") {
+    await scanSessionsCommand(args);
+    return;
+  }
+
   if (command === "reply") {
     await recordReplyFromCli(args);
     return;
@@ -79,9 +90,19 @@ function config() {
   const publicUrl = trimTrailingSlash(
     env.WATCH_BRIDGE_PUBLIC_URL || `http://${host}:${port}`
   );
+  const homeAssistantUrl = trimTrailingSlash(env.HOME_ASSISTANT_URL || "");
+  const provider =
+    env.WATCH_BRIDGE_PROVIDER ||
+    (homeAssistantUrl && env.HOME_ASSISTANT_TOKEN ? "home-assistant" : "pushcut");
 
   return {
+    provider,
     pushcutWebhookUrl: env.PUSHCUT_WEBHOOK_URL || "",
+    homeAssistantUrl,
+    homeAssistantToken: env.HOME_ASSISTANT_TOKEN || "",
+    homeAssistantNotifyService: env.HOME_ASSISTANT_NOTIFY_SERVICE || "",
+    homeAssistantInterruptionLevel:
+      env.HOME_ASSISTANT_INTERRUPTION_LEVEL || "time-sensitive",
     publicUrl,
     token: env.WATCH_BRIDGE_TOKEN || "",
     host,
@@ -90,6 +111,9 @@ function config() {
     pushcutSound: env.PUSHCUT_SOUND || "jobDone",
     pushcutTimeSensitive: parseBoolean(env.PUSHCUT_TIME_SENSITIVE, true),
     autoResume: parseBoolean(env.WATCH_BRIDGE_AUTO_RESUME, false),
+    codexHome: env.CODEX_HOME || path.join(os.homedir(), ".codex"),
+    sessionWatchIntervalMs: Number(env.WATCHDEX_SESSION_WATCH_INTERVAL_MS || "15000"),
+    sessionWatchDebounceMs: Number(env.WATCHDEX_SESSION_WATCH_DEBOUNCE_MS || "45000"),
     codexBin:
       env.CODEX_BIN || "/Applications/Codex.app/Contents/Resources/codex"
   };
@@ -109,9 +133,9 @@ async function setup() {
 
   console.log("");
   console.log("Next:");
-  console.log("1. Put your Pushcut webhook URL in .env");
+  console.log("1. Choose pushcut or home-assistant in .env");
   console.log("2. Run: npm run server");
-  console.log("3. In Codex, open /hooks and trust the Codex Watch Bridge hook");
+  console.log("3. In Codex, open /hooks and trust the WatchDex hook");
   console.log("4. Run: npm run test-notify");
 }
 
@@ -133,7 +157,7 @@ async function handleHook() {
   ]);
 
   const title = `Codex done: ${projectName}`;
-  const text = "Tap a response: okay whats next / lets do that";
+  const text = buildTaskMessage(payload);
   const task = createTask({
     source: "codex-stop-hook",
     title,
@@ -169,8 +193,19 @@ async function sendWatchNotification(cfg, task) {
     at: new Date().toISOString(),
     type: "notification-attempt",
     taskId: task.id,
-    hasPushcutWebhook: Boolean(cfg.pushcutWebhookUrl)
+    provider: cfg.provider,
+    hasPushcutWebhook: Boolean(cfg.pushcutWebhookUrl),
+    hasHomeAssistant: Boolean(
+      cfg.homeAssistantUrl &&
+      cfg.homeAssistantToken &&
+      cfg.homeAssistantNotifyService
+    )
   };
+
+  if (cfg.provider === "home-assistant") {
+    await sendHomeAssistantNotification(cfg, task, event);
+    return;
+  }
 
   if (!cfg.pushcutWebhookUrl) {
     appendJsonl(cfg.dataDir, "events.jsonl", {
@@ -198,6 +233,40 @@ async function sendWatchNotification(cfg, task) {
 
   if (!response.ok) {
     throw new Error(`Pushcut returned HTTP ${response.status}: ${responseText}`);
+  }
+}
+
+async function sendHomeAssistantNotification(cfg, task, event) {
+  if (!cfg.homeAssistantUrl || !cfg.homeAssistantToken || !cfg.homeAssistantNotifyService) {
+    appendJsonl(cfg.dataDir, "events.jsonl", {
+      ...event,
+      skipped: true,
+      reason:
+        "HOME_ASSISTANT_URL, HOME_ASSISTANT_TOKEN, and HOME_ASSISTANT_NOTIFY_SERVICE are required"
+    });
+    return;
+  }
+
+  const service = parseHomeAssistantNotifyService(cfg.homeAssistantNotifyService);
+  const response = await fetch(`${cfg.homeAssistantUrl}/api/services/${service.domain}/${service.name}`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${cfg.homeAssistantToken}`,
+      "content-type": "application/json"
+    },
+    body: JSON.stringify(buildHomeAssistantBody(cfg, task))
+  });
+
+  const responseText = await response.text();
+  appendJsonl(cfg.dataDir, "events.jsonl", {
+    ...event,
+    status: response.status,
+    ok: response.ok,
+    response: responseText.slice(0, 500)
+  });
+
+  if (!response.ok) {
+    throw new Error(`Home Assistant returned HTTP ${response.status}: ${responseText}`);
   }
 }
 
@@ -236,7 +305,7 @@ function buildPushcutBody(cfg, task) {
     text: task.text,
     sound: cfg.pushcutSound,
     isTimeSensitive: cfg.pushcutTimeSensitive,
-    threadId: "codex-watch",
+    threadId: "watchdex",
     id: task.id,
     input: JSON.stringify({
       taskId: task.id,
@@ -245,6 +314,59 @@ function buildPushcutBody(cfg, task) {
     }),
     actions
   };
+}
+
+function buildHomeAssistantBody(cfg, task) {
+  const safeTaskId = task.id.replace(/[^A-Za-z0-9_]/g, "_").toUpperCase();
+  const actionPayloads = [
+    {
+      action: `WATCHDEX_OKAY_${safeTaskId}`,
+      title: "Okay, what's next",
+      choice: "okay_whats_next"
+    },
+    {
+      action: `WATCHDEX_DO_THAT_${safeTaskId}`,
+      title: "Let's do that",
+      choice: "lets_do_that"
+    }
+  ];
+
+  return {
+    title: task.title,
+    message: task.text,
+    data: {
+      tag: task.id,
+      group: "watchdex",
+      push: {
+        "interruption-level": cfg.homeAssistantInterruptionLevel
+      },
+      actions: actionPayloads.map((payload) => ({
+        action: payload.action,
+        title: payload.title,
+        activationMode: "background",
+        action_data: {
+          token: cfg.token,
+          taskId: task.id,
+          choice: payload.choice,
+          prompt: RESPONSE_CHOICES[payload.choice]
+        }
+      }))
+    }
+  };
+}
+
+function parseHomeAssistantNotifyService(value) {
+  const cleaned = String(value || "").trim();
+  if (!cleaned) {
+    throw new Error("HOME_ASSISTANT_NOTIFY_SERVICE is required");
+  }
+
+  if (cleaned.includes(".")) {
+    const [domain, name] = cleaned.split(".", 2);
+    return { domain, name };
+  }
+
+  return { domain: "notify", name: cleaned };
 }
 
 async function startServer() {
@@ -262,7 +384,7 @@ async function startServer() {
       if (requestUrl.pathname === "/health") {
         return sendJson(res, 200, {
           ok: true,
-          service: "codex-watch-bridge",
+          service: "watchdex",
           publicUrl: cfg.publicUrl
         });
       }
@@ -280,7 +402,7 @@ async function startServer() {
       }
 
       sendJson(res, 200, {
-        service: "codex-watch-bridge",
+        service: "watchdex",
         endpoints: ["/health", "/reply", "/replies", "/tasks"]
       });
     } catch (error) {
@@ -290,8 +412,8 @@ async function startServer() {
   });
 
   await new Promise((resolve) => server.listen(cfg.port, cfg.host, resolve));
-  console.log(`Codex Watch Bridge listening on http://${cfg.host}:${cfg.port}`);
-  console.log(`Pushcut callback public URL should be: ${cfg.publicUrl}/reply`);
+  console.log(`WatchDex listening on http://${cfg.host}:${cfg.port}`);
+  console.log(`Watch reply callback public URL should be: ${cfg.publicUrl}/reply`);
 }
 
 async function handleReplyRequest(req, res, requestUrl, cfg) {
@@ -399,7 +521,7 @@ async function runAndNotify(args) {
   const separatorIndex = args.indexOf("--");
   const commandArgs = separatorIndex >= 0 ? args.slice(separatorIndex + 1) : args;
   if (commandArgs.length === 0) {
-    throw new Error("Usage: codex-watch run -- <command> [args...]");
+    throw new Error("Usage: watchdex run -- <command> [args...]");
   }
 
   const startedAt = Date.now();
@@ -433,6 +555,26 @@ function createTask(fields) {
   };
 }
 
+function buildTaskMessage(payload) {
+  const message = findFirstKey(payload, [
+    "last_assistant_message",
+    "lastAssistantMessage",
+    "assistant_message",
+    "assistantMessage"
+  ]);
+
+  if (!message) return "Tap a response: okay whats next / lets do that";
+
+  const cleaned = redactSensitiveText(message)
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/\[[^\]]+\]\([^)]+\)/g, "$1")
+    .replace(/[`*_>#-]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return truncate(cleaned || "Tap a response: okay whats next / lets do that", 220);
+}
+
 function printRecent(fileName) {
   const cfg = config();
   const entries = readJsonl(cfg.dataDir, fileName).slice(-20);
@@ -446,16 +588,18 @@ function printRecent(fileName) {
 }
 
 function printHelp() {
-  console.log(`Codex Watch Bridge
+  console.log(`WatchDex
 
 Usage:
-  codex-watch setup
-  codex-watch server
-  codex-watch hook
-  codex-watch notify --title "Codex done" --text "Task completed"
-  codex-watch reply --choice okay_whats_next
-  codex-watch replies
-  codex-watch run -- <command> [args...]
+  watchdex setup
+  watchdex server
+  watchdex hook
+  watchdex notify --title "Codex done" --text "Task completed"
+  watchdex watch-sessions
+  watchdex scan-sessions --notify-existing
+  watchdex reply --choice okay_whats_next
+  watchdex replies
+  watchdex run -- <command> [args...]
 `);
 }
 
@@ -531,6 +675,21 @@ function readJsonl(dataDir, fileName) {
     });
 }
 
+function readJsonFile(dataDir, fileName, fallback) {
+  const filePath = path.join(dataDir, fileName);
+  if (!fs.existsSync(filePath)) return fallback;
+  try {
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  } catch {
+    return fallback;
+  }
+}
+
+function writeJsonFile(dataDir, fileName, value) {
+  ensureDataDir(dataDir);
+  fs.writeFileSync(path.join(dataDir, fileName), `${JSON.stringify(value, null, 2)}\n`);
+}
+
 function latestJsonl(dataDir, fileName) {
   const entries = readJsonl(dataDir, fileName);
   return entries[entries.length - 1];
@@ -538,6 +697,156 @@ function latestJsonl(dataDir, fileName) {
 
 function findTask(dataDir, taskId) {
   return readJsonl(dataDir, "tasks.jsonl").find((task) => task.id === taskId);
+}
+
+async function watchSessions(args) {
+  const cfg = config();
+  ensureDataDir(cfg.dataDir);
+  const flags = parseFlags(args);
+  const notifyExisting = Boolean(flags.notifyExisting || flags["notify-existing"]);
+
+  await scanSessions({ cfg, notify: notifyExisting });
+  console.log(`Watching Codex sessions in ${path.join(cfg.codexHome, "sessions")}`);
+
+  setInterval(() => {
+    scanSessions({ cfg, notify: true }).catch(logError);
+  }, cfg.sessionWatchIntervalMs);
+}
+
+async function scanSessionsCommand(args) {
+  const cfg = config();
+  ensureDataDir(cfg.dataDir);
+  const flags = parseFlags(args);
+  const notified = await scanSessions({
+    cfg,
+    notify: Boolean(flags.notifyExisting || flags["notify-existing"])
+  });
+  console.log(JSON.stringify({ notified }, null, 2));
+}
+
+async function scanSessions({ cfg, notify }) {
+  const state = readJsonFile(cfg.dataDir, SESSION_WATCH_STATE, { seen: {} });
+  state.seen ||= {};
+
+  const existingTasks = readJsonl(cfg.dataDir, "tasks.jsonl");
+  const now = Date.now();
+  let notified = 0;
+
+  for (const filePath of recentSessionFiles(cfg.codexHome)) {
+    for (const item of readFinalSessionMessages(filePath)) {
+      if (state.seen[item.id]) continue;
+      if (now - Date.parse(item.at) < cfg.sessionWatchDebounceMs) continue;
+
+      state.seen[item.id] = new Date().toISOString();
+
+      if (!notify || hasMatchingTask(existingTasks, item)) continue;
+
+      const task = createTask({
+        source: "codex-session-watch",
+        title: `Codex done: ${path.basename(item.cwd || ROOT)}`,
+        text: truncate(redactSensitiveText(item.text).replace(/\s+/g, " ").trim(), 220),
+        cwd: item.cwd || ROOT,
+        sessionId: item.sessionId,
+        hookPayload: {
+          session_file: filePath,
+          message_id: item.messageId,
+          fallback: true
+        }
+      });
+
+      appendJsonl(cfg.dataDir, "tasks.jsonl", task);
+      await sendWatchNotification(cfg, task);
+      notified += 1;
+    }
+  }
+
+  state.seen = Object.fromEntries(Object.entries(state.seen).slice(-1000));
+  writeJsonFile(cfg.dataDir, SESSION_WATCH_STATE, state);
+  return notified;
+}
+
+function recentSessionFiles(codexHome) {
+  const sessionsDir = path.join(codexHome, "sessions");
+  if (!fs.existsSync(sessionsDir)) return [];
+  const cutoff = Date.now() - 48 * 60 * 60 * 1000;
+  const files = [];
+  walk(sessionsDir, files);
+  return files
+    .filter((filePath) => filePath.endsWith(".jsonl"))
+    .map((filePath) => ({ filePath, stat: fs.statSync(filePath) }))
+    .filter(({ stat }) => stat.mtimeMs >= cutoff)
+    .sort((a, b) => b.stat.mtimeMs - a.stat.mtimeMs)
+    .slice(0, 80)
+    .map(({ filePath }) => filePath);
+}
+
+function walk(dir, files) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) walk(fullPath, files);
+    else files.push(fullPath);
+  }
+}
+
+function readFinalSessionMessages(filePath) {
+  const sessionId = path.basename(filePath).match(/(019[a-z0-9-]+)/i)?.[1] || "";
+  const messages = [];
+  let cwd = "";
+
+  for (const line of fs.readFileSync(filePath, "utf8").split(/\r?\n/)) {
+    if (!line) continue;
+    let record;
+    try {
+      record = JSON.parse(line);
+    } catch {
+      continue;
+    }
+
+    const payload = record.payload || {};
+    if (payload.type === "function_call" && payload.arguments) {
+      try {
+        const args = JSON.parse(payload.arguments);
+        if (args.workdir) cwd = args.workdir;
+      } catch {
+        // Ignore malformed tool arguments from older session records.
+      }
+    }
+
+    if (record.type !== "response_item") continue;
+    if (payload.type !== "message" || payload.role !== "assistant") continue;
+    if (payload.phase && payload.phase !== "final") continue;
+
+    const text = extractMessageText(payload);
+    if (!text) continue;
+
+    messages.push({
+      id: `${filePath}:${payload.id || record.timestamp}`,
+      messageId: payload.id || "",
+      at: record.timestamp || new Date().toISOString(),
+      text,
+      cwd,
+      sessionId
+    });
+  }
+
+  return messages;
+}
+
+function extractMessageText(payload) {
+  return (payload.content || [])
+    .filter((part) => part && part.type === "output_text" && part.text)
+    .map((part) => part.text)
+    .join("\n")
+    .trim();
+}
+
+function hasMatchingTask(tasks, item) {
+  const clean = truncate(redactSensitiveText(item.text).replace(/\s+/g, " ").trim(), 220);
+  return tasks.some((task) =>
+    task.sessionId === item.sessionId &&
+    task.text === clean &&
+    Math.abs(Date.parse(task.at) - Date.parse(item.at)) < 5 * 60 * 1000
+  );
 }
 
 function makeId(prefix) {
@@ -601,6 +910,19 @@ function findFirstKey(value, keys) {
     }
   }
   return "";
+}
+
+function redactSensitiveText(value) {
+  return String(value).replace(
+    /\b(password|token|secret|api[_ -]?key)\b\s*:?\s*([^\s`"'<>]{8,})/gi,
+    "$1: [redacted]"
+  );
+}
+
+function truncate(value, maxLength) {
+  const text = String(value);
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength - 1).trimEnd()}…`;
 }
 
 function sendJson(res, status, value) {

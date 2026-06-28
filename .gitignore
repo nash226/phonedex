@@ -1,4 +1,6 @@
 .env
+.local/
 data/*.jsonl
 data/*.log
+data/*.json
 node_modules/
