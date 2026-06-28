@@ -1,0 +1,20 @@
+{
+  "name": "codex-watch-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Send Codex completion alerts to Apple Watch through actionable Pushcut notifications.",
+  "bin": {
+    "codex-watch": "./bin/codex-watch.js"
+  },
+  "scripts": {
+    "server": "node ./bin/codex-watch.js server",
+    "hook": "node ./bin/codex-watch.js hook",
+    "test-notify": "node ./bin/codex-watch.js notify --title \"Codex test\" --text \"Watch bridge test notification\"",
+    "replies": "node ./bin/codex-watch.js replies",
+    "tasks": "node ./bin/codex-watch.js tasks",
+    "check": "node --check ./bin/codex-watch.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
