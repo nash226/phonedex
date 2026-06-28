@@ -5,8 +5,10 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LAUNCH_AGENTS_DIR="$HOME/Library/LaunchAgents"
 GUI_DOMAIN="gui/$(id -u)"
 
-HA_LABEL="com.nash226.codex-watch.homeassistant"
-BRIDGE_LABEL="com.nash226.codex-watch.bridge"
+HA_LABEL="com.nash226.watchdex.homeassistant"
+BRIDGE_LABEL="com.nash226.watchdex.bridge"
+LEGACY_HA_LABEL="com.nash226.codex-watch.homeassistant"
+LEGACY_BRIDGE_LABEL="com.nash226.codex-watch.bridge"
 
 HA_PLIST="$LAUNCH_AGENTS_DIR/$HA_LABEL.plist"
 BRIDGE_PLIST="$LAUNCH_AGENTS_DIR/$BRIDGE_LABEL.plist"
@@ -21,7 +23,7 @@ Usage:
 
 The installer writes user LaunchAgents for:
   - local Home Assistant Core on port 8123
-  - Codex Watch Bridge on port 8765
+  - WatchDex on port 8765
 EOF
 }
 
@@ -125,6 +127,8 @@ case "${1:-}" in
     write_plists
     bootout_if_loaded "$HA_LABEL"
     bootout_if_loaded "$BRIDGE_LABEL"
+    bootout_if_loaded "$LEGACY_HA_LABEL"
+    bootout_if_loaded "$LEGACY_BRIDGE_LABEL"
     bootstrap
     kickstart
     ;;

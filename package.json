@@ -1,9 +1,10 @@
 {
-  "name": "codex-watch-bridge",
+  "name": "watchdex",
   "version": "0.1.0",
   "private": true,
-  "description": "Send Codex completion alerts to Apple Watch through actionable notifications.",
+  "description": "Apple Watch alerts and quick replies for completed Codex tasks.",
   "bin": {
+    "watchdex": "./bin/codex-watch.js",
     "codex-watch": "./bin/codex-watch.js"
   },
   "scripts": {
@@ -18,7 +19,7 @@
     "services:start": "bash ./scripts/install-launch-agents.sh start",
     "services:stop": "bash ./scripts/install-launch-agents.sh stop",
     "services:status": "bash ./scripts/install-launch-agents.sh status",
-    "test-notify": "node ./bin/codex-watch.js notify --title \"Codex test\" --text \"Watch bridge test notification\"",
+    "test-notify": "node ./bin/codex-watch.js notify --title \"WatchDex test\" --text \"WatchDex test notification\"",
     "replies": "node ./bin/codex-watch.js replies",
     "tasks": "node ./bin/codex-watch.js tasks",
     "check": "node --check ./bin/codex-watch.js"

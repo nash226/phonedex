@@ -13,7 +13,7 @@ const hookDefinition = {
   type: "command",
   command: hookCommand,
   timeout: 20,
-  statusMessage: "Sending Codex Watch alert"
+  statusMessage: "Sending WatchDex alert"
 };
 
 fs.mkdirSync(codexHome, { recursive: true });
@@ -28,7 +28,7 @@ group.hooks.push(hookDefinition);
 
 fs.writeFileSync(hooksPath, `${JSON.stringify(hooksConfig, null, 2)}\n`);
 
-console.log(`Installed Codex Watch Bridge Stop hook in ${hooksPath}`);
+console.log(`Installed WatchDex Stop hook in ${hooksPath}`);
 console.log("Open /hooks in Codex and trust the hook before relying on it.");
 
 function readHooksConfig(filePath) {

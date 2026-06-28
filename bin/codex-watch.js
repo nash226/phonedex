@@ -121,7 +121,7 @@ async function setup() {
   console.log("Next:");
   console.log("1. Choose pushcut or home-assistant in .env");
   console.log("2. Run: npm run server");
-  console.log("3. In Codex, open /hooks and trust the Codex Watch Bridge hook");
+  console.log("3. In Codex, open /hooks and trust the WatchDex hook");
   console.log("4. Run: npm run test-notify");
 }
 
@@ -291,7 +291,7 @@ function buildPushcutBody(cfg, task) {
     text: task.text,
     sound: cfg.pushcutSound,
     isTimeSensitive: cfg.pushcutTimeSensitive,
-    threadId: "codex-watch",
+    threadId: "watchdex",
     id: task.id,
     input: JSON.stringify({
       taskId: task.id,
@@ -307,8 +307,8 @@ function buildHomeAssistantBody(cfg, task) {
     title: task.title,
     message: task.text,
     data: {
-      tag: "codex-watch",
-      group: "codex-watch",
+      tag: "watchdex",
+      group: "watchdex",
       push: {
         "interruption-level": cfg.homeAssistantInterruptionLevel
       },
@@ -357,7 +357,7 @@ async function startServer() {
       if (requestUrl.pathname === "/health") {
         return sendJson(res, 200, {
           ok: true,
-          service: "codex-watch-bridge",
+          service: "watchdex",
           publicUrl: cfg.publicUrl
         });
       }
@@ -375,7 +375,7 @@ async function startServer() {
       }
 
       sendJson(res, 200, {
-        service: "codex-watch-bridge",
+        service: "watchdex",
         endpoints: ["/health", "/reply", "/replies", "/tasks"]
       });
     } catch (error) {
@@ -385,7 +385,7 @@ async function startServer() {
   });
 
   await new Promise((resolve) => server.listen(cfg.port, cfg.host, resolve));
-  console.log(`Codex Watch Bridge listening on http://${cfg.host}:${cfg.port}`);
+  console.log(`WatchDex listening on http://${cfg.host}:${cfg.port}`);
   console.log(`Watch reply callback public URL should be: ${cfg.publicUrl}/reply`);
 }
 
@@ -494,7 +494,7 @@ async function runAndNotify(args) {
   const separatorIndex = args.indexOf("--");
   const commandArgs = separatorIndex >= 0 ? args.slice(separatorIndex + 1) : args;
   if (commandArgs.length === 0) {
-    throw new Error("Usage: codex-watch run -- <command> [args...]");
+    throw new Error("Usage: watchdex run -- <command> [args...]");
   }
 
   const startedAt = Date.now();
@@ -541,16 +541,16 @@ function printRecent(fileName) {
 }
 
 function printHelp() {
-  console.log(`Codex Watch Bridge
+  console.log(`WatchDex
 
 Usage:
-  codex-watch setup
-  codex-watch server
-  codex-watch hook
-  codex-watch notify --title "Codex done" --text "Task completed"
-  codex-watch reply --choice okay_whats_next
-  codex-watch replies
-  codex-watch run -- <command> [args...]
+  watchdex setup
+  watchdex server
+  watchdex hook
+  watchdex notify --title "Codex done" --text "Task completed"
+  watchdex reply --choice okay_whats_next
+  watchdex replies
+  watchdex run -- <command> [args...]
 `);
 }
 

@@ -1,6 +1,7 @@
-# Codex Watch Bridge
+# WatchDex
 
-This is a small bridge for Apple Watch-friendly Codex completion alerts:
+WatchDex is a local bridge that turns completed Codex tasks into Apple
+Watch-friendly notifications with quick replies.
 
 1. Codex finishes a turn.
 2. A Codex `Stop` hook runs `bin/codex-watch.js hook`.
@@ -9,7 +10,7 @@ This is a small bridge for Apple Watch-friendly Codex completion alerts:
    - `Let's do that`
 4. Tapping an action calls this bridge's `/reply` endpoint and records the response in `data/replies.jsonl`.
 
-The bridge supports Pushcut and a free Home Assistant provider. A native
+WatchDex supports Pushcut and a free Home Assistant provider. A native
 iOS/watchOS app would remove third-party dependencies, but it needs APNs,
 signing, and more setup.
 
@@ -40,7 +41,7 @@ Start the reply server:
 npm run server
 ```
 
-In Codex, open `/hooks`, review the "Codex Watch Bridge" hook, and trust it. Codex requires trust for changed user hooks before running them.
+In Codex, open `/hooks`, review the "WatchDex" hook, and trust it. Codex requires trust for changed user hooks before running them.
 
 Send a test alert:
 
@@ -108,7 +109,7 @@ You can also wrap any command:
 node ./bin/codex-watch.js run -- npm test
 ```
 
-When the command exits, the bridge sends the same watch notification.
+When the command exits, WatchDex sends the same watch notification.
 
 ## References
 

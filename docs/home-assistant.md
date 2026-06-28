@@ -93,7 +93,7 @@ rest_command:
     payload: '{"token":"YOUR_WATCH_BRIDGE_TOKEN","choice":"lets_do_that"}'
 
 automation:
-  - alias: "Codex Watch reply: okay what's next"
+  - alias: "WatchDex reply: okay what's next"
     mode: single
     trigger:
       - platform: event
@@ -103,7 +103,7 @@ automation:
     action:
       - service: rest_command.codex_watch_reply_okay_whats_next
 
-  - alias: "Codex Watch reply: let's do that"
+  - alias: "WatchDex reply: let's do that"
     mode: single
     trigger:
       - platform: event
