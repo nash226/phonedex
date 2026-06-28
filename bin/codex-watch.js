@@ -79,9 +79,19 @@ function config() {
   const publicUrl = trimTrailingSlash(
     env.WATCH_BRIDGE_PUBLIC_URL || `http://${host}:${port}`
   );
+  const homeAssistantUrl = trimTrailingSlash(env.HOME_ASSISTANT_URL || "");
+  const provider =
+    env.WATCH_BRIDGE_PROVIDER ||
+    (homeAssistantUrl && env.HOME_ASSISTANT_TOKEN ? "home-assistant" : "pushcut");
 
   return {
+    provider,
     pushcutWebhookUrl: env.PUSHCUT_WEBHOOK_URL || "",
+    homeAssistantUrl,
+    homeAssistantToken: env.HOME_ASSISTANT_TOKEN || "",
+    homeAssistantNotifyService: env.HOME_ASSISTANT_NOTIFY_SERVICE || "",
+    homeAssistantInterruptionLevel:
+      env.HOME_ASSISTANT_INTERRUPTION_LEVEL || "time-sensitive",
     publicUrl,
     token: env.WATCH_BRIDGE_TOKEN || "",
     host,
@@ -109,7 +119,7 @@ async function setup() {
 
   console.log("");
   console.log("Next:");
-  console.log("1. Put your Pushcut webhook URL in .env");
+  console.log("1. Choose pushcut or home-assistant in .env");
   console.log("2. Run: npm run server");
   console.log("3. In Codex, open /hooks and trust the Codex Watch Bridge hook");
   console.log("4. Run: npm run test-notify");
@@ -169,8 +179,19 @@ async function sendWatchNotification(cfg, task) {
     at: new Date().toISOString(),
     type: "notification-attempt",
     taskId: task.id,
-    hasPushcutWebhook: Boolean(cfg.pushcutWebhookUrl)
+    provider: cfg.provider,
+    hasPushcutWebhook: Boolean(cfg.pushcutWebhookUrl),
+    hasHomeAssistant: Boolean(
+      cfg.homeAssistantUrl &&
+      cfg.homeAssistantToken &&
+      cfg.homeAssistantNotifyService
+    )
   };
+
+  if (cfg.provider === "home-assistant") {
+    await sendHomeAssistantNotification(cfg, task, event);
+    return;
+  }
 
   if (!cfg.pushcutWebhookUrl) {
     appendJsonl(cfg.dataDir, "events.jsonl", {
@@ -198,6 +219,40 @@ async function sendWatchNotification(cfg, task) {
 
   if (!response.ok) {
     throw new Error(`Pushcut returned HTTP ${response.status}: ${responseText}`);
+  }
+}
+
+async function sendHomeAssistantNotification(cfg, task, event) {
+  if (!cfg.homeAssistantUrl || !cfg.homeAssistantToken || !cfg.homeAssistantNotifyService) {
+    appendJsonl(cfg.dataDir, "events.jsonl", {
+      ...event,
+      skipped: true,
+      reason:
+        "HOME_ASSISTANT_URL, HOME_ASSISTANT_TOKEN, and HOME_ASSISTANT_NOTIFY_SERVICE are required"
+    });
+    return;
+  }
+
+  const service = parseHomeAssistantNotifyService(cfg.homeAssistantNotifyService);
+  const response = await fetch(`${cfg.homeAssistantUrl}/api/services/${service.domain}/${service.name}`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${cfg.homeAssistantToken}`,
+      "content-type": "application/json"
+    },
+    body: JSON.stringify(buildHomeAssistantBody(cfg, task))
+  });
+
+  const responseText = await response.text();
+  appendJsonl(cfg.dataDir, "events.jsonl", {
+    ...event,
+    status: response.status,
+    ok: response.ok,
+    response: responseText.slice(0, 500)
+  });
+
+  if (!response.ok) {
+    throw new Error(`Home Assistant returned HTTP ${response.status}: ${responseText}`);
   }
 }
 
@@ -247,6 +302,46 @@ function buildPushcutBody(cfg, task) {
   };
 }
 
+function buildHomeAssistantBody(cfg, task) {
+  return {
+    title: task.title,
+    message: task.text,
+    data: {
+      tag: "codex-watch",
+      group: "codex-watch",
+      push: {
+        "interruption-level": cfg.homeAssistantInterruptionLevel
+      },
+      actions: [
+        {
+          action: "CODEX_WATCH_OKAY_WHATS_NEXT",
+          title: "Okay, what's next",
+          activationMode: "background"
+        },
+        {
+          action: "CODEX_WATCH_LETS_DO_THAT",
+          title: "Let's do that",
+          activationMode: "background"
+        }
+      ]
+    }
+  };
+}
+
+function parseHomeAssistantNotifyService(value) {
+  const cleaned = String(value || "").trim();
+  if (!cleaned) {
+    throw new Error("HOME_ASSISTANT_NOTIFY_SERVICE is required");
+  }
+
+  if (cleaned.includes(".")) {
+    const [domain, name] = cleaned.split(".", 2);
+    return { domain, name };
+  }
+
+  return { domain: "notify", name: cleaned };
+}
+
 async function startServer() {
   const cfg = config();
   ensureDataDir(cfg.dataDir);
@@ -291,7 +386,7 @@ async function startServer() {
 
   await new Promise((resolve) => server.listen(cfg.port, cfg.host, resolve));
   console.log(`Codex Watch Bridge listening on http://${cfg.host}:${cfg.port}`);
-  console.log(`Pushcut callback public URL should be: ${cfg.publicUrl}/reply`);
+  console.log(`Watch reply callback public URL should be: ${cfg.publicUrl}/reply`);
 }
 
 async function handleReplyRequest(req, res, requestUrl, cfg) {

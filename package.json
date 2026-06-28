@@ -2,7 +2,7 @@
   "name": "codex-watch-bridge",
   "version": "0.1.0",
   "private": true,
-  "description": "Send Codex completion alerts to Apple Watch through actionable Pushcut notifications.",
+  "description": "Send Codex completion alerts to Apple Watch through actionable notifications.",
   "bin": {
     "codex-watch": "./bin/codex-watch.js"
   },
