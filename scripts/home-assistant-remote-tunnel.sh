@@ -81,7 +81,7 @@ bootout_if_loaded() {
 
 print_url() {
   local url
-  url="$(grep -Eo 'https://[-a-zA-Z0-9.]+\\.trycloudflare\\.com' "$LOG" 2>/dev/null | tail -n 1 || true)"
+  url="$(grep -Eo 'https://[-a-zA-Z0-9.]+\.trycloudflare\.com' "$LOG" 2>/dev/null | tail -n 1 || true)"
   if [[ -z "$url" ]]; then
     echo "No trycloudflare.com URL found yet. Check: $LOG" >&2
     return 1
