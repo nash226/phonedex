@@ -86,6 +86,9 @@ HOME_ASSISTANT_NOTIFY_SERVICE=notify.mobile_app_your_iphone
 WATCH_BRIDGE_PUBLIC_URL=http://YOUR_MAC_LAN_IP:8765
 WATCH_BRIDGE_HOST=0.0.0.0
 WATCHDEX_MACHINE_NAME=MacBook Air
+# Optional Watch dictation fallback:
+# HOME_ASSISTANT_CUSTOM_REPLY_MODE=shortcut
+# WATCHDEX_SHORTCUT_NAME=WatchDex Reply
 ```
 
 Find the notify service in Home Assistant under **Developer Tools > Services**.
@@ -213,6 +216,27 @@ start new background work. `Let's do that` is the action-oriented reply.
 input and sends the returned text back as the prompt. The automation still
 accepts older `WATCHDEX_CUSTOM_*` and `WATCHDEX_DICTATE_*` action ids from
 stale notifications.
+
+If Apple Watch opens the text input but never sends the event back to Home
+Assistant, use the free Shortcuts fallback instead:
+
+```sh
+HOME_ASSISTANT_CUSTOM_REPLY_MODE=shortcut
+WATCHDEX_SHORTCUT_NAME=WatchDex Reply
+```
+
+Create an iPhone Shortcut named `WatchDex Reply` with these actions:
+
+1. `Dictate Text`.
+2. `Get Contents of URL`, using `Shortcut Input` as the URL.
+3. Set `Get Contents of URL` to `POST`.
+4. Set the request body to JSON with `prompt` and `reply_text` both set to the
+   dictated text.
+
+With that mode enabled, the `Custom reply` notification action opens
+`shortcuts://run-shortcut` with the current task's signed `/reply` URL as
+Shortcut Input. The Shortcut posts directly to WatchDex, bypassing Home
+Assistant's watchOS text-input callback path.
 
 ## Notes
 
