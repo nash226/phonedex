@@ -106,6 +106,10 @@ Send a test notification:
 npm run test-notify
 ```
 
+On iPhone, tapping a WatchDex notification opens a signed `/task` page with the
+complete Codex response. The `View full` action opens the same page, which is
+useful when iOS truncates the notification preview.
+
 ## Home Assistant Callback Automations
 
 Add these to Home Assistant. Replace `YOUR_MAC_LAN_IP` and

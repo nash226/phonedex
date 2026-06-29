@@ -358,6 +358,7 @@ function buildPushcutBody(cfg, task) {
 
 function buildHomeAssistantBody(cfg, task) {
   const safeTaskId = task.id.replace(/[^A-Za-z0-9_]/g, "_").toUpperCase();
+  const taskViewUrl = buildTaskViewUrl(cfg, task);
   const customAction =
     cfg.homeAssistantCustomReplyMode === "shortcut"
       ? {
@@ -374,6 +375,11 @@ function buildHomeAssistantBody(cfg, task) {
           textInputPlaceholder: "Type reply to Codex"
         };
   const actionPayloads = [
+    {
+      action: "OPEN",
+      title: "View full",
+      uri: taskViewUrl
+    },
     {
       action: `WATCHDEX_OKAY_${safeTaskId}`,
       title: "Okay, what's next",
@@ -393,6 +399,7 @@ function buildHomeAssistantBody(cfg, task) {
     data: {
       tag: task.id,
       group: "watchdex",
+      url: taskViewUrl,
       push: {
         "interruption-level": cfg.homeAssistantInterruptionLevel
       },
@@ -418,6 +425,13 @@ function buildHomeAssistantBody(cfg, task) {
       }))
     }
   };
+}
+
+function buildTaskViewUrl(cfg, task) {
+  const url = new URL(`${cfg.publicUrl}/task`);
+  url.searchParams.set("id", task.id);
+  url.searchParams.set("token", cfg.token);
+  return url.toString();
 }
 
 function buildShortcutReplyUrl(cfg, task) {
@@ -485,6 +499,10 @@ async function startServer() {
         return handleReplyRequest(req, res, requestUrl, cfg);
       }
 
+      if (requestUrl.pathname === "/task") {
+        return handleTaskPageRequest(req, res, requestUrl, cfg);
+      }
+
       if (requestUrl.pathname === "/ha-action-event") {
         return handleHomeAssistantActionEvent(req, res, requestUrl, cfg);
       }
@@ -499,7 +517,7 @@ async function startServer() {
 
       sendJson(res, 200, {
         service: "watchdex",
-        endpoints: ["/health", "/reply", "/ha-action-event", "/replies", "/tasks"]
+        endpoints: ["/health", "/reply", "/task", "/ha-action-event", "/replies", "/tasks"]
       });
     } catch (error) {
       logError(error);
@@ -510,6 +528,23 @@ async function startServer() {
   await new Promise((resolve) => server.listen(cfg.port, cfg.host, resolve));
   console.log(`WatchDex listening on http://${cfg.host}:${cfg.port}`);
   console.log(`Watch reply callback public URL should be: ${cfg.publicUrl}/reply`);
+}
+
+async function handleTaskPageRequest(req, res, requestUrl, cfg) {
+  const token = requestUrl.searchParams.get("token") || "";
+  if (cfg.token && token !== cfg.token) {
+    return sendHtml(res, 401, renderMessagePage("WatchDex", "Invalid token."));
+  }
+
+  const latestTask = latestJsonl(cfg.dataDir, "tasks.jsonl");
+  const taskId = requestUrl.searchParams.get("id") || requestUrl.searchParams.get("taskId") || "";
+  const task = taskId ? findTask(cfg.dataDir, taskId) : latestTask;
+
+  if (!task) {
+    return sendHtml(res, 404, renderMessagePage("WatchDex", "Task not found."));
+  }
+
+  return sendHtml(res, 200, renderTaskPage(task));
 }
 
 async function handleHomeAssistantActionEvent(req, res, requestUrl, cfg) {
@@ -1521,6 +1556,112 @@ function truncate(value, maxLength) {
   const text = String(value);
   if (text.length <= maxLength) return text;
   return `${text.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
+function renderTaskPage(task) {
+  const title = escapeHtml(task.title || "WatchDex Task");
+  const text = escapeHtml(task.text || "");
+  const machineName = task.machineName ? escapeHtml(task.machineName) : "";
+  const cwd = task.cwd ? escapeHtml(task.cwd) : "";
+  const at = task.at ? escapeHtml(new Date(task.at).toLocaleString()) : "";
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>${title}</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.45;
+      background: Canvas;
+      color: CanvasText;
+    }
+    main {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: max(18px, env(safe-area-inset-top)) 18px max(28px, env(safe-area-inset-bottom));
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(1.35rem, 7vw, 2rem);
+      line-height: 1.12;
+      letter-spacing: 0;
+    }
+    .meta {
+      display: grid;
+      gap: 4px;
+      margin-bottom: 18px;
+      opacity: 0.68;
+      font-size: 0.88rem;
+      overflow-wrap: anywhere;
+    }
+    .response {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      font-size: 1.02rem;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>${title}</h1>
+    <div class="meta">
+      ${machineName ? `<div>${machineName}</div>` : ""}
+      ${cwd ? `<div>${cwd}</div>` : ""}
+      ${at ? `<div>${at}</div>` : ""}
+    </div>
+    <div class="response">${text}</div>
+  </main>
+</body>
+</html>`;
+}
+
+function renderMessagePage(title, message) {
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${escapeHtml(title)}</title>
+</head>
+<body>
+  <main>
+    <h1>${escapeHtml(title)}</h1>
+    <p>${escapeHtml(message)}</p>
+  </main>
+</body>
+</html>`;
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (char) => {
+    switch (char) {
+      case "&":
+        return "&amp;";
+      case "<":
+        return "&lt;";
+      case ">":
+        return "&gt;";
+      case '"':
+        return "&quot;";
+      case "'":
+        return "&#39;";
+      default:
+        return char;
+    }
+  });
+}
+
+function sendHtml(res, status, body) {
+  res.writeHead(status, {
+    "content-type": "text/html; charset=utf-8",
+    "content-length": Buffer.byteLength(body)
+  });
+  res.end(body);
 }
 
 function sendJson(res, status, value) {
