@@ -580,6 +580,27 @@ async function handleReplyRequest(req, res, requestUrl, cfg) {
     userAgent: req.headers["user-agent"] || ""
   };
 
+  const duplicate = findRecentDuplicateReply(cfg.dataDir, reply);
+  if (duplicate) {
+    appendJsonl(cfg.dataDir, "events.jsonl", {
+      at: new Date().toISOString(),
+      type: "duplicate-reply-ignored",
+      duplicateOf: duplicate.id,
+      taskId: reply.taskId,
+      choice: reply.choice,
+      action: reply.action,
+      prompt: reply.prompt.slice(0, 200)
+    });
+
+    return sendJson(res, 200, {
+      ok: true,
+      duplicate: true,
+      duplicateOf: duplicate.id,
+      recorded: duplicate,
+      autoResumeQueued: false
+    });
+  }
+
   appendJsonl(cfg.dataDir, "replies.jsonl", reply);
 
   if (cfg.autoResume) {
@@ -591,6 +612,24 @@ async function handleReplyRequest(req, res, requestUrl, cfg) {
     recorded: reply,
     autoResumeQueued: Boolean(cfg.autoResume && task?.sessionId)
   });
+}
+
+function findRecentDuplicateReply(dataDir, reply) {
+  const replyAt = Date.parse(reply.at);
+  return readJsonl(dataDir, "replies.jsonl")
+    .slice(-20)
+    .find((candidate) => {
+      if (!candidate?.at || Number.isNaN(replyAt)) return false;
+      const candidateAt = Date.parse(candidate.at);
+      return (
+        !Number.isNaN(candidateAt) &&
+        Math.abs(replyAt - candidateAt) <= 3000 &&
+        candidate.taskId === reply.taskId &&
+        candidate.choice === reply.choice &&
+        candidate.action === reply.action &&
+        candidate.prompt === reply.prompt
+      );
+    });
 }
 
 async function recordReplyFromCli(args) {
