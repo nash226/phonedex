@@ -25,8 +25,8 @@ Usage:
 
 The installer writes user LaunchAgents for:
   - local Home Assistant Core on port 8123
-  - WatchDex on port 8765
-  - WatchDex session watcher for missed Codex Stop hooks
+  - PhoneDex on port 8765
+  - PhoneDex session watcher for missed Codex Stop hooks
 EOF
 }
 

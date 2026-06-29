@@ -1,66 +1,81 @@
-# WatchDex
+# PhoneDex
 
 [![Node.js](https://img.shields.io/badge/node-%3E%3D18-339933)](#requirements)
-[![Apple Watch](https://img.shields.io/badge/apple-watch-111111)](#providers)
+[![iPhone](https://img.shields.io/badge/iphone-native%20reply-111111)](#providers)
 [![Home Assistant](https://img.shields.io/badge/provider-home%20assistant-18BCF2)](docs/home-assistant.md)
 [![Pushcut](https://img.shields.io/badge/provider-pushcut-5A67D8)](#pushcut)
 
 <p align="center">
-  <img src="docs/assets/watchdex-scroll-preview.png" alt="WatchDex Apple Watch notification showing a completed PR update and quick reply actions" width="420">
+  <img src="docs/assets/phonedex-scroll-preview.png" alt="PhoneDex iPhone notification showing a completed PR update and quick reply actions" width="420">
 </p>
 
 <p align="center">
-  <em>Review a completed Codex task from your wrist, then send the next reply.</em>
+  <em>Get Codex completion alerts on iPhone, dictate the next reply, and keep the thread moving.</em>
 </p>
 
-WatchDex sends completed Codex task alerts to your Apple Watch and records
-quick replies from your wrist.
+PhoneDex sends completed Codex task alerts to your iPhone and records quick
+replies or dictated responses from the phone notification.
 
-It is a local bridge for people who start Codex work on a Mac, walk away, and
-still want a fast way to answer the next obvious prompt: "Okay, what's next?"
-or "Let's do that."
+It is a local bridge for people who start Codex work on one or more machines,
+walk away, and still want a fast way to review the result and answer the next
+obvious prompt: "Okay, what's next?", "Let's do that", or a custom reply.
 
 ## What It Does
 
 - Installs a Codex `Stop` hook that fires when a Codex turn completes.
+- Watches Codex session logs as a fallback when hooks miss a completed reply.
 - Sends an actionable notification through Home Assistant or Pushcut.
-- Shows two premade Apple Watch actions:
+- Uses native expanded notification fields on iPhone for longer Codex output.
+- Shows iPhone notification actions for:
   - `Okay, what's next`
   - `Let's do that`
+  - a typed or dictated custom reply
+- Routes replies back to the original Codex machine with per-notification
+  `replyUrl` data.
+- Can paste phone replies into the visible Codex desktop thread.
 - Records replies in `data/replies.jsonl` so you have a local decision log.
 - Can wrap any shell command and notify you when it finishes.
-- Includes an experimental auto-resume mode for sending replies back to Codex.
+- Includes auto-resume modes for sending replies back to Codex.
 
-WatchDex is Mac-first and local-first. The free path uses Home Assistant
-Companion for iPhone and Apple Watch. Pushcut is also supported if you already
-prefer its notification workflow.
+PhoneDex is Mac-first and local-first. The free path uses Home Assistant
+Companion for iPhone notifications and dictation. Apple Watch support still
+exists as a secondary surface, but iPhone is the primary reply path.
 
 ## Project Status
 
-WatchDex is currently a working local bridge, not a native iOS/watchOS app.
+PhoneDex is currently a working local bridge, not a native iOS app.
 
 The reliable path today is:
 
 ```text
 Codex finishes work
-  -> Codex Stop hook runs WatchDex
-  -> WatchDex session watcher catches missed Stop hooks
-  -> WatchDex sends a provider notification
-  -> Apple Watch shows quick actions
-  -> provider calls WatchDex /reply
-  -> WatchDex records the response locally
+  -> Codex Stop hook runs PhoneDex
+  -> PhoneDex session watcher catches missed Stop hooks
+  -> PhoneDex sends an iPhone notification
+  -> you type or dictate a reply
+  -> provider calls PhoneDex /reply
+  -> PhoneDex records the response locally
+  -> optional auto-resume starts a Codex turn with that response
 ```
 
-Auto-continuing Codex from a watch tap is intentionally off by default. Replies
-are recorded first so the bridge stays safe while Codex session resume behavior
-is verified.
+Auto-continuing Codex from a phone reply is off by default. When enabled,
+`app-server` mode uses Codex's local app-server protocol to resume the recorded
+session and submit the phone reply as a new turn. `Okay, what's next` is wrapped
+as a status-only prompt so it does not start new background work; `Let's do
+that` is the action-oriented reply.
+
+If you want the phone reply to appear in the currently open Codex desktop
+thread, use `foreground` mode. It activates Codex.app, pastes the literal phone
+reply text into the visible input, and submits it through the UI. macOS must allow the
+process running PhoneDex, plus `osascript` when prompted, to control the
+computer in **Privacy & Security > Accessibility**.
 
 ## Requirements
 
 - macOS
 - Node.js 18 or newer
 - Codex desktop app with hooks enabled
-- Apple Watch paired to an iPhone
+- iPhone with Home Assistant Companion or Pushcut
 - One notification provider:
   - Home Assistant Companion for the free route
   - Pushcut for the simpler webhook route
@@ -88,6 +103,7 @@ HOME_ASSISTANT_TOKEN=YOUR_LONG_LIVED_ACCESS_TOKEN
 HOME_ASSISTANT_NOTIFY_SERVICE=notify.mobile_app_your_iphone
 WATCH_BRIDGE_PUBLIC_URL=http://YOUR_MAC_LAN_IP:8765
 WATCH_BRIDGE_HOST=0.0.0.0
+PHONEDEX_MACHINE_NAME=MacBook Air
 ```
 
 If you do not have Home Assistant running yet, use the local setup in the
@@ -99,7 +115,7 @@ Start the reply server:
 npm run server
 ```
 
-In Codex, open `/hooks`, review the `WatchDex` hook, and trust it. Codex
+In Codex, open `/hooks`, review the `PhoneDex` hook, and trust it. Codex
 requires approval before changed user hooks are allowed to run.
 
 Send a test notification:
@@ -118,16 +134,16 @@ npm run replies
 
 | Provider | Cost | Best For | Notes |
 | --- | --- | --- | --- |
-| Home Assistant | Free | Local-first Apple Watch replies without Pushcut | Requires Home Assistant Companion on iPhone and Watch plus callback automations. |
+| Home Assistant | Free | Local-first iPhone replies without Pushcut | Requires Home Assistant Companion on iPhone plus callback automations. |
 | Pushcut | Pushcut plan may be required for dynamic actions | Fast webhook setup if you already use Pushcut | Dynamic notification fields and actions may require Pushcut Pro. |
 
 ## Home Assistant
 
-Home Assistant is the recommended free path. WatchDex sends an actionable
+Home Assistant is the recommended free path. PhoneDex sends an actionable
 mobile notification to the Home Assistant Companion app, and Home Assistant
-automations call back into WatchDex when you tap a watch action.
+automations call back into PhoneDex when you tap a phone action.
 
-For a local Mac test, WatchDex includes scripts to install Home Assistant Core
+For a local Mac test, PhoneDex includes scripts to install Home Assistant Core
 inside an ignored virtualenv:
 
 ```sh
@@ -144,7 +160,7 @@ http://localhost:8123
 ```
 
 For a longer-running local setup, install macOS LaunchAgents for both Home
-Assistant and the WatchDex bridge:
+Assistant and the PhoneDex bridge:
 
 ```sh
 npm run services:install
@@ -153,6 +169,45 @@ npm run services:status
 
 For setup details, callback automations, and temporary remote access through
 Cloudflare Quick Tunnel, see [docs/home-assistant.md](docs/home-assistant.md).
+
+For the full system design, see [docs/architecture.md](docs/architecture.md).
+For the legacy native Apple Watch app scaffold, see [watchos/README.md](watchos/README.md).
+
+## Multiple Machines
+
+One Home Assistant instance can receive PhoneDex notifications from every
+computer where you run Codex. Install PhoneDex on each machine, give each one a
+unique `PHONEDEX_MACHINE_NAME`, and set `WATCH_BRIDGE_PUBLIC_URL` to a callback
+URL for that machine.
+
+New Home Assistant actions include the originating machine's `replyUrl`, token,
+and machine name. That means a reply from your phone can route back to the
+MacBook Air notification that created it instead of always returning to the
+first Mac you configured.
+
+### Apple Watch Fallback
+
+Home Assistant's native notification text input can work from iPhone while
+failing to emit an event from Apple Watch. If canned Watch buttons work but
+dictated custom replies disappear, switch the custom action to Apple Shortcuts:
+
+```sh
+HOME_ASSISTANT_CUSTOM_REPLY_MODE=shortcut
+PHONEDEX_SHORTCUT_NAME=PhoneDex Reply
+```
+
+Create an iPhone Shortcut named `PhoneDex Reply`:
+
+1. Add `Dictate Text`.
+2. Add `Get Contents of URL`.
+3. Set the URL field in `Get Contents of URL` to `Shortcut Input`.
+4. Set method to `POST`.
+5. Set request body to JSON with `prompt` and `reply_text` both set to the
+   dictated text from step 1.
+
+When you tap `Custom reply`, PhoneDex opens that Shortcut with the current
+task's `/reply` URL as the shortcut input. The Shortcut dictates your response
+and posts it directly back to PhoneDex.
 
 ## Pushcut
 
@@ -165,7 +220,7 @@ WATCH_BRIDGE_PUBLIC_URL=http://YOUR_MAC_LAN_IP:8765
 WATCH_BRIDGE_HOST=0.0.0.0
 ```
 
-WatchDex sends dynamic `title`, `text`, and `actions` fields in the Pushcut
+PhoneDex sends dynamic `title`, `text`, and `actions` fields in the Pushcut
 JSON body. Each action performs a background web request to:
 
 ```text
@@ -179,19 +234,19 @@ callers cannot record replies.
 
 | Command | Purpose |
 | --- | --- |
-| `npm run check` | Syntax-check the WatchDex CLI. |
+| `npm run check` | Syntax-check the PhoneDex CLI. |
 | `node ./bin/codex-watch.js setup` | Create `.env` with a generated reply token. |
 | `npm run install-hook` | Install the Codex `Stop` hook. |
-| `npm run server` | Start the local WatchDex reply server. |
+| `npm run server` | Start the local PhoneDex reply server. |
 | `npm run test-notify` | Send a manual provider notification. |
-| `npm run replies` | Print recent watch replies. |
+| `npm run replies` | Print recent phone replies. |
 | `npm run tasks` | Print recent recorded tasks. |
 | `node ./bin/codex-watch.js run -- <command>` | Run a command and notify when it exits. |
 | `npm run ha:install` | Install Home Assistant Core into `.local/`. |
 | `npm run ha:init-config` | Create a minimal local Home Assistant config. |
 | `npm run ha:start` | Start local Home Assistant Core. |
 | `npm run ha:doctor` | Inspect the local Home Assistant install. |
-| `npm run services:install` | Install macOS LaunchAgents for Home Assistant and WatchDex. |
+| `npm run services:install` | Install macOS LaunchAgents for Home Assistant and PhoneDex. |
 | `npm run services:start` | Start the LaunchAgents. |
 | `npm run services:stop` | Stop the LaunchAgents. |
 | `npm run services:status` | Print LaunchAgent status. |
@@ -205,12 +260,13 @@ callers cannot record replies.
 
 ## Configuration
 
-WatchDex reads `.env` from the repo root.
+PhoneDex reads `.env` from the repo root.
 
 | Variable | Required | Description |
 | --- | --- | --- |
 | `WATCH_BRIDGE_PROVIDER` | Yes | `home-assistant` or `pushcut`. |
 | `WATCH_BRIDGE_PUBLIC_URL` | Yes | URL your provider can call back to, ending before `/reply`. |
+| `PHONEDEX_MACHINE_NAME` | No | Human-readable machine name shown in notifications, for example `MacBook Air`. Defaults to `WATCHDEX_MACHINE_NAME` or the OS hostname. |
 | `WATCH_BRIDGE_TOKEN` | Recommended | Shared secret required by `/reply`. Generated by setup. |
 | `WATCH_BRIDGE_HOST` | No | Server bind host. Use `0.0.0.0` for LAN callbacks. |
 | `WATCH_BRIDGE_PORT` | No | Server port. Defaults to `8765`. |
@@ -219,20 +275,37 @@ WatchDex reads `.env` from the repo root.
 | `HOME_ASSISTANT_TOKEN` | Home Assistant | Long-lived access token. |
 | `HOME_ASSISTANT_NOTIFY_SERVICE` | Home Assistant | Mobile app notify service, for example `notify.mobile_app_your_iphone`. |
 | `HOME_ASSISTANT_INTERRUPTION_LEVEL` | No | iOS interruption level. Defaults to `time-sensitive`. |
+| `HOME_ASSISTANT_CUSTOM_REPLY_MODE` | No | `reply` uses Home Assistant native text input. `shortcut` makes `Custom reply` launch an Apple Shortcut. Defaults to `reply`. |
+| `PHONEDEX_SHORTCUT_NAME` | No | Shortcut name used when `HOME_ASSISTANT_CUSTOM_REPLY_MODE=shortcut`. Defaults to `PhoneDex Reply`. |
 | `PUSHCUT_WEBHOOK_URL` | Pushcut | Pushcut notification webhook URL. |
 | `PUSHCUT_SOUND` | No | Pushcut sound name. Defaults to `jobDone`. |
 | `PUSHCUT_TIME_SENSITIVE` | No | Send Pushcut alerts as time-sensitive. Defaults to `true`. |
-| `WATCH_BRIDGE_AUTO_RESUME` | No | Experimental Codex resume behavior. Defaults to `false`. |
-| `WATCHDEX_SESSION_WATCH_INTERVAL_MS` | No | Session watcher polling interval. Defaults to `15000`. |
-| `WATCHDEX_SESSION_WATCH_DEBOUNCE_MS` | No | Delay before notifying a completed session message. Defaults to `45000`. |
-| `CODEX_BIN` | No | Path to the Codex CLI used by auto-resume. |
+| `WATCH_BRIDGE_AUTO_RESUME` | No | Continue Codex from phone replies. Defaults to `false`. |
+| `WATCH_BRIDGE_AUTO_RESUME_MODE` | No | `cli` for `codex exec resume`, `app-server` for background app-server turns, or `foreground` for visible Codex.app submission. Defaults to `cli`. |
+| `WATCHDEX_SESSION_WATCH_INTERVAL_MS` | No | Session watcher polling interval. Defaults to `5000`. |
+| `WATCHDEX_SESSION_WATCH_DEBOUNCE_MS` | No | Delay before notifying a completed session message. Defaults to `8000`. |
+| `CODEX_BIN` | No | Path to the Codex CLI used by `cli` auto-resume. |
+| `CODEX_APP_SERVER_BIN` | No | Path to the Codex CLI used by `app-server` auto-resume. Defaults to `~/.local/bin/codex` when installed. |
+
+To make phone replies start a Codex turn, install the standalone Codex CLI and
+enable app-server mode:
+
+```sh
+curl -fsSL https://chatgpt.com/codex/install.sh | sh
+```
+
+```sh
+WATCH_BRIDGE_AUTO_RESUME=true
+WATCH_BRIDGE_AUTO_RESUME_MODE=foreground
+CODEX_APP_SERVER_BIN=/Users/YOUR_USER/.local/bin/codex
+```
 
 ## Data And Security
 
 - `.env` is ignored by git and should contain your local tokens only.
 - `.local/` is ignored and stores local Home Assistant and launchd logs.
 - `data/tasks.jsonl` stores completion events.
-- `data/replies.jsonl` stores watch replies.
+- `data/replies.jsonl` stores phone replies.
 - `data/events.jsonl` stores provider delivery attempts.
 - `data/session-watch-state.json` stores session message ids already seen by
   the fallback watcher.
@@ -247,19 +320,20 @@ Tailscale. Keep the token private either way.
 
 - Home Assistant replies include per-task action data for new notifications;
   older static actions still fall back to the latest task.
-- The built-in reply choices are fixed in code.
-- Auto-resume is experimental and depends on usable Codex session ids in hook
-  payloads.
-- There is no native iOS/watchOS app yet, so WatchDex relies on Home Assistant
+- Home Assistant supports a `Custom reply` action that prompts for text and
+  submits that exact text to Codex in foreground mode.
+- Auto-resume depends on usable Codex session ids in hook payloads or the
+  session watcher fallback.
+- There is no native iOS app yet, so PhoneDex relies on Home Assistant
   or Pushcut for notification delivery.
 
 ## Roadmap
 
-- Per-notification task ids for Home Assistant callbacks.
 - Configurable reply choices.
 - Safer Codex resume queue with reviewable pending actions.
 - Packaged install flow.
-- Native iOS/watchOS app exploration.
+- Native iOS app exploration.
+- Windows foreground submitter.
 
 ## References
 

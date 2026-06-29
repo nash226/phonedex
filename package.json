@@ -1,9 +1,10 @@
 {
-  "name": "watchdex",
+  "name": "phonedex",
   "version": "0.1.0",
   "private": true,
-  "description": "Apple Watch alerts and quick replies for completed Codex tasks.",
+  "description": "iPhone alerts and dictated replies for completed Codex tasks.",
   "bin": {
+    "phonedex": "./bin/codex-watch.js",
     "watchdex": "./bin/codex-watch.js",
     "codex-watch": "./bin/codex-watch.js"
   },
@@ -26,7 +27,7 @@
     "remote:stop": "bash ./scripts/home-assistant-remote-tunnel.sh stop",
     "remote:status": "bash ./scripts/home-assistant-remote-tunnel.sh status",
     "remote:url": "bash ./scripts/home-assistant-remote-tunnel.sh url",
-    "test-notify": "node ./bin/codex-watch.js notify --title \"WatchDex test\" --text \"WatchDex test notification\"",
+    "test-notify": "node ./bin/codex-watch.js notify --title \"PhoneDex test\" --text \"PhoneDex test notification\"",
     "replies": "node ./bin/codex-watch.js replies",
     "tasks": "node ./bin/codex-watch.js tasks",
     "check": "node --check ./bin/codex-watch.js"
