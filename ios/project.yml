@@ -1,0 +1,31 @@
+name: PhoneDex
+options:
+  deploymentTarget:
+    iOS: "17.0"
+settings:
+  base:
+    SWIFT_VERSION: 5.9
+targets:
+  PhoneDex:
+    type: application
+    platform: iOS
+    sources:
+      - PhoneDexApp
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.nash226.PhoneDex
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+    dependencies:
+      - target: PhoneDexNotificationExtension
+  PhoneDexNotificationExtension:
+    type: app-extension
+    platform: iOS
+    sources:
+      - PhoneDexNotificationExtension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.nash226.PhoneDex.NotificationExtension
+        INFOPLIST_FILE: PhoneDexNotificationExtension/Info.plist
+        APPLICATION_EXTENSION_API_ONLY: YES
