@@ -193,6 +193,30 @@ and machine name. That means a reply from your watch can route back to the
 MacBook Air notification that created it instead of always returning to the
 first Mac you configured.
 
+### Apple Watch Custom Dictation Fallback
+
+Home Assistant's native notification text input can work from iPhone while
+failing to emit an event from Apple Watch. If canned Watch buttons work but
+dictated custom replies disappear, switch the custom action to Apple Shortcuts:
+
+```sh
+HOME_ASSISTANT_CUSTOM_REPLY_MODE=shortcut
+WATCHDEX_SHORTCUT_NAME=WatchDex Reply
+```
+
+Create an iPhone Shortcut named `WatchDex Reply`:
+
+1. Add `Dictate Text`.
+2. Add `Get Contents of URL`.
+3. Set the URL field in `Get Contents of URL` to `Shortcut Input`.
+4. Set method to `POST`.
+5. Set request body to JSON with `prompt` and `reply_text` both set to the
+   dictated text from step 1.
+
+When you tap `Custom reply`, WatchDex opens that Shortcut with the current
+task's `/reply` URL as the shortcut input. The Shortcut dictates your response
+and posts it directly back to WatchDex.
+
 ## Pushcut
 
 Create a Pushcut notification, copy its webhook URL, and configure:
@@ -259,6 +283,8 @@ WatchDex reads `.env` from the repo root.
 | `HOME_ASSISTANT_TOKEN` | Home Assistant | Long-lived access token. |
 | `HOME_ASSISTANT_NOTIFY_SERVICE` | Home Assistant | Mobile app notify service, for example `notify.mobile_app_your_iphone`. |
 | `HOME_ASSISTANT_INTERRUPTION_LEVEL` | No | iOS interruption level. Defaults to `time-sensitive`. |
+| `HOME_ASSISTANT_CUSTOM_REPLY_MODE` | No | `reply` uses Home Assistant native text input. `shortcut` makes `Custom reply` launch an Apple Shortcut. Defaults to `reply`. |
+| `WATCHDEX_SHORTCUT_NAME` | No | Shortcut name used when `HOME_ASSISTANT_CUSTOM_REPLY_MODE=shortcut`. Defaults to `WatchDex Reply`. |
 | `PUSHCUT_WEBHOOK_URL` | Pushcut | Pushcut notification webhook URL. |
 | `PUSHCUT_SOUND` | No | Pushcut sound name. Defaults to `jobDone`. |
 | `PUSHCUT_TIME_SENSITIVE` | No | Send Pushcut alerts as time-sensitive. Defaults to `true`. |

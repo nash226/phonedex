@@ -104,8 +104,7 @@ The action set is intentionally small:
 | --- | --- |
 | `Okay, what's next` | Literal foreground text: `okay whats next` |
 | `Let's do that` | Literal foreground text: `lets do that` |
-| `Custom reply` | Text entered from the notification input |
-| `Dictate reply` | Dictated text from the notification input |
+| `Custom reply` | Text from Home Assistant notification input, or dictated text from the Shortcuts fallback |
 
 For background resume modes, WatchDex can wrap canned choices in safer Codex
 instructions. In foreground mode, the text is pasted literally into the visible
