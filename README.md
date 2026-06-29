@@ -6,11 +6,11 @@
 [![Pushcut](https://img.shields.io/badge/provider-pushcut-5A67D8)](#pushcut)
 
 <p align="center">
-  <img src="docs/assets/watchdex-scroll-preview.png" alt="WatchDex Apple Watch notification with a scrollable Codex response preview and quick reply actions" width="420">
+  <img src="docs/assets/watchdex-scroll-preview.png" alt="WatchDex Apple Watch notification showing a completed PR update and quick reply actions" width="420">
 </p>
 
 <p align="center">
-  <em>Review the Codex result from your wrist, then route replies back to the right machine.</em>
+  <em>Review a completed Codex task from your wrist, then send the next reply.</em>
 </p>
 
 WatchDex sends completed Codex task alerts to your Apple Watch and records
