@@ -366,7 +366,7 @@ function buildHomeAssistantBody(cfg, task) {
       choice: "lets_do_that"
     },
     {
-      action: `WATCHDEX_CUSTOM_${safeTaskId}`,
+      action: "REPLY",
       title: "Custom reply",
       choice: "custom",
       behavior: "textInput",
