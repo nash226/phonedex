@@ -17,7 +17,7 @@ or "Let's do that."
 </p>
 
 <p align="center">
-  <em>Read the Codex result from your wrist, scroll with the crown, then reply.</em>
+  <em>Review the Codex result from your wrist, then reply.</em>
 </p>
 
 ## What It Does
