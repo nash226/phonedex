@@ -39,7 +39,6 @@ obvious prompt: "Okay, what's next?", "Let's do that", or a custom reply.
   - `Okay, what's next`
   - `Let's do that`
   - a typed custom reply
-  - a dictated custom reply
 - Routes replies back to the original Codex machine with per-notification
   `replyUrl` data.
 - Can paste watch replies into the visible Codex desktop thread.
@@ -303,8 +302,8 @@ Tailscale. Keep the token private either way.
 
 - Home Assistant replies include per-task action data for new notifications;
   older static actions still fall back to the latest task.
-- Home Assistant supports `Custom reply` and `Dictate reply` actions that
-  prompt for text and submit that exact text to Codex in foreground mode.
+- Home Assistant supports a `Custom reply` action that prompts for text and
+  submits that exact text to Codex in foreground mode.
 - Auto-resume depends on usable Codex session ids in hook payloads or the
   session watcher fallback.
 - There is no native iOS/watchOS app yet, so WatchDex relies on Home Assistant
