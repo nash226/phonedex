@@ -5,30 +5,23 @@
 [![Home Assistant](https://img.shields.io/badge/provider-home%20assistant-18BCF2)](docs/home-assistant.md)
 [![Pushcut](https://img.shields.io/badge/provider-pushcut-5A67D8)](#pushcut)
 
+## Visual Overview
+
+<p align="center">
+  <img src="docs/assets/watchdex-scroll-preview.png" alt="WatchDex Apple Watch notification with a scrollable Codex response preview and quick reply actions" width="420">
+  <img src="docs/assets/watchdex-architecture-overview.png" alt="WatchDex multi-machine architecture with Codex machines, Home Assistant, iPhone, and Apple Watch" width="420">
+</p>
+
+<p align="center">
+  <em>Review the Codex result from your wrist, then route replies back to the right machine.</em>
+</p>
+
 WatchDex sends completed Codex task alerts to your Apple Watch and records
 quick replies from your wrist.
 
 It is a local bridge for people who start Codex work on one or more machines,
 walk away, and still want a fast way to review the result and answer the next
 obvious prompt: "Okay, what's next?", "Let's do that", or a custom reply.
-
-## Visual Overview
-
-<p align="center">
-  <img src="docs/assets/watchdex-scroll-preview.png" alt="WatchDex Apple Watch notification with a scrollable Codex response preview and quick reply actions" width="640">
-</p>
-
-<p align="center">
-  <em>Review the Codex result from your wrist, then reply.</em>
-</p>
-
-<p align="center">
-  <img src="docs/assets/watchdex-architecture-overview.png" alt="WatchDex multi-machine architecture with Codex machines, Home Assistant, iPhone, and Apple Watch" width="900">
-</p>
-
-<p align="center">
-  <em>One Home Assistant hub can route watch replies back to the machine that sent the notification.</em>
-</p>
 
 ## What It Does
 
