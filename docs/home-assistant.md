@@ -1,14 +1,13 @@
 # Home Assistant Provider
 
-Use this provider when you want a free Apple Watch reply path without Pushcut.
+Use this provider when you want a free iPhone reply path without Pushcut.
 
 ## Requirements
 
 - Home Assistant reachable from this Mac.
 - Home Assistant Companion installed on your iPhone.
-- Home Assistant Watch app installed from the Apple Watch app on your iPhone.
 - A Home Assistant long-lived access token.
-- The bridge server running on an address your iPhone/Watch path can reach.
+- The bridge server running on an address your iPhone can reach.
 
 ## Local Core Test
 
@@ -85,10 +84,10 @@ HOME_ASSISTANT_TOKEN=YOUR_LONG_LIVED_ACCESS_TOKEN
 HOME_ASSISTANT_NOTIFY_SERVICE=notify.mobile_app_your_iphone
 WATCH_BRIDGE_PUBLIC_URL=http://YOUR_MAC_LAN_IP:8765
 WATCH_BRIDGE_HOST=0.0.0.0
-WATCHDEX_MACHINE_NAME=MacBook Air
-# Optional Watch dictation fallback:
+PHONEDEX_MACHINE_NAME=MacBook Air
+# Optional Apple Watch dictation fallback:
 # HOME_ASSISTANT_CUSTOM_REPLY_MODE=shortcut
-# WATCHDEX_SHORTCUT_NAME=WatchDex Reply
+# PHONEDEX_SHORTCUT_NAME=PhoneDex Reply
 ```
 
 Find the notify service in Home Assistant under **Developer Tools > Services**.
@@ -106,7 +105,7 @@ Send a test notification:
 npm run test-notify
 ```
 
-On iPhone, WatchDex keeps the notification tap target native by setting
+On iPhone, PhoneDex keeps the notification tap target native by setting
 `url: noAction` and sends the Codex output as both `message` and the long-form
 `subject` notification field. Expand the notification to see as much of the
 response as iOS allows without opening a browser.
@@ -134,7 +133,7 @@ rest_command:
       }
 
 automation:
-  - alias: "WatchDex reply actions"
+  - alias: "PhoneDex reply actions"
     mode: queued
     max: 10
     trigger:
@@ -187,13 +186,16 @@ automation:
             {% endif %}
 ```
 
-After tapping an action on your watch, check the bridge reply log:
+The `WATCHDEX_*` action names are legacy compatibility ids. Keep them in the
+automation until you intentionally migrate existing Home Assistant actions.
+
+After tapping an action on your phone, check the bridge reply log:
 
 ```sh
 npm run replies
 ```
 
-To have a watch action continue Codex instead of only recording the reply,
+To have a phone action continue Codex instead of only recording the reply,
 install the standalone Codex CLI and enable app-server auto-resume:
 
 ```sh
@@ -206,18 +208,18 @@ WATCH_BRIDGE_AUTO_RESUME_MODE=foreground
 CODEX_APP_SERVER_BIN=/Users/YOUR_USER/.local/bin/codex
 ```
 
-Restart the WatchDex bridge after changing these values. New replies will be
+Restart the PhoneDex bridge after changing these values. New replies will be
 logged in `data/replies.jsonl`, and resume attempts will be logged in
 `data/events.jsonl` plus the mode-specific resume log.
 
-Use `foreground` mode when you want the watch reply to appear in the open
-Codex desktop thread. It activates Codex.app, pastes the literal watch reply
+Use `foreground` mode when you want the phone reply to appear in the open
+Codex desktop thread. It activates Codex.app, pastes the literal phone reply
 text into the visible input, and submits it through the UI. This requires macOS
-Accessibility permission for the process running WatchDex.
+Accessibility permission for the process running PhoneDex.
 
 `Okay, what's next` is sent to Codex as a status-only prompt so it does not
 start new background work. `Let's do that` is the action-oriented reply.
-`Custom reply` uses the iOS/watchOS `REPLY` notification action to open text
+`Custom reply` uses the iOS `REPLY` notification action to open text
 input and sends the returned text back as the prompt. The automation still
 accepts older `WATCHDEX_CUSTOM_*` and `WATCHDEX_DICTATE_*` action ids from
 stale notifications.
@@ -227,10 +229,10 @@ Assistant, use the free Shortcuts fallback instead:
 
 ```sh
 HOME_ASSISTANT_CUSTOM_REPLY_MODE=shortcut
-WATCHDEX_SHORTCUT_NAME=WatchDex Reply
+PHONEDEX_SHORTCUT_NAME=PhoneDex Reply
 ```
 
-Create an iPhone Shortcut named `WatchDex Reply` with these actions:
+Create an iPhone Shortcut named `PhoneDex Reply` with these actions:
 
 1. `Dictate Text`.
 2. `Get Contents of URL`, using `Shortcut Input` as the URL.
@@ -240,13 +242,13 @@ Create an iPhone Shortcut named `WatchDex Reply` with these actions:
 
 With that mode enabled, the `Custom reply` notification action opens
 `shortcuts://run-shortcut` with the current task's signed `/reply` URL as
-Shortcut Input. The Shortcut posts directly to WatchDex, bypassing Home
+Shortcut Input. The Shortcut posts directly to PhoneDex, bypassing Home
 Assistant's watchOS text-input callback path.
 
 ## Notes
 
-Home Assistant receives the watch action event first, then calls the bridge.
-New WatchDex notifications include a per-task action id, `action_data.taskId`,
+Home Assistant receives the phone action event first, then calls the bridge.
+New PhoneDex notifications include a per-task action id, `action_data.taskId`,
 `action_data.replyUrl`, and `action_data.machineName` so replies are recorded
 against the exact Codex completion and routed back to the machine that sent the
 notification. Older static action ids still work, but they fall back to the
@@ -254,18 +256,18 @@ default URL in the automation.
 
 ## Multiple Machines
 
-Use the same Home Assistant instance as the watch notification hub for every
+Use the same Home Assistant instance as the phone notification hub for every
 computer running Codex. On each machine:
 
-1. Clone WatchDex and run the setup/install steps.
+1. Clone the repo and run the setup/install steps.
 2. Point `HOME_ASSISTANT_URL`, `HOME_ASSISTANT_TOKEN`, and
    `HOME_ASSISTANT_NOTIFY_SERVICE` at the same Home Assistant instance.
-3. Set a unique `WATCHDEX_MACHINE_NAME`, such as `iMac`, `MacBook Air`, or
+3. Set a unique `PHONEDEX_MACHINE_NAME`, such as `iMac`, `MacBook Air`, or
    `Windows`.
 4. Set `WATCH_BRIDGE_PUBLIC_URL` to a URL that Home Assistant can call back to
    for that specific machine.
 5. Start the bridge and session watcher on that machine.
 
 The Home Assistant automation above reads `replyUrl` from the notification
-action data. That is what lets one watch reply return to the MacBook Air while
+action data. That is what lets one phone reply return to the MacBook Air while
 another returns to the iMac or Windows machine.

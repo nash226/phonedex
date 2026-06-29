@@ -27,7 +27,7 @@ write_minimal_config() {
   mkdir -p "$CONFIG_DIR"
   cat > "$CONFIG_DIR/configuration.yaml" <<'EOF'
 homeassistant:
-  name: WatchDex Local
+  name: PhoneDex Local
   latitude: 40.7128
   longitude: -74.0060
   elevation: 10

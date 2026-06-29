@@ -20,9 +20,9 @@ const RESPONSE_CHOICES = {
 
 const CODEX_RESUME_PROMPTS = {
   okay_whats_next:
-    "The user tapped the WatchDex quick reply: okay whats next. Provide a concise status update and the next recommended action only. Do not run tools, edit files, or start new work.",
+    "The user tapped the PhoneDex quick reply: okay whats next. Provide a concise status update and the next recommended action only. Do not run tools, edit files, or start new work.",
   lets_do_that:
-    "The user tapped the WatchDex quick reply: lets do that. Continue with the previously recommended next step, keeping the scope tight and reporting back when done."
+    "The user tapped the PhoneDex quick reply: lets do that. Continue with the previously recommended next step, keeping the scope tight and reporting back when done."
 };
 
 main().catch((error) => {
@@ -110,7 +110,7 @@ function config() {
     env.WATCH_BRIDGE_PUBLIC_URL || `http://${host}:${port}`
   );
   const homeAssistantUrl = trimTrailingSlash(env.HOME_ASSISTANT_URL || "");
-  const machineName = env.WATCHDEX_MACHINE_NAME || os.hostname();
+  const machineName = env.PHONEDEX_MACHINE_NAME || env.WATCHDEX_MACHINE_NAME || os.hostname();
   const provider =
     env.WATCH_BRIDGE_PROVIDER ||
     (homeAssistantUrl && env.HOME_ASSISTANT_TOKEN ? "home-assistant" : "pushcut");
@@ -126,7 +126,7 @@ function config() {
     homeAssistantCustomReplyMode: normalizeCustomReplyMode(
       env.HOME_ASSISTANT_CUSTOM_REPLY_MODE
     ),
-    shortcutName: env.WATCHDEX_SHORTCUT_NAME || "WatchDex Reply",
+    shortcutName: env.PHONEDEX_SHORTCUT_NAME || env.WATCHDEX_SHORTCUT_NAME || "PhoneDex Reply",
     machineName,
     publicUrl,
     replyUrl: `${publicUrl}/reply`,
@@ -172,7 +172,7 @@ async function setup() {
   console.log("Next:");
   console.log("1. Choose pushcut or home-assistant in .env");
   console.log("2. Run: npm run server");
-  console.log("3. In Codex, open /hooks and trust the WatchDex hook");
+  console.log("3. In Codex, open /hooks and trust the PhoneDex hook");
   console.log("4. Run: npm run test-notify");
 }
 
@@ -522,14 +522,14 @@ async function startServer() {
   });
 
   await new Promise((resolve) => server.listen(cfg.port, cfg.host, resolve));
-  console.log(`WatchDex listening on http://${cfg.host}:${cfg.port}`);
-  console.log(`Watch reply callback public URL should be: ${cfg.publicUrl}/reply`);
+  console.log(`PhoneDex listening on http://${cfg.host}:${cfg.port}`);
+  console.log(`Phone reply callback public URL should be: ${cfg.publicUrl}/reply`);
 }
 
 async function handleTaskPageRequest(req, res, requestUrl, cfg) {
   const token = requestUrl.searchParams.get("token") || "";
   if (cfg.token && token !== cfg.token) {
-    return sendHtml(res, 401, renderMessagePage("WatchDex", "Invalid token."));
+    return sendHtml(res, 401, renderMessagePage("PhoneDex", "Invalid token."));
   }
 
   const latestTask = latestJsonl(cfg.dataDir, "tasks.jsonl");
@@ -537,7 +537,7 @@ async function handleTaskPageRequest(req, res, requestUrl, cfg) {
   const task = taskId ? findTask(cfg.dataDir, taskId) : latestTask;
 
   if (!task) {
-    return sendHtml(res, 404, renderMessagePage("WatchDex", "Task not found."));
+    return sendHtml(res, 404, renderMessagePage("PhoneDex", "Task not found."));
   }
 
   return sendHtml(res, 200, renderTaskPage(task));
@@ -1007,8 +1007,8 @@ async function runAppServerTurn(cfg, task, prompt) {
   try {
     await send("initialize", {
       clientInfo: {
-        name: "watchdex",
-        title: "WatchDex",
+        name: "phonedex",
+        title: "PhoneDex",
         version: "0.1.0"
       },
       capabilities: {
@@ -1151,7 +1151,11 @@ function createTask(fields) {
     title: fields.title || "Codex done",
     text: fields.text || "Task completed",
     cwd: fields.cwd || process.cwd(),
-    machineName: fields.machineName || process.env.WATCHDEX_MACHINE_NAME || os.hostname(),
+    machineName:
+      fields.machineName ||
+      process.env.PHONEDEX_MACHINE_NAME ||
+      process.env.WATCHDEX_MACHINE_NAME ||
+      os.hostname(),
     sessionId: fields.sessionId || "",
     hookPayload: fields.hookPayload,
     rawHookInputBytes: fields.rawHookInputBytes
@@ -1191,9 +1195,20 @@ function printRecent(fileName) {
 }
 
 function printHelp() {
-  console.log(`WatchDex
+  console.log(`PhoneDex
 
 Usage:
+  phonedex setup
+  phonedex server
+  phonedex hook
+  phonedex notify --title "Codex done" --text "Task completed"
+  phonedex watch-sessions
+  phonedex scan-sessions --notify-existing
+  phonedex reply --choice okay_whats_next
+  phonedex replies
+  phonedex run -- <command> [args...]
+
+Compatibility aliases:
   watchdex setup
   watchdex server
   watchdex hook
@@ -1555,7 +1570,7 @@ function truncate(value, maxLength) {
 }
 
 function renderTaskPage(task) {
-  const title = escapeHtml(task.title || "WatchDex Task");
+  const title = escapeHtml(task.title || "PhoneDex Task");
   const text = escapeHtml(task.text || "");
   const machineName = task.machineName ? escapeHtml(task.machineName) : "";
   const cwd = task.cwd ? escapeHtml(task.cwd) : "";
