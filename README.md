@@ -28,10 +28,8 @@ obvious prompt: "Okay, what's next?", "Let's do that", or a custom reply.
 - Installs a Codex `Stop` hook that fires when a Codex turn completes.
 - Watches Codex session logs as a fallback when hooks miss a completed reply.
 - Sends an actionable notification through Home Assistant or Pushcut.
-- Opens a signed, scrollable full-response page when you tap the phone
-  notification or the `View full` action.
+- Uses native expanded notification fields on iPhone for longer Codex output.
 - Shows Apple Watch actions for:
-  - `View full`
   - `Okay, what's next`
   - `Let's do that`
   - a typed custom reply
@@ -309,8 +307,6 @@ CODEX_APP_SERVER_BIN=/Users/YOUR_USER/.local/bin/codex
 
 - `.env` is ignored by git and should contain your local tokens only.
 - `.local/` is ignored and stores local Home Assistant and launchd logs.
-- Full-response notification links use `/task?id=...&token=...`, so the
-  scrollable task page is protected by the same local bridge token as replies.
 - `data/tasks.jsonl` stores completion events.
 - `data/replies.jsonl` stores watch replies.
 - `data/events.jsonl` stores provider delivery attempts.

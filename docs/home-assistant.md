@@ -106,9 +106,10 @@ Send a test notification:
 npm run test-notify
 ```
 
-On iPhone, tapping a WatchDex notification opens a signed `/task` page with the
-complete Codex response. The `View full` action opens the same page, which is
-useful when iOS truncates the notification preview.
+On iPhone, WatchDex keeps the notification tap target native by setting
+`url: noAction` and sends the Codex output as both `message` and the long-form
+`subject` notification field. Expand the notification to see as much of the
+response as iOS allows without opening a browser.
 
 ## Home Assistant Callback Automations
 

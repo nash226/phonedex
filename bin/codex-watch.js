@@ -358,7 +358,6 @@ function buildPushcutBody(cfg, task) {
 
 function buildHomeAssistantBody(cfg, task) {
   const safeTaskId = task.id.replace(/[^A-Za-z0-9_]/g, "_").toUpperCase();
-  const taskViewUrl = buildTaskViewUrl(cfg, task);
   const customAction =
     cfg.homeAssistantCustomReplyMode === "shortcut"
       ? {
@@ -375,11 +374,6 @@ function buildHomeAssistantBody(cfg, task) {
           textInputPlaceholder: "Type reply to Codex"
         };
   const actionPayloads = [
-    {
-      action: "OPEN",
-      title: "View full",
-      uri: taskViewUrl
-    },
     {
       action: `WATCHDEX_OKAY_${safeTaskId}`,
       title: "Okay, what's next",
@@ -399,7 +393,9 @@ function buildHomeAssistantBody(cfg, task) {
     data: {
       tag: task.id,
       group: "watchdex",
-      url: taskViewUrl,
+      url: "noAction",
+      subtitle: cfg.machineName,
+      subject: task.text,
       push: {
         "interruption-level": cfg.homeAssistantInterruptionLevel
       },

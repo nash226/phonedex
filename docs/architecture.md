@@ -96,10 +96,10 @@ That `replyUrl` is the multi-machine routing key. Home Assistant does not need
 to know which computer owns the task ahead of time; the notification carries
 the callback URL that should receive the reply.
 
-The notification also includes a signed `url` pointing to WatchDex's `/task`
-page. Tapping the notification, or the `View full` action, opens a mobile
-browser page with the complete Codex response so iOS notification preview
-limits do not hide the end of the message.
+Home Assistant notifications include the full Codex output as the message and
+as the long-form `subject` field. The notification tap target is set to
+`noAction` so the phone stays in the native notification surface instead of
+opening a browser page.
 
 ## Watch Actions
 
@@ -107,7 +107,6 @@ The action set is intentionally small:
 
 | Action | What It Sends |
 | --- | --- |
-| `View full` | Opens the complete task text in a signed `/task` page |
 | `Okay, what's next` | Literal foreground text: `okay whats next` |
 | `Let's do that` | Literal foreground text: `lets do that` |
 | `Custom reply` | Text from Home Assistant notification input, or dictated text from the Shortcuts fallback |
