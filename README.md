@@ -180,6 +180,7 @@ For setup details, callback automations, and temporary remote access through
 Cloudflare Quick Tunnel, see [docs/home-assistant.md](docs/home-assistant.md).
 
 For the full system design, see [docs/architecture.md](docs/architecture.md).
+For the native Apple Watch app scaffold, see [watchos/README.md](watchos/README.md).
 
 ## Multiple Machines
 
