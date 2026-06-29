@@ -372,6 +372,15 @@ function buildHomeAssistantBody(cfg, task) {
       behavior: "textInput",
       textInputButtonTitle: "Send",
       textInputPlaceholder: "Type reply to Codex"
+    },
+    {
+      action: `WATCHDEX_DICTATE_${safeTaskId}`,
+      title: "Dictate reply",
+      choice: "custom",
+      behavior: "textInput",
+      textInputButtonTitle: "Send",
+      textInputPlaceholder: "Speak your reply to Codex",
+      icon: "sfsymbols:mic.fill"
     }
   ];
 
@@ -391,6 +400,7 @@ function buildHomeAssistantBody(cfg, task) {
         ...(payload.behavior ? { behavior: payload.behavior } : {}),
         ...(payload.textInputButtonTitle ? { textInputButtonTitle: payload.textInputButtonTitle } : {}),
         ...(payload.textInputPlaceholder ? { textInputPlaceholder: payload.textInputPlaceholder } : {}),
+        ...(payload.icon ? { icon: payload.icon } : {}),
         action_data: {
           token: cfg.token,
           taskId: task.id,

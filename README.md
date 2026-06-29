@@ -28,6 +28,7 @@ or "Let's do that."
   - `Okay, what's next`
   - `Let's do that`
   - a typed custom reply
+  - a dictated custom reply
 - Records replies in `data/replies.jsonl` so you have a local decision log.
 - Can wrap any shell command and notify you when it finishes.
 - Includes auto-resume modes for sending replies back to Codex.
@@ -286,8 +287,8 @@ Tailscale. Keep the token private either way.
 
 - Home Assistant replies include per-task action data for new notifications;
   older static actions still fall back to the latest task.
-- Home Assistant supports a `Custom reply` action that prompts for typed text
-  and submits that exact text to Codex in foreground mode.
+- Home Assistant supports `Custom reply` and `Dictate reply` actions that
+  prompt for text and submit that exact text to Codex in foreground mode.
 - Auto-resume depends on usable Codex session ids in hook payloads or the
   session watcher fallback.
 - There is no native iOS/watchOS app yet, so WatchDex relies on Home Assistant
