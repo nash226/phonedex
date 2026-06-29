@@ -45,6 +45,12 @@ exists as a secondary surface, but iPhone is the primary reply path.
 
 PhoneDex is currently a working local bridge, not a native iOS app.
 
+Important: Home Assistant notifications still look like Home Assistant
+notifications. PhoneDex can make them longer, native, expandable, and
+replyable, but iOS does not let a Home Assistant notification render custom
+PhoneDex app chrome. The mockup-style branded scrollable UI requires the
+native PhoneDex iOS app in [ios/](ios/).
+
 The reliable path today is:
 
 ```text
@@ -258,6 +264,9 @@ callers cannot record replies.
 | `npm run remote:stop` | Stop the Cloudflare Quick Tunnel LaunchAgent. |
 | `npm run remote:status` | Print Cloudflare Quick Tunnel LaunchAgent status. |
 | `npm run remote:url` | Print the current temporary Cloudflare tunnel URL. |
+| `npm run ios:doctor` | Check whether this Mac can build/run the native PhoneDex iOS app. |
+| `npm run ios:generate` | Generate the native iOS Xcode project with XcodeGen. |
+| `npm run ios:open` | Generate if needed, then open the native iOS Xcode project. |
 
 ## Configuration
 
