@@ -11,6 +11,7 @@ const ROOT = path.resolve(__dirname, "..");
 const DATA_DIR_DEFAULT = path.join(ROOT, "data");
 const SESSION_WATCH_STATE = "session-watch-state.json";
 const APP_SERVER_RESUME_TIMEOUT_MS = 30 * 60 * 1000;
+const PHONE_NOTIFICATION_TEXT_MAX = 1800;
 
 const RESPONSE_CHOICES = {
   okay_whats_next: "okay whats next",
@@ -340,10 +341,10 @@ function buildPushcutBody(cfg, task) {
 
   return {
     title: formatNotificationTitle(cfg, task),
-    text: task.text,
+    text: formatPhoneNotificationMessage(task),
     sound: cfg.pushcutSound,
     isTimeSensitive: cfg.pushcutTimeSensitive,
-    threadId: "watchdex",
+    threadId: "phonedex",
     id: task.id,
     input: JSON.stringify({
       taskId: task.id,
@@ -358,50 +359,58 @@ function buildPushcutBody(cfg, task) {
 
 function buildHomeAssistantBody(cfg, task) {
   const safeTaskId = task.id.replace(/[^A-Za-z0-9_]/g, "_").toUpperCase();
+  const message = formatPhoneNotificationMessage(task);
   const customAction =
     cfg.homeAssistantCustomReplyMode === "shortcut"
       ? {
           action: `WATCHDEX_SHORTCUT_${safeTaskId}`,
           title: "Custom reply",
+          icon: "sfsymbols:pencil.circle",
           uri: buildShortcutReplyUrl(cfg, task)
         }
       : {
           action: "REPLY",
           title: "Custom reply",
+          icon: "sfsymbols:pencil.circle",
           choice: "custom",
           behavior: "textInput",
           textInputButtonTitle: "Send",
-          textInputPlaceholder: "Type reply to Codex"
+          textInputPlaceholder: "Dictate or type your reply"
         };
   const actionPayloads = [
     {
       action: `WATCHDEX_OKAY_${safeTaskId}`,
       title: "Okay, what's next",
+      icon: "sfsymbols:arrow.right.circle",
       choice: "okay_whats_next"
     },
     {
       action: `WATCHDEX_DO_THAT_${safeTaskId}`,
       title: "Let's do that",
+      icon: "sfsymbols:checkmark.circle",
       choice: "lets_do_that"
     },
     customAction
   ];
 
   return {
-    title: formatNotificationTitle(cfg, task),
-    message: task.text,
+    title: task.title,
+    message,
     data: {
       tag: task.id,
-      group: "watchdex",
+      group: "phonedex",
       url: "noAction",
-      subtitle: cfg.machineName,
-      subject: task.text,
+      subtitle: formatPhoneNotificationSubtitle(cfg),
+      subject: message,
+      presentation_options: ["alert", "sound"],
       push: {
-        "interruption-level": cfg.homeAssistantInterruptionLevel
+        "interruption-level": cfg.homeAssistantInterruptionLevel,
+        "thread-id": "phonedex"
       },
       actions: actionPayloads.map((payload) => ({
         action: payload.action,
         title: payload.title,
+        ...(payload.icon ? { icon: payload.icon } : {}),
         ...(payload.uri ? { uri: payload.uri } : { activationMode: "background" }),
         ...(payload.behavior ? { behavior: payload.behavior } : {}),
         ...(payload.textInputButtonTitle ? { textInputButtonTitle: payload.textInputButtonTitle } : {}),
@@ -447,6 +456,16 @@ function buildShortcutReplyUrl(cfg, task) {
 function formatNotificationTitle(cfg, task) {
   if (!cfg.machineName) return task.title;
   return `${task.title} @ ${cfg.machineName}`;
+}
+
+function formatPhoneNotificationSubtitle(cfg) {
+  return cfg.machineName ? `PhoneDex • ${cfg.machineName}` : "PhoneDex";
+}
+
+function formatPhoneNotificationMessage(task) {
+  const text = normalizeNotificationText(task.text || "Task completed");
+  if (/^completed[:\s]/i.test(text)) return text;
+  return `Completed: ${text}`;
 }
 
 function normalizeCustomReplyMode(value) {
@@ -1172,14 +1191,10 @@ function buildTaskMessage(payload) {
 
   if (!message) return "Tap a response: okay whats next / lets do that";
 
-  const cleaned = redactSensitiveText(message)
-    .replace(/```[\s\S]*?```/g, " ")
-    .replace(/\[[^\]]+\]\([^)]+\)/g, "$1")
-    .replace(/[`*_>#-]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  return truncate(cleaned || "Tap a response: okay whats next / lets do that", 220);
+  return (
+    normalizeNotificationText(message) ||
+    "Tap a response: okay whats next / lets do that"
+  );
 }
 
 function printRecent(fileName) {
@@ -1362,7 +1377,7 @@ async function scanSessions({ cfg, notify }) {
       const task = createTask({
         source: "codex-session-watch",
         title: `Codex done: ${path.basename(item.cwd || ROOT)}`,
-        text: truncate(redactSensitiveText(item.text).replace(/\s+/g, " ").trim(), 220),
+        text: normalizeNotificationText(item.text),
         cwd: item.cwd || ROOT,
         sessionId: item.sessionId,
         hookPayload: {
@@ -1485,7 +1500,7 @@ function extractMessageText(payload) {
 }
 
 function hasMatchingTask(tasks, item) {
-  const clean = truncate(redactSensitiveText(item.text).replace(/\s+/g, " ").trim(), 220);
+  const clean = normalizeNotificationText(item.text);
   return tasks.some((task) =>
     task.sessionId === item.sessionId &&
     task.text === clean &&
@@ -1561,6 +1576,21 @@ function redactSensitiveText(value) {
     /\b(password|token|secret|api[_ -]?key)\b\s*:?\s*([^\s`"'<>]{8,})/gi,
     "$1: [redacted]"
   );
+}
+
+function normalizeNotificationText(value, maxLength = PHONE_NOTIFICATION_TEXT_MAX) {
+  const text = redactSensitiveText(value)
+    .replace(/\r\n/g, "\n")
+    .replace(/```[A-Za-z0-9_-]*\n?/g, "")
+    .replace(/```/g, "")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n[ \t]+/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[`*_>#]/g, "")
+    .trim();
+
+  return truncate(text, maxLength);
 }
 
 function truncate(value, maxLength) {

@@ -110,6 +110,11 @@ as the long-form `subject` field. The notification tap target is set to
 `noAction` so the phone stays in the native notification surface instead of
 opening a browser page.
 
+The Home Assistant path cannot change the app name, app icon, or outer system
+notification chrome. PhoneDex's native iOS path uses a notification content
+extension so the expanded view can show a branded, scrollable PhoneDex task
+surface like the README mockup.
+
 ## Phone Actions
 
 The action set is intentionally small:
