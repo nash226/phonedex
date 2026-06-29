@@ -85,6 +85,7 @@ HOME_ASSISTANT_TOKEN=YOUR_LONG_LIVED_ACCESS_TOKEN
 HOME_ASSISTANT_NOTIFY_SERVICE=notify.mobile_app_your_iphone
 WATCH_BRIDGE_PUBLIC_URL=http://YOUR_MAC_LAN_IP:8765
 WATCH_BRIDGE_HOST=0.0.0.0
+WATCHDEX_MACHINE_NAME=MacBook Air
 ```
 
 Find the notify service in Home Assistant under **Developer Tools > Services**.
@@ -110,20 +111,22 @@ Add these to Home Assistant. Replace `YOUR_MAC_LAN_IP` and
 ```yaml
 rest_command:
   codex_watch_reply:
-    url: "http://YOUR_MAC_LAN_IP:8765/reply"
+    url: "{{ reply_url | default('http://YOUR_MAC_LAN_IP:8765/reply') }}"
     method: POST
     content_type: "application/json"
     payload: >
       {
-        "token": "YOUR_WATCH_BRIDGE_TOKEN",
+        "token": {{ token | default('YOUR_WATCH_BRIDGE_TOKEN') | to_json }},
         "taskId": "{{ task_id | default('') }}",
         "choice": "{{ choice }}",
-        "prompt": {{ prompt | default('') | to_json }}
+        "prompt": {{ prompt | default('') | to_json }},
+        "machineName": {{ machine_name | default('') | to_json }}
       }
 
 automation:
   - alias: "WatchDex reply actions"
-    mode: single
+    mode: queued
+    max: 10
     trigger:
       - platform: event
         event_type: mobile_app_notification_action
@@ -137,7 +140,10 @@ automation:
     action:
       - service: rest_command.codex_watch_reply
         data:
+          reply_url: "{{ trigger.event.data.get('action_data', {}).get('replyUrl', 'http://YOUR_MAC_LAN_IP:8765/reply') }}"
+          token: "{{ trigger.event.data.get('action_data', {}).get('token', 'YOUR_WATCH_BRIDGE_TOKEN') }}"
           task_id: "{{ trigger.event.data.get('action_data', {}).get('taskId', '') }}"
+          machine_name: "{{ trigger.event.data.get('action_data', {}).get('machineName', '') }}"
           choice: >
             {% if trigger.event.data.action.startswith('WATCHDEX_DO_THAT_')
                   or trigger.event.data.action == 'CODEX_WATCH_LETS_DO_THAT' %}
@@ -194,7 +200,26 @@ text back as the prompt.
 ## Notes
 
 Home Assistant receives the watch action event first, then calls the bridge.
-New WatchDex notifications include a per-task action id and `action_data.taskId`
-so replies are recorded against the exact Codex completion that sent the
+New WatchDex notifications include a per-task action id, `action_data.taskId`,
+`action_data.replyUrl`, and `action_data.machineName` so replies are recorded
+against the exact Codex completion and routed back to the machine that sent the
 notification. Older static action ids still work, but they fall back to the
-latest task.
+default URL in the automation.
+
+## Multiple Machines
+
+Use the same Home Assistant instance as the watch notification hub for every
+computer running Codex. On each machine:
+
+1. Clone WatchDex and run the setup/install steps.
+2. Point `HOME_ASSISTANT_URL`, `HOME_ASSISTANT_TOKEN`, and
+   `HOME_ASSISTANT_NOTIFY_SERVICE` at the same Home Assistant instance.
+3. Set a unique `WATCHDEX_MACHINE_NAME`, such as `iMac`, `MacBook Air`, or
+   `Windows`.
+4. Set `WATCH_BRIDGE_PUBLIC_URL` to a URL that Home Assistant can call back to
+   for that specific machine.
+5. Start the bridge and session watcher on that machine.
+
+The Home Assistant automation above reads `replyUrl` from the notification
+action data. That is what lets one watch reply return to the MacBook Air while
+another returns to the iMac or Windows machine.

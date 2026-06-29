@@ -110,6 +110,7 @@ function config() {
     env.WATCH_BRIDGE_PUBLIC_URL || `http://${host}:${port}`
   );
   const homeAssistantUrl = trimTrailingSlash(env.HOME_ASSISTANT_URL || "");
+  const machineName = env.WATCHDEX_MACHINE_NAME || os.hostname();
   const provider =
     env.WATCH_BRIDGE_PROVIDER ||
     (homeAssistantUrl && env.HOME_ASSISTANT_TOKEN ? "home-assistant" : "pushcut");
@@ -122,7 +123,9 @@ function config() {
     homeAssistantNotifyService: env.HOME_ASSISTANT_NOTIFY_SERVICE || "",
     homeAssistantInterruptionLevel:
       env.HOME_ASSISTANT_INTERRUPTION_LEVEL || "time-sensitive",
+    machineName,
     publicUrl,
+    replyUrl: `${publicUrl}/reply`,
     token: env.WATCH_BRIDGE_TOKEN || "",
     host,
     port,
@@ -324,14 +327,15 @@ function buildPushcutBody(cfg, task) {
           token: cfg.token,
           taskId: task.id,
           choice,
-          prompt
+          prompt,
+          machineName: cfg.machineName
         })
       }
     };
   });
 
   return {
-    title: task.title,
+    title: formatNotificationTitle(cfg, task),
     text: task.text,
     sound: cfg.pushcutSound,
     isTimeSensitive: cfg.pushcutTimeSensitive,
@@ -340,7 +344,9 @@ function buildPushcutBody(cfg, task) {
     input: JSON.stringify({
       taskId: task.id,
       cwd: task.cwd,
-      sessionId: task.sessionId || ""
+      sessionId: task.sessionId || "",
+      machineName: cfg.machineName,
+      replyUrl: cfg.replyUrl
     }),
     actions
   };
@@ -370,7 +376,7 @@ function buildHomeAssistantBody(cfg, task) {
   ];
 
   return {
-    title: task.title,
+    title: formatNotificationTitle(cfg, task),
     message: task.text,
     data: {
       tag: task.id,
@@ -389,11 +395,18 @@ function buildHomeAssistantBody(cfg, task) {
           token: cfg.token,
           taskId: task.id,
           choice: payload.choice,
-          prompt: RESPONSE_CHOICES[payload.choice]
+          prompt: RESPONSE_CHOICES[payload.choice],
+          replyUrl: cfg.replyUrl,
+          machineName: cfg.machineName
         }
       }))
     }
   };
+}
+
+function formatNotificationTitle(cfg, task) {
+  if (!cfg.machineName) return task.title;
+  return `${task.title} @ ${cfg.machineName}`;
 }
 
 function parseHomeAssistantNotifyService(value) {
@@ -426,7 +439,9 @@ async function startServer() {
         return sendJson(res, 200, {
           ok: true,
           service: "watchdex",
-          publicUrl: cfg.publicUrl
+          machineName: cfg.machineName,
+          publicUrl: cfg.publicUrl,
+          replyUrl: cfg.replyUrl
         });
       }
 
@@ -488,6 +503,7 @@ async function handleReplyRequest(req, res, requestUrl, cfg) {
     taskTitle: task?.title || "",
     sessionId: task?.sessionId || "",
     cwd: task?.cwd || "",
+    machineName: fields.machineName || fields.machine || task?.machineName || "",
     userAgent: req.headers["user-agent"] || ""
   };
 
@@ -992,6 +1008,7 @@ function createTask(fields) {
     title: fields.title || "Codex done",
     text: fields.text || "Task completed",
     cwd: fields.cwd || process.cwd(),
+    machineName: fields.machineName || process.env.WATCHDEX_MACHINE_NAME || os.hostname(),
     sessionId: fields.sessionId || "",
     hookPayload: fields.hookPayload,
     rawHookInputBytes: fields.rawHookInputBytes
