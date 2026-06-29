@@ -9,9 +9,13 @@
 /* Begin PBXBuildFile section */
 		1229201577C351A245C15779 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54150915655642C1927495EF /* ContentView.swift */; };
 		33C7D800E56A544D6C1FE4A6 /* NotificationViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBAEE9F726FE8D4C76E5A3B4 /* NotificationViewController.swift */; };
+		4AD2D4C66638418C10829681 /* PhoneDexModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47C36F125C6C567BFBAEBA8F /* PhoneDexModels.swift */; };
 		6227A85E0E24CB5969010156 /* PhoneDexNotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DA3B7D5BFCEF5C3D552B1AD /* PhoneDexNotificationScheduler.swift */; };
+		68879D1C907AADCF164F0128 /* PhoneDexNotificationDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91DBF29F5751A2929960440B /* PhoneDexNotificationDelegate.swift */; };
 		96CDAE56CA505EB72AF1B62E /* PhoneDexApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3240FEAD2F5618D959AFEE78 /* PhoneDexApp.swift */; };
+		CC0105A4E0261E4B304E1DEF /* PhoneDexSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECE2BFEEB938CE1690FB6C27 /* PhoneDexSettings.swift */; };
 		E5051DCD0753963C6EB8743D /* PhoneDexNotificationExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 25C82207BC440A87334B4671 /* PhoneDexNotificationExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		EDCA3CD5D1091B69E242B1A5 /* PhoneDexBridgeClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 215494D6ACCADDC5644E6D3F /* PhoneDexBridgeClient.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -39,13 +43,18 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		215494D6ACCADDC5644E6D3F /* PhoneDexBridgeClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexBridgeClient.swift; sourceTree = "<group>"; };
 		25C82207BC440A87334B4671 /* PhoneDexNotificationExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = PhoneDexNotificationExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		3240FEAD2F5618D959AFEE78 /* PhoneDexApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexApp.swift; sourceTree = "<group>"; };
+		47C36F125C6C567BFBAEBA8F /* PhoneDexModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexModels.swift; sourceTree = "<group>"; };
 		54150915655642C1927495EF /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		591360A3AD685BF9A3A4BDCE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		5DA3B7D5BFCEF5C3D552B1AD /* PhoneDexNotificationScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexNotificationScheduler.swift; sourceTree = "<group>"; };
 		73FF60BB337122A42682971A /* PhoneDex.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = PhoneDex.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		860A56B417B84053261A7EA0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		91DBF29F5751A2929960440B /* PhoneDexNotificationDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexNotificationDelegate.swift; sourceTree = "<group>"; };
 		BBAEE9F726FE8D4C76E5A3B4 /* NotificationViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationViewController.swift; sourceTree = "<group>"; };
+		ECE2BFEEB938CE1690FB6C27 /* PhoneDexSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexSettings.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -71,8 +80,13 @@
 			isa = PBXGroup;
 			children = (
 				54150915655642C1927495EF /* ContentView.swift */,
+				591360A3AD685BF9A3A4BDCE /* Info.plist */,
 				3240FEAD2F5618D959AFEE78 /* PhoneDexApp.swift */,
+				215494D6ACCADDC5644E6D3F /* PhoneDexBridgeClient.swift */,
+				47C36F125C6C567BFBAEBA8F /* PhoneDexModels.swift */,
+				91DBF29F5751A2929960440B /* PhoneDexNotificationDelegate.swift */,
 				5DA3B7D5BFCEF5C3D552B1AD /* PhoneDexNotificationScheduler.swift */,
+				ECE2BFEEB938CE1690FB6C27 /* PhoneDexSettings.swift */,
 			);
 			path = PhoneDexApp;
 			sourceTree = "<group>";
@@ -163,7 +177,11 @@
 			files = (
 				1229201577C351A245C15779 /* ContentView.swift in Sources */,
 				96CDAE56CA505EB72AF1B62E /* PhoneDexApp.swift in Sources */,
+				EDCA3CD5D1091B69E242B1A5 /* PhoneDexBridgeClient.swift in Sources */,
+				4AD2D4C66638418C10829681 /* PhoneDexModels.swift in Sources */,
+				68879D1C907AADCF164F0128 /* PhoneDexNotificationDelegate.swift in Sources */,
 				6227A85E0E24CB5969010156 /* PhoneDexNotificationScheduler.swift in Sources */,
+				CC0105A4E0261E4B304E1DEF /* PhoneDexSettings.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -254,9 +272,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_FILE = PhoneDexApp/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -360,9 +376,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_FILE = PhoneDexApp/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
