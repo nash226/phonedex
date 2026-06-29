@@ -10,10 +10,19 @@ const { spawn } = require("node:child_process");
 const ROOT = path.resolve(__dirname, "..");
 const DATA_DIR_DEFAULT = path.join(ROOT, "data");
 const SESSION_WATCH_STATE = "session-watch-state.json";
+const APP_SERVER_RESUME_TIMEOUT_MS = 30 * 60 * 1000;
 
 const RESPONSE_CHOICES = {
   okay_whats_next: "okay whats next",
-  lets_do_that: "lets do that"
+  lets_do_that: "lets do that",
+  custom: ""
+};
+
+const CODEX_RESUME_PROMPTS = {
+  okay_whats_next:
+    "The user tapped the PhoneDex quick reply: okay whats next. Provide a concise status update and the next recommended action only. Do not run tools, edit files, or start new work.",
+  lets_do_that:
+    "The user tapped the PhoneDex quick reply: lets do that. Continue with the previously recommended next step, keeping the scope tight and reporting back when done."
 };
 
 main().catch((error) => {
@@ -75,6 +84,16 @@ async function main() {
     return;
   }
 
+  if (command === "app-server-resume") {
+    await appServerResumeCommand(args);
+    return;
+  }
+
+  if (command === "foreground-submit") {
+    await foregroundSubmitCommand(args);
+    return;
+  }
+
   if (command === "run") {
     await runAndNotify(args);
     return;
@@ -91,6 +110,7 @@ function config() {
     env.WATCH_BRIDGE_PUBLIC_URL || `http://${host}:${port}`
   );
   const homeAssistantUrl = trimTrailingSlash(env.HOME_ASSISTANT_URL || "");
+  const machineName = env.PHONEDEX_MACHINE_NAME || env.WATCHDEX_MACHINE_NAME || os.hostname();
   const provider =
     env.WATCH_BRIDGE_PROVIDER ||
     (homeAssistantUrl && env.HOME_ASSISTANT_TOKEN ? "home-assistant" : "pushcut");
@@ -103,7 +123,13 @@ function config() {
     homeAssistantNotifyService: env.HOME_ASSISTANT_NOTIFY_SERVICE || "",
     homeAssistantInterruptionLevel:
       env.HOME_ASSISTANT_INTERRUPTION_LEVEL || "time-sensitive",
+    homeAssistantCustomReplyMode: normalizeCustomReplyMode(
+      env.HOME_ASSISTANT_CUSTOM_REPLY_MODE
+    ),
+    shortcutName: env.PHONEDEX_SHORTCUT_NAME || env.WATCHDEX_SHORTCUT_NAME || "PhoneDex Reply",
+    machineName,
     publicUrl,
+    replyUrl: `${publicUrl}/reply`,
     token: env.WATCH_BRIDGE_TOKEN || "",
     host,
     port,
@@ -111,12 +137,23 @@ function config() {
     pushcutSound: env.PUSHCUT_SOUND || "jobDone",
     pushcutTimeSensitive: parseBoolean(env.PUSHCUT_TIME_SENSITIVE, true),
     autoResume: parseBoolean(env.WATCH_BRIDGE_AUTO_RESUME, false),
+    autoResumeMode: env.WATCH_BRIDGE_AUTO_RESUME_MODE || "cli",
     codexHome: env.CODEX_HOME || path.join(os.homedir(), ".codex"),
-    sessionWatchIntervalMs: Number(env.WATCHDEX_SESSION_WATCH_INTERVAL_MS || "15000"),
-    sessionWatchDebounceMs: Number(env.WATCHDEX_SESSION_WATCH_DEBOUNCE_MS || "45000"),
+    sessionWatchIntervalMs: Number(env.WATCHDEX_SESSION_WATCH_INTERVAL_MS || "5000"),
+    sessionWatchDebounceMs: Number(env.WATCHDEX_SESSION_WATCH_DEBOUNCE_MS || "8000"),
     codexBin:
-      env.CODEX_BIN || "/Applications/Codex.app/Contents/Resources/codex"
+      env.CODEX_BIN || "/Applications/Codex.app/Contents/Resources/codex",
+    codexAppServerBin:
+      env.CODEX_APP_SERVER_BIN ||
+      env.CODEX_BIN ||
+      defaultAppServerCodexBin()
   };
+}
+
+function defaultAppServerCodexBin() {
+  const standaloneBin = path.join(os.homedir(), ".local", "bin", "codex");
+  if (fs.existsSync(standaloneBin)) return standaloneBin;
+  return "/Applications/Codex.app/Contents/Resources/codex";
 }
 
 async function setup() {
@@ -135,7 +172,7 @@ async function setup() {
   console.log("Next:");
   console.log("1. Choose pushcut or home-assistant in .env");
   console.log("2. Run: npm run server");
-  console.log("3. In Codex, open /hooks and trust the WatchDex hook");
+  console.log("3. In Codex, open /hooks and trust the PhoneDex hook");
   console.log("4. Run: npm run test-notify");
 }
 
@@ -294,14 +331,15 @@ function buildPushcutBody(cfg, task) {
           token: cfg.token,
           taskId: task.id,
           choice,
-          prompt
+          prompt,
+          machineName: cfg.machineName
         })
       }
     };
   });
 
   return {
-    title: task.title,
+    title: formatNotificationTitle(cfg, task),
     text: task.text,
     sound: cfg.pushcutSound,
     isTimeSensitive: cfg.pushcutTimeSensitive,
@@ -310,7 +348,9 @@ function buildPushcutBody(cfg, task) {
     input: JSON.stringify({
       taskId: task.id,
       cwd: task.cwd,
-      sessionId: task.sessionId || ""
+      sessionId: task.sessionId || "",
+      machineName: cfg.machineName,
+      replyUrl: cfg.replyUrl
     }),
     actions
   };
@@ -318,6 +358,21 @@ function buildPushcutBody(cfg, task) {
 
 function buildHomeAssistantBody(cfg, task) {
   const safeTaskId = task.id.replace(/[^A-Za-z0-9_]/g, "_").toUpperCase();
+  const customAction =
+    cfg.homeAssistantCustomReplyMode === "shortcut"
+      ? {
+          action: `WATCHDEX_SHORTCUT_${safeTaskId}`,
+          title: "Custom reply",
+          uri: buildShortcutReplyUrl(cfg, task)
+        }
+      : {
+          action: "REPLY",
+          title: "Custom reply",
+          choice: "custom",
+          behavior: "textInput",
+          textInputButtonTitle: "Send",
+          textInputPlaceholder: "Type reply to Codex"
+        };
   const actionPayloads = [
     {
       action: `WATCHDEX_OKAY_${safeTaskId}`,
@@ -328,31 +383,76 @@ function buildHomeAssistantBody(cfg, task) {
       action: `WATCHDEX_DO_THAT_${safeTaskId}`,
       title: "Let's do that",
       choice: "lets_do_that"
-    }
+    },
+    customAction
   ];
 
   return {
-    title: task.title,
+    title: formatNotificationTitle(cfg, task),
     message: task.text,
     data: {
       tag: task.id,
       group: "watchdex",
+      url: "noAction",
+      subtitle: cfg.machineName,
+      subject: task.text,
       push: {
         "interruption-level": cfg.homeAssistantInterruptionLevel
       },
       actions: actionPayloads.map((payload) => ({
         action: payload.action,
         title: payload.title,
-        activationMode: "background",
-        action_data: {
-          token: cfg.token,
-          taskId: task.id,
-          choice: payload.choice,
-          prompt: RESPONSE_CHOICES[payload.choice]
-        }
+        ...(payload.uri ? { uri: payload.uri } : { activationMode: "background" }),
+        ...(payload.behavior ? { behavior: payload.behavior } : {}),
+        ...(payload.textInputButtonTitle ? { textInputButtonTitle: payload.textInputButtonTitle } : {}),
+        ...(payload.textInputPlaceholder ? { textInputPlaceholder: payload.textInputPlaceholder } : {}),
+        ...(payload.uri
+          ? {}
+          : {
+              action_data: {
+                token: cfg.token,
+                taskId: task.id,
+                choice: payload.choice,
+                prompt: RESPONSE_CHOICES[payload.choice],
+                replyUrl: cfg.replyUrl,
+                machineName: cfg.machineName
+              }
+            })
       }))
     }
   };
+}
+
+function buildTaskViewUrl(cfg, task) {
+  const url = new URL(`${cfg.publicUrl}/task`);
+  url.searchParams.set("id", task.id);
+  url.searchParams.set("token", cfg.token);
+  return url.toString();
+}
+
+function buildShortcutReplyUrl(cfg, task) {
+  const replyUrl = new URL(cfg.replyUrl);
+  replyUrl.searchParams.set("token", cfg.token);
+  replyUrl.searchParams.set("taskId", task.id);
+  replyUrl.searchParams.set("choice", "custom");
+  replyUrl.searchParams.set("machineName", cfg.machineName);
+
+  const shortcutUrl = new URL("shortcuts://run-shortcut");
+  shortcutUrl.searchParams.set("name", cfg.shortcutName);
+  shortcutUrl.searchParams.set("input", "text");
+  shortcutUrl.searchParams.set("text", replyUrl.toString());
+  return shortcutUrl.toString();
+}
+
+function formatNotificationTitle(cfg, task) {
+  if (!cfg.machineName) return task.title;
+  return `${task.title} @ ${cfg.machineName}`;
+}
+
+function normalizeCustomReplyMode(value) {
+  const mode = String(value || "reply").trim().toLowerCase();
+  if (mode === "shortcut") return "shortcut";
+  return "reply";
 }
 
 function parseHomeAssistantNotifyService(value) {
@@ -385,12 +485,22 @@ async function startServer() {
         return sendJson(res, 200, {
           ok: true,
           service: "watchdex",
-          publicUrl: cfg.publicUrl
+          machineName: cfg.machineName,
+          publicUrl: cfg.publicUrl,
+          replyUrl: cfg.replyUrl
         });
       }
 
       if (requestUrl.pathname === "/reply") {
         return handleReplyRequest(req, res, requestUrl, cfg);
+      }
+
+      if (requestUrl.pathname === "/task") {
+        return handleTaskPageRequest(req, res, requestUrl, cfg);
+      }
+
+      if (requestUrl.pathname === "/ha-action-event") {
+        return handleHomeAssistantActionEvent(req, res, requestUrl, cfg);
       }
 
       if (requestUrl.pathname === "/replies") {
@@ -403,7 +513,7 @@ async function startServer() {
 
       sendJson(res, 200, {
         service: "watchdex",
-        endpoints: ["/health", "/reply", "/replies", "/tasks"]
+        endpoints: ["/health", "/reply", "/task", "/ha-action-event", "/replies", "/tasks"]
       });
     } catch (error) {
       logError(error);
@@ -412,8 +522,56 @@ async function startServer() {
   });
 
   await new Promise((resolve) => server.listen(cfg.port, cfg.host, resolve));
-  console.log(`WatchDex listening on http://${cfg.host}:${cfg.port}`);
-  console.log(`Watch reply callback public URL should be: ${cfg.publicUrl}/reply`);
+  console.log(`PhoneDex listening on http://${cfg.host}:${cfg.port}`);
+  console.log(`Phone reply callback public URL should be: ${cfg.publicUrl}/reply`);
+}
+
+async function handleTaskPageRequest(req, res, requestUrl, cfg) {
+  const token = requestUrl.searchParams.get("token") || "";
+  if (cfg.token && token !== cfg.token) {
+    return sendHtml(res, 401, renderMessagePage("PhoneDex", "Invalid token."));
+  }
+
+  const latestTask = latestJsonl(cfg.dataDir, "tasks.jsonl");
+  const taskId = requestUrl.searchParams.get("id") || requestUrl.searchParams.get("taskId") || "";
+  const task = taskId ? findTask(cfg.dataDir, taskId) : latestTask;
+
+  if (!task) {
+    return sendHtml(res, 404, renderMessagePage("PhoneDex", "Task not found."));
+  }
+
+  return sendHtml(res, 200, renderTaskPage(task));
+}
+
+async function handleHomeAssistantActionEvent(req, res, requestUrl, cfg) {
+  const body = await readHttpBody(req);
+  const fields = {
+    ...Object.fromEntries(requestUrl.searchParams.entries()),
+    ...parseBodyFields(body, req.headers["content-type"] || "")
+  };
+  const event = fields.event && typeof fields.event === "object" ? fields.event : fields;
+  const token = fields.token || event?.action_data?.token || "";
+
+  if (cfg.token && token !== cfg.token) {
+    return sendJson(res, 401, { ok: false, error: "Invalid token" });
+  }
+
+  appendJsonl(cfg.dataDir, "action-events.jsonl", {
+    at: new Date().toISOString(),
+    source: "home-assistant-action-event",
+    event: redactActionEvent(event),
+    userAgent: req.headers["user-agent"] || ""
+  });
+
+  sendJson(res, 200, { ok: true });
+}
+
+function redactActionEvent(event) {
+  if (!event || typeof event !== "object") return event;
+  const clone = JSON.parse(JSON.stringify(event));
+  if (clone.action_data?.token) clone.action_data.token = "[redacted]";
+  if (clone.token) clone.token = "[redacted]";
+  return clone;
 }
 
 async function handleReplyRequest(req, res, requestUrl, cfg) {
@@ -430,7 +588,12 @@ async function handleReplyRequest(req, res, requestUrl, cfg) {
   const latestTask = latestJsonl(cfg.dataDir, "tasks.jsonl");
   const taskId = fields.taskId || fields.task_id || latestTask?.id || "";
   const choice = normalizeChoice(fields.choice || "okay_whats_next");
-  const prompt = fields.prompt || RESPONSE_CHOICES[choice] || choice;
+  const prompt =
+    fields.prompt ||
+    fields.reply_text ||
+    fields.replyText ||
+    RESPONSE_CHOICES[choice] ||
+    choice;
   const task = taskId ? findTask(cfg.dataDir, taskId) || latestTask : latestTask;
 
   const reply = {
@@ -439,11 +602,35 @@ async function handleReplyRequest(req, res, requestUrl, cfg) {
     taskId,
     choice,
     prompt,
+    action: fields.action || "",
+    replyText: fields.reply_text || fields.replyText || "",
     taskTitle: task?.title || "",
     sessionId: task?.sessionId || "",
     cwd: task?.cwd || "",
+    machineName: fields.machineName || fields.machine || task?.machineName || "",
     userAgent: req.headers["user-agent"] || ""
   };
+
+  const duplicate = findRecentDuplicateReply(cfg.dataDir, reply);
+  if (duplicate) {
+    appendJsonl(cfg.dataDir, "events.jsonl", {
+      at: new Date().toISOString(),
+      type: "duplicate-reply-ignored",
+      duplicateOf: duplicate.id,
+      taskId: reply.taskId,
+      choice: reply.choice,
+      action: reply.action,
+      prompt: reply.prompt.slice(0, 200)
+    });
+
+    return sendJson(res, 200, {
+      ok: true,
+      duplicate: true,
+      duplicateOf: duplicate.id,
+      recorded: duplicate,
+      autoResumeQueued: false
+    });
+  }
 
   appendJsonl(cfg.dataDir, "replies.jsonl", reply);
 
@@ -456,6 +643,24 @@ async function handleReplyRequest(req, res, requestUrl, cfg) {
     recorded: reply,
     autoResumeQueued: Boolean(cfg.autoResume && task?.sessionId)
   });
+}
+
+function findRecentDuplicateReply(dataDir, reply) {
+  const replyAt = Date.parse(reply.at);
+  return readJsonl(dataDir, "replies.jsonl")
+    .slice(-20)
+    .find((candidate) => {
+      if (!candidate?.at || Number.isNaN(replyAt)) return false;
+      const candidateAt = Date.parse(candidate.at);
+      return (
+        !Number.isNaN(candidateAt) &&
+        Math.abs(replyAt - candidateAt) <= 3000 &&
+        candidate.taskId === reply.taskId &&
+        candidate.choice === reply.choice &&
+        candidate.action === reply.action &&
+        candidate.prompt === reply.prompt
+      );
+    });
 }
 
 async function recordReplyFromCli(args) {
@@ -491,11 +696,21 @@ function attemptAutoResume(cfg, task, reply) {
     return;
   }
 
+  if (cfg.autoResumeMode === "app-server") {
+    attemptAppServerAutoResume(cfg, task, reply);
+    return;
+  }
+
+  if (cfg.autoResumeMode === "foreground") {
+    attemptForegroundAutoResume(cfg, task, reply);
+    return;
+  }
+
   const logPath = path.join(cfg.dataDir, "auto-resume.log");
   const out = fs.openSync(logPath, "a");
   const child = spawn(
     cfg.codexBin,
-    ["exec", "resume", "--skip-git-repo-check", task.sessionId, reply.prompt],
+    ["exec", "resume", "--skip-git-repo-check", task.sessionId, buildCodexResumePrompt(reply)],
     {
       cwd: task.cwd || ROOT,
       detached: true,
@@ -511,10 +726,372 @@ function attemptAutoResume(cfg, task, reply) {
   appendJsonl(cfg.dataDir, "events.jsonl", {
     at: new Date().toISOString(),
     type: "auto-resume-started",
+    mode: "cli",
     taskId: reply.taskId,
     sessionId: task.sessionId,
     pid: child.pid
   });
+}
+
+function attemptAppServerAutoResume(cfg, task, reply) {
+  const logPath = path.join(cfg.dataDir, "app-server-resume.log");
+  const out = fs.openSync(logPath, "a");
+  const child = spawn(
+    process.execPath,
+    [
+      __filename,
+      "app-server-resume",
+      "--taskId",
+      reply.taskId,
+      "--prompt",
+      buildCodexResumePrompt(reply)
+    ],
+    {
+      cwd: task.cwd || ROOT,
+      detached: true,
+      stdio: ["ignore", out, out],
+      env: {
+        ...process.env,
+        CODEX_WATCH_AUTO_RESUME: "1"
+      }
+    }
+  );
+
+  child.unref();
+  appendJsonl(cfg.dataDir, "events.jsonl", {
+    at: new Date().toISOString(),
+    type: "auto-resume-started",
+    mode: "app-server",
+    taskId: reply.taskId,
+    sessionId: task.sessionId,
+    pid: child.pid
+  });
+}
+
+function attemptForegroundAutoResume(cfg, task, reply) {
+  const logPath = path.join(cfg.dataDir, "foreground-resume.log");
+  const out = fs.openSync(logPath, "a");
+  const child = spawn(
+    process.execPath,
+    [
+      __filename,
+      "foreground-submit",
+      "--taskId",
+      reply.taskId,
+      "--prompt",
+      buildVisibleReplyPrompt(reply)
+    ],
+    {
+      cwd: task.cwd || ROOT,
+      detached: true,
+      stdio: ["ignore", out, out],
+      env: {
+        ...process.env,
+        CODEX_WATCH_AUTO_RESUME: "1"
+      }
+    }
+  );
+
+  child.unref();
+  appendJsonl(cfg.dataDir, "events.jsonl", {
+    at: new Date().toISOString(),
+    type: "auto-resume-started",
+    mode: "foreground",
+    taskId: reply.taskId,
+    sessionId: task.sessionId,
+    pid: child.pid
+  });
+}
+
+async function appServerResumeCommand(args) {
+  const cfg = config();
+  ensureDataDir(cfg.dataDir);
+  const flags = parseFlags(args);
+  const taskId = flags.taskId || flags.task || "";
+  const task = taskId ? findTask(cfg.dataDir, taskId) : latestJsonl(cfg.dataDir, "tasks.jsonl");
+  if (!task) throw new Error(`No task found for app-server resume: ${taskId || "(latest)"}`);
+  if (!task.sessionId) throw new Error(`Task ${task.id} does not have a Codex session id`);
+
+  const prompt = flags.prompt || buildCodexResumePrompt({ choice: flags.choice || "" });
+  if (!prompt) throw new Error("Missing --prompt for app-server resume");
+
+  await runAppServerTurn(cfg, task, prompt);
+}
+
+async function foregroundSubmitCommand(args) {
+  const cfg = config();
+  ensureDataDir(cfg.dataDir);
+  const flags = parseFlags(args);
+  const taskId = flags.taskId || flags.task || "";
+  const task = taskId ? findTask(cfg.dataDir, taskId) : latestJsonl(cfg.dataDir, "tasks.jsonl");
+  if (!task) throw new Error(`No task found for foreground submit: ${taskId || "(latest)"}`);
+
+  const prompt = flags.prompt || buildCodexResumePrompt({ choice: flags.choice || "" });
+  if (!prompt) throw new Error("Missing --prompt for foreground submit");
+
+  await submitPromptToForegroundCodex(cfg, task, prompt);
+}
+
+function buildCodexResumePrompt(reply) {
+  const choice = normalizeChoice(reply.choice || "");
+  return CODEX_RESUME_PROMPTS[choice] || reply.prompt || RESPONSE_CHOICES[choice] || choice;
+}
+
+function buildVisibleReplyPrompt(reply) {
+  const choice = normalizeChoice(reply.choice || "");
+  return reply.prompt || RESPONSE_CHOICES[choice] || choice;
+}
+
+async function submitPromptToForegroundCodex(cfg, task, prompt) {
+  appendJsonl(cfg.dataDir, "events.jsonl", {
+    at: new Date().toISOString(),
+    type: "foreground-resume-worker-started",
+    taskId: task.id,
+    sessionId: task.sessionId || "",
+    cwd: task.cwd || ROOT
+  });
+
+  const script = `
+on run argv
+  set promptText to item 1 of argv
+  set previousClipboard to the clipboard
+  tell application "Codex" to activate
+  delay 0.6
+  set the clipboard to promptText
+  tell application "System Events"
+    tell process "Codex"
+      set frontmost to true
+      keystroke "v" using {command down}
+      delay 0.2
+      key code 36
+    end tell
+  end tell
+  delay 0.5
+  set the clipboard to previousClipboard
+end run
+`;
+
+  try {
+    await runChild("osascript", ["-e", script, prompt], {
+      cwd: task.cwd || ROOT
+    });
+    appendJsonl(cfg.dataDir, "events.jsonl", {
+      at: new Date().toISOString(),
+      type: "foreground-resume-submitted",
+      taskId: task.id,
+      sessionId: task.sessionId || ""
+    });
+  } catch (error) {
+    appendJsonl(cfg.dataDir, "events.jsonl", {
+      at: new Date().toISOString(),
+      type: "foreground-resume-failed",
+      taskId: task.id,
+      sessionId: task.sessionId || "",
+      error: error.message
+    });
+    throw error;
+  }
+}
+
+async function runAppServerTurn(cfg, task, prompt) {
+  const startedAt = new Date().toISOString();
+  const cwd = task.cwd || ROOT;
+  const logPath = path.join(cfg.dataDir, "app-server-resume.log");
+  fs.appendFileSync(logPath, `[${startedAt}] starting ${task.id} ${task.sessionId}\n`);
+
+  appendJsonl(cfg.dataDir, "events.jsonl", {
+    at: startedAt,
+    type: "app-server-resume-worker-started",
+    taskId: task.id,
+    sessionId: task.sessionId,
+    cwd,
+    codexBin: cfg.codexAppServerBin
+  });
+
+  const child = spawn(cfg.codexAppServerBin, ["app-server", "--stdio"], {
+    cwd,
+    stdio: ["pipe", "pipe", "pipe"],
+    env: {
+      ...process.env,
+      CODEX_WATCH_AUTO_RESUME: "1"
+    }
+  });
+
+  let nextId = 1;
+  let stdoutBuffer = "";
+  let completed = false;
+  const pending = new Map();
+
+  const send = (method, params, wantsResponse = true) => {
+    const message = wantsResponse
+      ? { id: nextId++, method, params }
+      : { method, params };
+    fs.appendFileSync(logPath, `> ${formatAppServerLogMessage(message)}\n`);
+    child.stdin.write(`${JSON.stringify(message)}\n`);
+    if (!wantsResponse) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      pending.set(message.id, { method, resolve, reject });
+    });
+  };
+
+  const cleanup = () => {
+    clearTimeout(timer);
+    for (const { reject, method } of pending.values()) {
+      reject(new Error(`app-server exited before ${method} completed`));
+    }
+    pending.clear();
+  };
+
+  const timer = setTimeout(() => {
+    child.kill("SIGTERM");
+    appendJsonl(cfg.dataDir, "events.jsonl", {
+      at: new Date().toISOString(),
+      type: "app-server-resume-timeout",
+      taskId: task.id,
+      sessionId: task.sessionId
+    });
+  }, APP_SERVER_RESUME_TIMEOUT_MS);
+
+  child.stderr.on("data", (chunk) => {
+    fs.appendFileSync(logPath, chunk);
+  });
+
+  child.stdout.on("data", (chunk) => {
+    stdoutBuffer += chunk.toString("utf8");
+    let newlineIndex;
+    while ((newlineIndex = stdoutBuffer.indexOf("\n")) >= 0) {
+      const line = stdoutBuffer.slice(0, newlineIndex).trim();
+      stdoutBuffer = stdoutBuffer.slice(newlineIndex + 1);
+      if (!line) continue;
+      const message = parseMaybeJson(line);
+      fs.appendFileSync(logPath, `< ${formatAppServerLogMessage(message)}\n`);
+      if (message.id && pending.has(message.id)) {
+        const waiter = pending.get(message.id);
+        pending.delete(message.id);
+        if (message.error) waiter.reject(new Error(JSON.stringify(message.error)));
+        else waiter.resolve(message.result);
+      }
+
+      if (message.method === "turn/started" && message.params?.threadId === task.sessionId) {
+        appendJsonl(cfg.dataDir, "events.jsonl", {
+          at: new Date().toISOString(),
+          type: "app-server-resume-turn-started",
+          taskId: task.id,
+          sessionId: task.sessionId
+        });
+      }
+
+      if (message.method === "turn/completed" && message.params?.threadId === task.sessionId) {
+        completed = true;
+        appendJsonl(cfg.dataDir, "events.jsonl", {
+          at: new Date().toISOString(),
+          type: "app-server-resume-completed",
+          taskId: task.id,
+          sessionId: task.sessionId,
+          turnId: message.params?.turn?.id || ""
+        });
+        child.kill("SIGTERM");
+      }
+    }
+  });
+
+  const exitPromise = new Promise((resolve, reject) => {
+    child.on("error", reject);
+    child.on("close", (code, signal) => {
+      cleanup();
+      if (completed || signal === "SIGTERM") resolve({ code, signal });
+      else reject(new Error(`app-server exited with code ${code || ""} signal ${signal || ""}`));
+    });
+  });
+
+  try {
+    await send("initialize", {
+      clientInfo: {
+        name: "phonedex",
+        title: "PhoneDex",
+        version: "0.1.0"
+      },
+      capabilities: {
+        experimentalApi: true,
+        requestAttestation: false
+      }
+    });
+    await send("initialized", {}, false);
+    await send("thread/resume", {
+      threadId: task.sessionId,
+      cwd
+    });
+    appendJsonl(cfg.dataDir, "events.jsonl", {
+      at: new Date().toISOString(),
+      type: "app-server-resume-thread-resumed",
+      taskId: task.id,
+      sessionId: task.sessionId
+    });
+    await send("turn/start", {
+      threadId: task.sessionId,
+      cwd,
+      input: [
+        {
+          type: "text",
+          text: prompt,
+          text_elements: []
+        }
+      ]
+    });
+    await exitPromise;
+  } catch (error) {
+    child.kill("SIGTERM");
+    appendJsonl(cfg.dataDir, "events.jsonl", {
+      at: new Date().toISOString(),
+      type: "app-server-resume-failed",
+      taskId: task.id,
+      sessionId: task.sessionId,
+      error: error.message
+    });
+    throw error;
+  }
+}
+
+function formatAppServerLogMessage(message) {
+  if (!message || typeof message !== "object" || message.raw) {
+    return redactSensitiveText(JSON.stringify(message)).slice(0, 1000);
+  }
+
+  const summary = {
+    id: message.id,
+    method: message.method
+  };
+
+  if (message.error) {
+    summary.error = message.error;
+    return redactSensitiveText(JSON.stringify(summary)).slice(0, 1000);
+  }
+
+  const params = message.params || {};
+  const result = message.result || {};
+  const thread = result.thread || {};
+  const turn = result.turn || params.turn || {};
+  const item = params.item || {};
+
+  if (params.threadId || thread.id) summary.threadId = params.threadId || thread.id;
+  if (params.turnId || turn.id) summary.turnId = params.turnId || turn.id;
+  if (params.itemId || item.id) summary.itemId = params.itemId || item.id;
+  if (item.type) summary.itemType = item.type;
+  if (turn.status) summary.turnStatus = turn.status;
+  if (thread.status) summary.threadStatus = thread.status;
+  if (message.method === "turn/start") {
+    const text = message.params?.input?.find((part) => part.type === "text")?.text || "";
+    summary.input = truncate(redactSensitiveText(text).replace(/\s+/g, " ").trim(), 160);
+  }
+  if (message.method === "item/agentMessage/delta") {
+    summary.deltaLength = String(params.delta || "").length;
+  }
+  if (message.method === "item/completed" && item.type === "agentMessage") {
+    summary.text = truncate(redactSensitiveText(item.text || "").replace(/\s+/g, " ").trim(), 160);
+  }
+  if (message.id && result.userAgent) summary.userAgent = result.userAgent;
+
+  return JSON.stringify(summary);
 }
 
 async function runAndNotify(args) {
@@ -541,6 +1118,31 @@ async function runAndNotify(args) {
   process.exitCode = exitCode;
 }
 
+function runChild(command, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      ...options,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString("utf8");
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString("utf8");
+    });
+    child.on("error", reject);
+    child.on("close", (code, signal) => {
+      if (code === 0) {
+        resolve({ stdout, stderr });
+        return;
+      }
+      reject(new Error(`${command} exited ${code || ""} ${signal || ""}: ${stderr || stdout}`));
+    });
+  });
+}
+
 function createTask(fields) {
   return {
     id: makeId("task"),
@@ -549,6 +1151,11 @@ function createTask(fields) {
     title: fields.title || "Codex done",
     text: fields.text || "Task completed",
     cwd: fields.cwd || process.cwd(),
+    machineName:
+      fields.machineName ||
+      process.env.PHONEDEX_MACHINE_NAME ||
+      process.env.WATCHDEX_MACHINE_NAME ||
+      os.hostname(),
     sessionId: fields.sessionId || "",
     hookPayload: fields.hookPayload,
     rawHookInputBytes: fields.rawHookInputBytes
@@ -588,9 +1195,20 @@ function printRecent(fileName) {
 }
 
 function printHelp() {
-  console.log(`WatchDex
+  console.log(`PhoneDex
 
 Usage:
+  phonedex setup
+  phonedex server
+  phonedex hook
+  phonedex notify --title "Codex done" --text "Task completed"
+  phonedex watch-sessions
+  phonedex scan-sessions --notify-existing
+  phonedex reply --choice okay_whats_next
+  phonedex replies
+  phonedex run -- <command> [args...]
+
+Compatibility aliases:
   watchdex setup
   watchdex server
   watchdex hook
@@ -803,6 +1421,10 @@ function readFinalSessionMessages(filePath) {
     }
 
     const payload = record.payload || {};
+    if (record.type === "session_meta" && payload.cwd) {
+      cwd = payload.cwd;
+    }
+
     if (payload.type === "function_call" && payload.arguments) {
       try {
         const args = JSON.parse(payload.arguments);
@@ -810,6 +1432,21 @@ function readFinalSessionMessages(filePath) {
       } catch {
         // Ignore malformed tool arguments from older session records.
       }
+    }
+
+    if (record.type === "event_msg" && payload.type === "task_complete") {
+      const text = String(payload.last_agent_message || "").trim();
+      if (!text) continue;
+
+      messages.push({
+        id: `${filePath}:${payload.turn_id || record.timestamp}:task_complete`,
+        messageId: payload.turn_id || "",
+        at: sessionEventTimestamp(record, payload),
+        text,
+        cwd,
+        sessionId
+      });
+      continue;
     }
 
     if (record.type !== "response_item") continue;
@@ -830,6 +1467,13 @@ function readFinalSessionMessages(filePath) {
   }
 
   return messages;
+}
+
+function sessionEventTimestamp(record, payload) {
+  if (Number.isFinite(payload.completed_at)) {
+    return new Date(payload.completed_at * 1000).toISOString();
+  }
+  return record.timestamp || new Date().toISOString();
 }
 
 function extractMessageText(payload) {
@@ -923,6 +1567,112 @@ function truncate(value, maxLength) {
   const text = String(value);
   if (text.length <= maxLength) return text;
   return `${text.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
+function renderTaskPage(task) {
+  const title = escapeHtml(task.title || "PhoneDex Task");
+  const text = escapeHtml(task.text || "");
+  const machineName = task.machineName ? escapeHtml(task.machineName) : "";
+  const cwd = task.cwd ? escapeHtml(task.cwd) : "";
+  const at = task.at ? escapeHtml(new Date(task.at).toLocaleString()) : "";
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>${title}</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.45;
+      background: Canvas;
+      color: CanvasText;
+    }
+    main {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: max(18px, env(safe-area-inset-top)) 18px max(28px, env(safe-area-inset-bottom));
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(1.35rem, 7vw, 2rem);
+      line-height: 1.12;
+      letter-spacing: 0;
+    }
+    .meta {
+      display: grid;
+      gap: 4px;
+      margin-bottom: 18px;
+      opacity: 0.68;
+      font-size: 0.88rem;
+      overflow-wrap: anywhere;
+    }
+    .response {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      font-size: 1.02rem;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>${title}</h1>
+    <div class="meta">
+      ${machineName ? `<div>${machineName}</div>` : ""}
+      ${cwd ? `<div>${cwd}</div>` : ""}
+      ${at ? `<div>${at}</div>` : ""}
+    </div>
+    <div class="response">${text}</div>
+  </main>
+</body>
+</html>`;
+}
+
+function renderMessagePage(title, message) {
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${escapeHtml(title)}</title>
+</head>
+<body>
+  <main>
+    <h1>${escapeHtml(title)}</h1>
+    <p>${escapeHtml(message)}</p>
+  </main>
+</body>
+</html>`;
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (char) => {
+    switch (char) {
+      case "&":
+        return "&amp;";
+      case "<":
+        return "&lt;";
+      case ">":
+        return "&gt;";
+      case '"':
+        return "&quot;";
+      case "'":
+        return "&#39;";
+      default:
+        return char;
+    }
+  });
+}
+
+function sendHtml(res, status, body) {
+  res.writeHead(status, {
+    "content-type": "text/html; charset=utf-8",
+    "content-length": Buffer.byteLength(body)
+  });
+  res.end(body);
 }
 
 function sendJson(res, status, value) {
