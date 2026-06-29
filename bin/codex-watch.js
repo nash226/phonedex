@@ -1229,6 +1229,10 @@ function readFinalSessionMessages(filePath) {
     }
 
     const payload = record.payload || {};
+    if (record.type === "session_meta" && payload.cwd) {
+      cwd = payload.cwd;
+    }
+
     if (payload.type === "function_call" && payload.arguments) {
       try {
         const args = JSON.parse(payload.arguments);
@@ -1236,6 +1240,21 @@ function readFinalSessionMessages(filePath) {
       } catch {
         // Ignore malformed tool arguments from older session records.
       }
+    }
+
+    if (record.type === "event_msg" && payload.type === "task_complete") {
+      const text = String(payload.last_agent_message || "").trim();
+      if (!text) continue;
+
+      messages.push({
+        id: `${filePath}:${payload.turn_id || record.timestamp}:task_complete`,
+        messageId: payload.turn_id || "",
+        at: sessionEventTimestamp(record, payload),
+        text,
+        cwd,
+        sessionId
+      });
+      continue;
     }
 
     if (record.type !== "response_item") continue;
@@ -1256,6 +1275,13 @@ function readFinalSessionMessages(filePath) {
   }
 
   return messages;
+}
+
+function sessionEventTimestamp(record, payload) {
+  if (Number.isFinite(payload.completed_at)) {
+    return new Date(payload.completed_at * 1000).toISOString();
+  }
+  return record.timestamp || new Date().toISOString();
 }
 
 function extractMessageText(payload) {
