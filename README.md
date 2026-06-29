@@ -322,6 +322,9 @@ CODEX_APP_SERVER_BIN=/Users/YOUR_USER/.local/bin/codex
   the fallback watcher.
 - `/reply` rejects requests with an invalid token when `WATCH_BRIDGE_TOKEN` is
   set.
+- `/tasks` and `/replies` also require `WATCH_BRIDGE_TOKEN` when it is set.
+  Native app clients should send it as `Authorization: Bearer ...` or as a
+  `?token=...` query parameter.
 
 If your watch or phone is not on the same network as your Mac, expose the
 callback URL through a trusted tunnel such as Cloudflare Tunnel, ngrok, or

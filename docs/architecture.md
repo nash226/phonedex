@@ -213,8 +213,9 @@ append-only and easy to inspect:
 | `data/session-watch-state.json` | Deduplication state for the session watcher. |
 
 Security is handled with `WATCH_BRIDGE_TOKEN`. The token is included in Home
-Assistant action data and verified by `/reply`. Secrets live in `.env`, which
-is ignored by git.
+Assistant action data and verified by `/reply`. The read endpoints used by the
+native app, `/tasks` and `/replies`, also require the token when it is set.
+Secrets live in `.env`, which is ignored by git.
 
 ## Multi-Machine Plan
 

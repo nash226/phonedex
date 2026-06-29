@@ -100,7 +100,19 @@ final class WatchDexClient: ObservableObject {
         guard let baseURL = URL(string: normalizedBridgeURL) else {
             throw WatchDexClientError.invalidBridgeURL
         }
-        return baseURL.appendingPathComponent(path)
+        let url = baseURL.appendingPathComponent(path)
+        guard path == "tasks", !bridgeToken.isEmpty else {
+            return url
+        }
+
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        components?.queryItems = [URLQueryItem(name: "token", value: bridgeToken)]
+
+        guard let tokenizedURL = components?.url else {
+            throw WatchDexClientError.invalidBridgeURL
+        }
+
+        return tokenizedURL
     }
 
     private func validate(_ response: URLResponse) throws {
