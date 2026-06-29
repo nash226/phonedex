@@ -265,6 +265,7 @@ callers cannot record replies.
 | `npm run remote:status` | Print Cloudflare Quick Tunnel LaunchAgent status. |
 | `npm run remote:url` | Print the current temporary Cloudflare tunnel URL. |
 | `npm run ios:doctor` | Check whether this Mac can build/run the native PhoneDex iOS app. |
+| `npm run ios:install-xcode` | Install the compatible full Xcode version needed for the native iOS app. |
 | `npm run ios:generate` | Generate the native iOS Xcode project with XcodeGen. |
 | `npm run ios:open` | Generate if needed, then open the native iOS Xcode project. |
 
