@@ -8,9 +8,11 @@
 WatchDex sends completed Codex task alerts to your Apple Watch and records
 quick replies from your wrist.
 
-It is a local bridge for people who start Codex work on a Mac, walk away, and
-still want a fast way to answer the next obvious prompt: "Okay, what's next?"
-or "Let's do that."
+It is a local bridge for people who start Codex work on one or more machines,
+walk away, and still want a fast way to review the result and answer the next
+obvious prompt: "Okay, what's next?", "Let's do that", or a custom reply.
+
+## Visual Overview
 
 <p align="center">
   <img src="docs/assets/watchdex-scroll-preview.png" alt="WatchDex Apple Watch notification with a scrollable Codex response preview and quick reply actions" width="640">
@@ -20,15 +22,27 @@ or "Let's do that."
   <em>Review the Codex result from your wrist, then reply.</em>
 </p>
 
+<p align="center">
+  <img src="docs/assets/watchdex-architecture-overview.png" alt="WatchDex multi-machine architecture with Codex machines, Home Assistant, iPhone, and Apple Watch" width="900">
+</p>
+
+<p align="center">
+  <em>One Home Assistant hub can route watch replies back to the machine that sent the notification.</em>
+</p>
+
 ## What It Does
 
 - Installs a Codex `Stop` hook that fires when a Codex turn completes.
+- Watches Codex session logs as a fallback when hooks miss a completed reply.
 - Sends an actionable notification through Home Assistant or Pushcut.
 - Shows Apple Watch actions for:
   - `Okay, what's next`
   - `Let's do that`
   - a typed custom reply
   - a dictated custom reply
+- Routes replies back to the original Codex machine with per-notification
+  `replyUrl` data.
+- Can paste watch replies into the visible Codex desktop thread.
 - Records replies in `data/replies.jsonl` so you have a local decision log.
 - Can wrap any shell command and notify you when it finishes.
 - Includes auto-resume modes for sending replies back to Codex.
@@ -166,6 +180,8 @@ npm run services:status
 For setup details, callback automations, and temporary remote access through
 Cloudflare Quick Tunnel, see [docs/home-assistant.md](docs/home-assistant.md).
 
+For the full system design, see [docs/architecture.md](docs/architecture.md).
+
 ## Multiple Machines
 
 One Home Assistant instance can receive WatchDex notifications from every
@@ -296,11 +312,11 @@ Tailscale. Keep the token private either way.
 
 ## Roadmap
 
-- Per-notification task ids for Home Assistant callbacks.
 - Configurable reply choices.
 - Safer Codex resume queue with reviewable pending actions.
 - Packaged install flow.
 - Native iOS/watchOS app exploration.
+- Windows foreground submitter.
 
 ## References
 
