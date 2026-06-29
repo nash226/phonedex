@@ -48,6 +48,33 @@ enum PhoneDexNotificationScheduler {
         try await UNUserNotificationCenter.current().add(request)
     }
 
+    static func scheduleTaskNotification(_ task: PhoneDexTask, bridgeURL: URL, token: String) async throws {
+        registerCategories()
+
+        let content = UNMutableNotificationContent()
+        content.title = task.title
+        content.subtitle = task.machineName.map { "PhoneDex • \($0)" } ?? "PhoneDex"
+        content.body = task.text
+        content.categoryIdentifier = categoryIdentifier
+        content.threadIdentifier = "phonedex"
+        content.sound = .default
+        content.userInfo = [
+            "taskId": task.id,
+            "machineName": task.machineName ?? "",
+            "replyUrl": bridgeURL.appending(path: "reply").absoluteString,
+            "bridgeUrl": bridgeURL.absoluteString,
+            "token": token
+        ]
+
+        let request = UNNotificationRequest(
+            identifier: "phonedex-task-\(task.id)",
+            content: content,
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+        )
+
+        try await UNUserNotificationCenter.current().add(request)
+    }
+
     static func registerCategories() {
         let next = UNNotificationAction(
             identifier: "PHONEDEX_OKAY_WHATS_NEXT",
