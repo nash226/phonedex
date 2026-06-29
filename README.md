@@ -50,6 +50,10 @@ session and submit the watch reply as a new turn. `Okay, what's next` is wrapped
 as a status-only prompt so it does not start new background work; `Let's do
 that` is the action-oriented reply.
 
+If you want the watch reply to appear in the currently open Codex desktop
+thread, use `foreground` mode. It activates Codex.app, pastes the mapped prompt
+into the visible input, and submits it through the UI.
+
 ## Requirements
 
 - macOS
@@ -218,7 +222,7 @@ WatchDex reads `.env` from the repo root.
 | `PUSHCUT_SOUND` | No | Pushcut sound name. Defaults to `jobDone`. |
 | `PUSHCUT_TIME_SENSITIVE` | No | Send Pushcut alerts as time-sensitive. Defaults to `true`. |
 | `WATCH_BRIDGE_AUTO_RESUME` | No | Continue Codex from watch replies. Defaults to `false`. |
-| `WATCH_BRIDGE_AUTO_RESUME_MODE` | No | `cli` for `codex exec resume`, or `app-server` for Codex app-server turns. Defaults to `cli`. |
+| `WATCH_BRIDGE_AUTO_RESUME_MODE` | No | `cli` for `codex exec resume`, `app-server` for background app-server turns, or `foreground` for visible Codex.app submission. Defaults to `cli`. |
 | `WATCHDEX_SESSION_WATCH_INTERVAL_MS` | No | Session watcher polling interval. Defaults to `15000`. |
 | `WATCHDEX_SESSION_WATCH_DEBOUNCE_MS` | No | Delay before notifying a completed session message. Defaults to `45000`. |
 | `CODEX_BIN` | No | Path to the Codex CLI used by `cli` auto-resume. |
@@ -233,7 +237,7 @@ curl -fsSL https://chatgpt.com/codex/install.sh | sh
 
 ```sh
 WATCH_BRIDGE_AUTO_RESUME=true
-WATCH_BRIDGE_AUTO_RESUME_MODE=app-server
+WATCH_BRIDGE_AUTO_RESUME_MODE=foreground
 CODEX_APP_SERVER_BIN=/Users/YOUR_USER/.local/bin/codex
 ```
 

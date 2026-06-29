@@ -88,6 +88,11 @@ async function main() {
     return;
   }
 
+  if (command === "foreground-submit") {
+    await foregroundSubmitCommand(args);
+    return;
+  }
+
   if (command === "run") {
     await runAndNotify(args);
     return;
@@ -520,6 +525,11 @@ function attemptAutoResume(cfg, task, reply) {
     return;
   }
 
+  if (cfg.autoResumeMode === "foreground") {
+    attemptForegroundAutoResume(cfg, task, reply);
+    return;
+  }
+
   const logPath = path.join(cfg.dataDir, "auto-resume.log");
   const out = fs.openSync(logPath, "a");
   const child = spawn(
@@ -582,6 +592,41 @@ function attemptAppServerAutoResume(cfg, task, reply) {
   });
 }
 
+function attemptForegroundAutoResume(cfg, task, reply) {
+  const logPath = path.join(cfg.dataDir, "foreground-resume.log");
+  const out = fs.openSync(logPath, "a");
+  const child = spawn(
+    process.execPath,
+    [
+      __filename,
+      "foreground-submit",
+      "--taskId",
+      reply.taskId,
+      "--prompt",
+      buildCodexResumePrompt(reply)
+    ],
+    {
+      cwd: task.cwd || ROOT,
+      detached: true,
+      stdio: ["ignore", out, out],
+      env: {
+        ...process.env,
+        CODEX_WATCH_AUTO_RESUME: "1"
+      }
+    }
+  );
+
+  child.unref();
+  appendJsonl(cfg.dataDir, "events.jsonl", {
+    at: new Date().toISOString(),
+    type: "auto-resume-started",
+    mode: "foreground",
+    taskId: reply.taskId,
+    sessionId: task.sessionId,
+    pid: child.pid
+  });
+}
+
 async function appServerResumeCommand(args) {
   const cfg = config();
   ensureDataDir(cfg.dataDir);
@@ -597,9 +642,64 @@ async function appServerResumeCommand(args) {
   await runAppServerTurn(cfg, task, prompt);
 }
 
+async function foregroundSubmitCommand(args) {
+  const cfg = config();
+  ensureDataDir(cfg.dataDir);
+  const flags = parseFlags(args);
+  const taskId = flags.taskId || flags.task || "";
+  const task = taskId ? findTask(cfg.dataDir, taskId) : latestJsonl(cfg.dataDir, "tasks.jsonl");
+  if (!task) throw new Error(`No task found for foreground submit: ${taskId || "(latest)"}`);
+
+  const prompt = flags.prompt || buildCodexResumePrompt({ choice: flags.choice || "" });
+  if (!prompt) throw new Error("Missing --prompt for foreground submit");
+
+  await submitPromptToForegroundCodex(cfg, task, prompt);
+}
+
 function buildCodexResumePrompt(reply) {
   const choice = normalizeChoice(reply.choice || "");
   return CODEX_RESUME_PROMPTS[choice] || reply.prompt || RESPONSE_CHOICES[choice] || choice;
+}
+
+async function submitPromptToForegroundCodex(cfg, task, prompt) {
+  appendJsonl(cfg.dataDir, "events.jsonl", {
+    at: new Date().toISOString(),
+    type: "foreground-resume-worker-started",
+    taskId: task.id,
+    sessionId: task.sessionId || "",
+    cwd: task.cwd || ROOT
+  });
+
+  const script = `
+on run argv
+  set promptText to item 1 of argv
+  set previousClipboard to the clipboard
+  tell application "Codex" to activate
+  delay 0.6
+  set the clipboard to promptText
+  tell application "System Events"
+    tell process "Codex"
+      set frontmost to true
+      keystroke "v" using {command down}
+      delay 0.2
+      key code 36
+    end tell
+  end tell
+  delay 0.5
+  set the clipboard to previousClipboard
+end run
+`;
+
+  await runChild("osascript", ["-e", script, prompt], {
+    cwd: task.cwd || ROOT
+  });
+
+  appendJsonl(cfg.dataDir, "events.jsonl", {
+    at: new Date().toISOString(),
+    type: "foreground-resume-submitted",
+    taskId: task.id,
+    sessionId: task.sessionId || ""
+  });
 }
 
 async function runAppServerTurn(cfg, task, prompt) {
@@ -825,6 +925,31 @@ async function runAndNotify(args) {
   appendJsonl(cfg.dataDir, "tasks.jsonl", task);
   await sendWatchNotification(cfg, task);
   process.exitCode = exitCode;
+}
+
+function runChild(command, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      ...options,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString("utf8");
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString("utf8");
+    });
+    child.on("error", reject);
+    child.on("close", (code, signal) => {
+      if (code === 0) {
+        resolve({ stdout, stderr });
+        return;
+      }
+      reject(new Error(`${command} exited ${code || ""} ${signal || ""}: ${stderr || stdout}`));
+    });
+  });
 }
 
 function createTask(fields) {

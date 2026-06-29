@@ -168,13 +168,18 @@ curl -fsSL https://chatgpt.com/codex/install.sh | sh
 
 ```sh
 WATCH_BRIDGE_AUTO_RESUME=true
-WATCH_BRIDGE_AUTO_RESUME_MODE=app-server
+WATCH_BRIDGE_AUTO_RESUME_MODE=foreground
 CODEX_APP_SERVER_BIN=/Users/YOUR_USER/.local/bin/codex
 ```
 
 Restart the WatchDex bridge after changing these values. New replies will be
-logged in `data/replies.jsonl`, and app-server resume attempts will be logged
-in `data/events.jsonl` plus `data/app-server-resume.log`.
+logged in `data/replies.jsonl`, and resume attempts will be logged in
+`data/events.jsonl` plus the mode-specific resume log.
+
+Use `foreground` mode when you want the watch reply to appear in the open
+Codex desktop thread. It activates Codex.app, pastes the mapped prompt into the
+visible input, and submits it through the UI. This requires macOS Accessibility
+permission for the process running WatchDex.
 
 `Okay, what's next` is sent to Codex as a status-only prompt so it does not
 start new background work. `Let's do that` is the action-oriented reply.
