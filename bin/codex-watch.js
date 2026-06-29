@@ -603,7 +603,7 @@ function attemptForegroundAutoResume(cfg, task, reply) {
       "--taskId",
       reply.taskId,
       "--prompt",
-      buildCodexResumePrompt(reply)
+      buildVisibleReplyPrompt(reply)
     ],
     {
       cwd: task.cwd || ROOT,
@@ -659,6 +659,11 @@ async function foregroundSubmitCommand(args) {
 function buildCodexResumePrompt(reply) {
   const choice = normalizeChoice(reply.choice || "");
   return CODEX_RESUME_PROMPTS[choice] || reply.prompt || RESPONSE_CHOICES[choice] || choice;
+}
+
+function buildVisibleReplyPrompt(reply) {
+  const choice = normalizeChoice(reply.choice || "");
+  return reply.prompt || RESPONSE_CHOICES[choice] || choice;
 }
 
 async function submitPromptToForegroundCodex(cfg, task, prompt) {

@@ -51,8 +51,8 @@ as a status-only prompt so it does not start new background work; `Let's do
 that` is the action-oriented reply.
 
 If you want the watch reply to appear in the currently open Codex desktop
-thread, use `foreground` mode. It activates Codex.app, pastes the mapped prompt
-into the visible input, and submits it through the UI. macOS must allow the
+thread, use `foreground` mode. It activates Codex.app, pastes the literal watch
+reply text into the visible input, and submits it through the UI. macOS must allow the
 process running WatchDex, plus `osascript` when prompted, to control the
 computer in **Privacy & Security > Accessibility**.
 

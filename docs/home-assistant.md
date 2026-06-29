@@ -177,9 +177,9 @@ logged in `data/replies.jsonl`, and resume attempts will be logged in
 `data/events.jsonl` plus the mode-specific resume log.
 
 Use `foreground` mode when you want the watch reply to appear in the open
-Codex desktop thread. It activates Codex.app, pastes the mapped prompt into the
-visible input, and submits it through the UI. This requires macOS Accessibility
-permission for the process running WatchDex.
+Codex desktop thread. It activates Codex.app, pastes the literal watch reply
+text into the visible input, and submits it through the UI. This requires macOS
+Accessibility permission for the process running WatchDex.
 
 `Okay, what's next` is sent to Codex as a status-only prompt so it does not
 start new background work. `Let's do that` is the action-oriented reply.
