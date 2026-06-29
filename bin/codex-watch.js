@@ -453,6 +453,17 @@ function buildShortcutReplyUrl(cfg, task) {
   return shortcutUrl.toString();
 }
 
+function isRequestTokenValid(req, requestUrl, cfg) {
+  if (!cfg.token) return true;
+
+  const queryToken = requestUrl.searchParams.get("token") || "";
+  const authHeader = req.headers.authorization || "";
+  const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
+  const bearerToken = bearerMatch ? bearerMatch[1].trim() : "";
+
+  return queryToken === cfg.token || bearerToken === cfg.token;
+}
+
 function formatNotificationTitle(cfg, task) {
   if (!cfg.machineName) return task.title;
   return `${task.title} @ ${cfg.machineName}`;
@@ -523,10 +534,16 @@ async function startServer() {
       }
 
       if (requestUrl.pathname === "/replies") {
+        if (!isRequestTokenValid(req, requestUrl, cfg)) {
+          return sendJson(res, 401, { ok: false, error: "Invalid token" });
+        }
         return sendJson(res, 200, readJsonl(cfg.dataDir, "replies.jsonl").slice(-25));
       }
 
       if (requestUrl.pathname === "/tasks") {
+        if (!isRequestTokenValid(req, requestUrl, cfg)) {
+          return sendJson(res, 401, { ok: false, error: "Invalid token" });
+        }
         return sendJson(res, 200, readJsonl(cfg.dataDir, "tasks.jsonl").slice(-25));
       }
 
