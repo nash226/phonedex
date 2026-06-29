@@ -119,6 +119,8 @@ rest_command:
         "token": {{ token | default('YOUR_WATCH_BRIDGE_TOKEN') | to_json }},
         "taskId": "{{ task_id | default('') }}",
         "choice": "{{ choice }}",
+        "action": {{ action | default('') | to_json }},
+        "reply_text": {{ reply_text | default('') | to_json }},
         "prompt": {{ prompt | default('') | to_json }},
         "machineName": {{ machine_name | default('') | to_json }}
       }
@@ -136,7 +138,8 @@ automation:
           {{ trigger.event.data.action in ['CODEX_WATCH_OKAY_WHATS_NEXT', 'CODEX_WATCH_LETS_DO_THAT']
              or trigger.event.data.action.startswith('WATCHDEX_OKAY_')
              or trigger.event.data.action.startswith('WATCHDEX_DO_THAT_')
-             or trigger.event.data.action.startswith('WATCHDEX_CUSTOM_') }}
+             or trigger.event.data.action.startswith('WATCHDEX_CUSTOM_')
+             or trigger.event.data.action.startswith('WATCHDEX_DICTATE_') }}
     action:
       - service: rest_command.codex_watch_reply
         data:
@@ -144,11 +147,14 @@ automation:
           token: "{{ trigger.event.data.get('action_data', {}).get('token', 'YOUR_WATCH_BRIDGE_TOKEN') }}"
           task_id: "{{ trigger.event.data.get('action_data', {}).get('taskId', '') }}"
           machine_name: "{{ trigger.event.data.get('action_data', {}).get('machineName', '') }}"
+          action: "{{ trigger.event.data.action }}"
+          reply_text: "{{ trigger.event.data.get('reply_text', '') }}"
           choice: >
             {% if trigger.event.data.action.startswith('WATCHDEX_DO_THAT_')
                   or trigger.event.data.action == 'CODEX_WATCH_LETS_DO_THAT' %}
               lets_do_that
-            {% elif trigger.event.data.action.startswith('WATCHDEX_CUSTOM_') %}
+            {% elif trigger.event.data.action.startswith('WATCHDEX_CUSTOM_')
+                  or trigger.event.data.action.startswith('WATCHDEX_DICTATE_') %}
               custom
             {% else %}
               okay_whats_next
@@ -157,7 +163,8 @@ automation:
             {% if trigger.event.data.action.startswith('WATCHDEX_DO_THAT_')
                   or trigger.event.data.action == 'CODEX_WATCH_LETS_DO_THAT' %}
               lets do that
-            {% elif trigger.event.data.action.startswith('WATCHDEX_CUSTOM_') %}
+            {% elif trigger.event.data.action.startswith('WATCHDEX_CUSTOM_')
+                  or trigger.event.data.action.startswith('WATCHDEX_DICTATE_') %}
               {{ trigger.event.data.get('reply_text', '') }}
             {% else %}
               okay whats next

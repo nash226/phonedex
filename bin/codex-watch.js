@@ -500,6 +500,8 @@ async function handleReplyRequest(req, res, requestUrl, cfg) {
     taskId,
     choice,
     prompt,
+    action: fields.action || "",
+    replyText: fields.reply_text || fields.replyText || "",
     taskTitle: task?.title || "",
     sessionId: task?.sessionId || "",
     cwd: task?.cwd || "",
