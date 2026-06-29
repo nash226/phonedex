@@ -136,7 +136,8 @@ automation:
           {{ trigger.event.data.action in ['CODEX_WATCH_OKAY_WHATS_NEXT', 'CODEX_WATCH_LETS_DO_THAT']
              or trigger.event.data.action.startswith('WATCHDEX_OKAY_')
              or trigger.event.data.action.startswith('WATCHDEX_DO_THAT_')
-             or trigger.event.data.action.startswith('WATCHDEX_CUSTOM_') }}
+             or trigger.event.data.action.startswith('WATCHDEX_CUSTOM_')
+             or trigger.event.data.action.startswith('WATCHDEX_DICTATE_') }}
     action:
       - service: rest_command.codex_watch_reply
         data:
@@ -148,7 +149,8 @@ automation:
             {% if trigger.event.data.action.startswith('WATCHDEX_DO_THAT_')
                   or trigger.event.data.action == 'CODEX_WATCH_LETS_DO_THAT' %}
               lets_do_that
-            {% elif trigger.event.data.action.startswith('WATCHDEX_CUSTOM_') %}
+            {% elif trigger.event.data.action.startswith('WATCHDEX_CUSTOM_')
+                  or trigger.event.data.action.startswith('WATCHDEX_DICTATE_') %}
               custom
             {% else %}
               okay_whats_next
@@ -157,7 +159,8 @@ automation:
             {% if trigger.event.data.action.startswith('WATCHDEX_DO_THAT_')
                   or trigger.event.data.action == 'CODEX_WATCH_LETS_DO_THAT' %}
               lets do that
-            {% elif trigger.event.data.action.startswith('WATCHDEX_CUSTOM_') %}
+            {% elif trigger.event.data.action.startswith('WATCHDEX_CUSTOM_')
+                  or trigger.event.data.action.startswith('WATCHDEX_DICTATE_') %}
               {{ trigger.event.data.get('reply_text', '') }}
             {% else %}
               okay whats next
@@ -193,9 +196,10 @@ text into the visible input, and submits it through the UI. This requires macOS
 Accessibility permission for the process running WatchDex.
 
 `Okay, what's next` is sent to Codex as a status-only prompt so it does not
-start new background work. `Let's do that` is the action-oriented reply. The
-`Custom reply` action opens a text input on iOS/watchOS and sends the typed
-text back as the prompt.
+start new background work. `Let's do that` is the action-oriented reply.
+`Custom reply` and `Dictate reply` both open text input on iOS/watchOS and send
+the returned text back as the prompt; `Dictate reply` labels that input for
+voice dictation.
 
 ## Notes
 
