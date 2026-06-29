@@ -12,6 +12,14 @@ It is a local bridge for people who start Codex work on a Mac, walk away, and
 still want a fast way to answer the next obvious prompt: "Okay, what's next?"
 or "Let's do that."
 
+<p align="center">
+  <img src="docs/assets/watchdex-scroll-preview.png" alt="WatchDex Apple Watch notification with a scrollable Codex response preview and quick reply actions" width="640">
+</p>
+
+<p align="center">
+  <em>Read the Codex result from your wrist, scroll with the crown, then reply.</em>
+</p>
+
 ## What It Does
 
 - Installs a Codex `Stop` hook that fires when a Codex turn completes.
