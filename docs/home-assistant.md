@@ -118,7 +118,7 @@ rest_command:
         "token": "YOUR_WATCH_BRIDGE_TOKEN",
         "taskId": "{{ task_id | default('') }}",
         "choice": "{{ choice }}",
-        "prompt": "{{ prompt }}"
+        "prompt": {{ prompt | default('') | to_json }}
       }
 
 automation:
@@ -132,7 +132,8 @@ automation:
         value_template: >
           {{ trigger.event.data.action in ['CODEX_WATCH_OKAY_WHATS_NEXT', 'CODEX_WATCH_LETS_DO_THAT']
              or trigger.event.data.action.startswith('WATCHDEX_OKAY_')
-             or trigger.event.data.action.startswith('WATCHDEX_DO_THAT_') }}
+             or trigger.event.data.action.startswith('WATCHDEX_DO_THAT_')
+             or trigger.event.data.action.startswith('WATCHDEX_CUSTOM_') }}
     action:
       - service: rest_command.codex_watch_reply
         data:
@@ -141,6 +142,8 @@ automation:
             {% if trigger.event.data.action.startswith('WATCHDEX_DO_THAT_')
                   or trigger.event.data.action == 'CODEX_WATCH_LETS_DO_THAT' %}
               lets_do_that
+            {% elif trigger.event.data.action.startswith('WATCHDEX_CUSTOM_') %}
+              custom
             {% else %}
               okay_whats_next
             {% endif %}
@@ -148,6 +151,8 @@ automation:
             {% if trigger.event.data.action.startswith('WATCHDEX_DO_THAT_')
                   or trigger.event.data.action == 'CODEX_WATCH_LETS_DO_THAT' %}
               lets do that
+            {% elif trigger.event.data.action.startswith('WATCHDEX_CUSTOM_') %}
+              {{ trigger.event.data.get('reply_text', '') }}
             {% else %}
               okay whats next
             {% endif %}
@@ -182,7 +187,9 @@ text into the visible input, and submits it through the UI. This requires macOS
 Accessibility permission for the process running WatchDex.
 
 `Okay, what's next` is sent to Codex as a status-only prompt so it does not
-start new background work. `Let's do that` is the action-oriented reply.
+start new background work. `Let's do that` is the action-oriented reply. The
+`Custom reply` action opens a text input on iOS/watchOS and sends the typed
+text back as the prompt.
 
 ## Notes
 

@@ -14,7 +14,8 @@ const APP_SERVER_RESUME_TIMEOUT_MS = 30 * 60 * 1000;
 
 const RESPONSE_CHOICES = {
   okay_whats_next: "okay whats next",
-  lets_do_that: "lets do that"
+  lets_do_that: "lets do that",
+  custom: ""
 };
 
 const CODEX_RESUME_PROMPTS = {
@@ -131,8 +132,8 @@ function config() {
     autoResume: parseBoolean(env.WATCH_BRIDGE_AUTO_RESUME, false),
     autoResumeMode: env.WATCH_BRIDGE_AUTO_RESUME_MODE || "cli",
     codexHome: env.CODEX_HOME || path.join(os.homedir(), ".codex"),
-    sessionWatchIntervalMs: Number(env.WATCHDEX_SESSION_WATCH_INTERVAL_MS || "15000"),
-    sessionWatchDebounceMs: Number(env.WATCHDEX_SESSION_WATCH_DEBOUNCE_MS || "45000"),
+    sessionWatchIntervalMs: Number(env.WATCHDEX_SESSION_WATCH_INTERVAL_MS || "5000"),
+    sessionWatchDebounceMs: Number(env.WATCHDEX_SESSION_WATCH_DEBOUNCE_MS || "8000"),
     codexBin:
       env.CODEX_BIN || "/Applications/Codex.app/Contents/Resources/codex",
     codexAppServerBin:
@@ -357,6 +358,14 @@ function buildHomeAssistantBody(cfg, task) {
       action: `WATCHDEX_DO_THAT_${safeTaskId}`,
       title: "Let's do that",
       choice: "lets_do_that"
+    },
+    {
+      action: `WATCHDEX_CUSTOM_${safeTaskId}`,
+      title: "Custom reply",
+      choice: "custom",
+      behavior: "textInput",
+      textInputButtonTitle: "Send",
+      textInputPlaceholder: "Type reply to Codex"
     }
   ];
 
@@ -373,6 +382,9 @@ function buildHomeAssistantBody(cfg, task) {
         action: payload.action,
         title: payload.title,
         activationMode: "background",
+        ...(payload.behavior ? { behavior: payload.behavior } : {}),
+        ...(payload.textInputButtonTitle ? { textInputButtonTitle: payload.textInputButtonTitle } : {}),
+        ...(payload.textInputPlaceholder ? { textInputPlaceholder: payload.textInputPlaceholder } : {}),
         action_data: {
           token: cfg.token,
           taskId: task.id,
@@ -459,7 +471,12 @@ async function handleReplyRequest(req, res, requestUrl, cfg) {
   const latestTask = latestJsonl(cfg.dataDir, "tasks.jsonl");
   const taskId = fields.taskId || fields.task_id || latestTask?.id || "";
   const choice = normalizeChoice(fields.choice || "okay_whats_next");
-  const prompt = fields.prompt || RESPONSE_CHOICES[choice] || choice;
+  const prompt =
+    fields.prompt ||
+    fields.reply_text ||
+    fields.replyText ||
+    RESPONSE_CHOICES[choice] ||
+    choice;
   const task = taskId ? findTask(cfg.dataDir, taskId) || latestTask : latestTask;
 
   const reply = {

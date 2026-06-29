@@ -16,9 +16,10 @@ or "Let's do that."
 
 - Installs a Codex `Stop` hook that fires when a Codex turn completes.
 - Sends an actionable notification through Home Assistant or Pushcut.
-- Shows two premade Apple Watch actions:
+- Shows Apple Watch actions for:
   - `Okay, what's next`
   - `Let's do that`
+  - a typed custom reply
 - Records replies in `data/replies.jsonl` so you have a local decision log.
 - Can wrap any shell command and notify you when it finishes.
 - Includes auto-resume modes for sending replies back to Codex.
@@ -225,8 +226,8 @@ WatchDex reads `.env` from the repo root.
 | `PUSHCUT_TIME_SENSITIVE` | No | Send Pushcut alerts as time-sensitive. Defaults to `true`. |
 | `WATCH_BRIDGE_AUTO_RESUME` | No | Continue Codex from watch replies. Defaults to `false`. |
 | `WATCH_BRIDGE_AUTO_RESUME_MODE` | No | `cli` for `codex exec resume`, `app-server` for background app-server turns, or `foreground` for visible Codex.app submission. Defaults to `cli`. |
-| `WATCHDEX_SESSION_WATCH_INTERVAL_MS` | No | Session watcher polling interval. Defaults to `15000`. |
-| `WATCHDEX_SESSION_WATCH_DEBOUNCE_MS` | No | Delay before notifying a completed session message. Defaults to `45000`. |
+| `WATCHDEX_SESSION_WATCH_INTERVAL_MS` | No | Session watcher polling interval. Defaults to `5000`. |
+| `WATCHDEX_SESSION_WATCH_DEBOUNCE_MS` | No | Delay before notifying a completed session message. Defaults to `8000`. |
 | `CODEX_BIN` | No | Path to the Codex CLI used by `cli` auto-resume. |
 | `CODEX_APP_SERVER_BIN` | No | Path to the Codex CLI used by `app-server` auto-resume. Defaults to `~/.local/bin/codex` when installed. |
 
@@ -263,7 +264,8 @@ Tailscale. Keep the token private either way.
 
 - Home Assistant replies include per-task action data for new notifications;
   older static actions still fall back to the latest task.
-- The built-in reply choices are fixed in code.
+- Home Assistant supports a `Custom reply` action that prompts for typed text
+  and submits that exact text to Codex in foreground mode.
 - Auto-resume depends on usable Codex session ids in hook payloads or the
   session watcher fallback.
 - There is no native iOS/watchOS app yet, so WatchDex relies on Home Assistant
