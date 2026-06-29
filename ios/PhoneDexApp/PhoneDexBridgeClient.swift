@@ -6,16 +6,12 @@ struct PhoneDexBridgeClient {
     var session: URLSession = .shared
 
     func fetchTasks() async throws -> [PhoneDexTask] {
-        var components = URLComponents(url: bridgeURL.appending(path: "tasks"), resolvingAgainstBaseURL: false)
+        var request = URLRequest(url: bridgeURL.appending(path: "tasks"))
         if !token.isEmpty {
-            components?.queryItems = [URLQueryItem(name: "token", value: token)]
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
         }
 
-        guard let url = components?.url else {
-            throw PhoneDexBridgeClientError.invalidURL
-        }
-
-        let (data, response) = try await session.data(from: url)
+        let (data, response) = try await session.data(for: request)
         try validate(response: response, data: data)
         return try JSONDecoder().decode([PhoneDexTask].self, from: data)
     }
