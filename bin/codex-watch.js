@@ -123,6 +123,10 @@ function config() {
     homeAssistantNotifyService: env.HOME_ASSISTANT_NOTIFY_SERVICE || "",
     homeAssistantInterruptionLevel:
       env.HOME_ASSISTANT_INTERRUPTION_LEVEL || "time-sensitive",
+    homeAssistantCustomReplyMode: normalizeCustomReplyMode(
+      env.HOME_ASSISTANT_CUSTOM_REPLY_MODE
+    ),
+    shortcutName: env.WATCHDEX_SHORTCUT_NAME || "WatchDex Reply",
     machineName,
     publicUrl,
     replyUrl: `${publicUrl}/reply`,
@@ -354,6 +358,21 @@ function buildPushcutBody(cfg, task) {
 
 function buildHomeAssistantBody(cfg, task) {
   const safeTaskId = task.id.replace(/[^A-Za-z0-9_]/g, "_").toUpperCase();
+  const customAction =
+    cfg.homeAssistantCustomReplyMode === "shortcut"
+      ? {
+          action: `WATCHDEX_SHORTCUT_${safeTaskId}`,
+          title: "Custom reply",
+          uri: buildShortcutReplyUrl(cfg, task)
+        }
+      : {
+          action: "REPLY",
+          title: "Custom reply",
+          choice: "custom",
+          behavior: "textInput",
+          textInputButtonTitle: "Send",
+          textInputPlaceholder: "Type reply to Codex"
+        };
   const actionPayloads = [
     {
       action: `WATCHDEX_OKAY_${safeTaskId}`,
@@ -365,14 +384,7 @@ function buildHomeAssistantBody(cfg, task) {
       title: "Let's do that",
       choice: "lets_do_that"
     },
-    {
-      action: "REPLY",
-      title: "Custom reply",
-      choice: "custom",
-      behavior: "textInput",
-      textInputButtonTitle: "Send",
-      textInputPlaceholder: "Type reply to Codex"
-    }
+    customAction
   ];
 
   return {
@@ -387,26 +399,50 @@ function buildHomeAssistantBody(cfg, task) {
       actions: actionPayloads.map((payload) => ({
         action: payload.action,
         title: payload.title,
-        activationMode: "background",
+        ...(payload.uri ? { uri: payload.uri } : { activationMode: "background" }),
         ...(payload.behavior ? { behavior: payload.behavior } : {}),
         ...(payload.textInputButtonTitle ? { textInputButtonTitle: payload.textInputButtonTitle } : {}),
         ...(payload.textInputPlaceholder ? { textInputPlaceholder: payload.textInputPlaceholder } : {}),
-        action_data: {
-          token: cfg.token,
-          taskId: task.id,
-          choice: payload.choice,
-          prompt: RESPONSE_CHOICES[payload.choice],
-          replyUrl: cfg.replyUrl,
-          machineName: cfg.machineName
-        }
+        ...(payload.uri
+          ? {}
+          : {
+              action_data: {
+                token: cfg.token,
+                taskId: task.id,
+                choice: payload.choice,
+                prompt: RESPONSE_CHOICES[payload.choice],
+                replyUrl: cfg.replyUrl,
+                machineName: cfg.machineName
+              }
+            })
       }))
     }
   };
 }
 
+function buildShortcutReplyUrl(cfg, task) {
+  const replyUrl = new URL(cfg.replyUrl);
+  replyUrl.searchParams.set("token", cfg.token);
+  replyUrl.searchParams.set("taskId", task.id);
+  replyUrl.searchParams.set("choice", "custom");
+  replyUrl.searchParams.set("machineName", cfg.machineName);
+
+  const shortcutUrl = new URL("shortcuts://run-shortcut");
+  shortcutUrl.searchParams.set("name", cfg.shortcutName);
+  shortcutUrl.searchParams.set("input", "text");
+  shortcutUrl.searchParams.set("text", replyUrl.toString());
+  return shortcutUrl.toString();
+}
+
 function formatNotificationTitle(cfg, task) {
   if (!cfg.machineName) return task.title;
   return `${task.title} @ ${cfg.machineName}`;
+}
+
+function normalizeCustomReplyMode(value) {
+  const mode = String(value || "reply").trim().toLowerCase();
+  if (mode === "shortcut") return "shortcut";
+  return "reply";
 }
 
 function parseHomeAssistantNotifyService(value) {
