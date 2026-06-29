@@ -1,0 +1,409 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		1229201577C351A245C15779 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54150915655642C1927495EF /* ContentView.swift */; };
+		33C7D800E56A544D6C1FE4A6 /* NotificationViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBAEE9F726FE8D4C76E5A3B4 /* NotificationViewController.swift */; };
+		6227A85E0E24CB5969010156 /* PhoneDexNotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DA3B7D5BFCEF5C3D552B1AD /* PhoneDexNotificationScheduler.swift */; };
+		96CDAE56CA505EB72AF1B62E /* PhoneDexApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3240FEAD2F5618D959AFEE78 /* PhoneDexApp.swift */; };
+		E5051DCD0753963C6EB8743D /* PhoneDexNotificationExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 25C82207BC440A87334B4671 /* PhoneDexNotificationExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		E7CF308EBADFB48089079EBC /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 50FA6A296EDE92FC2AF9D949 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 02C93F7B509BE88F768CA34A;
+			remoteInfo = PhoneDexNotificationExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		9812BE1766641A700BDF87C3 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				E5051DCD0753963C6EB8743D /* PhoneDexNotificationExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		25C82207BC440A87334B4671 /* PhoneDexNotificationExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = PhoneDexNotificationExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		3240FEAD2F5618D959AFEE78 /* PhoneDexApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexApp.swift; sourceTree = "<group>"; };
+		54150915655642C1927495EF /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		5DA3B7D5BFCEF5C3D552B1AD /* PhoneDexNotificationScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexNotificationScheduler.swift; sourceTree = "<group>"; };
+		73FF60BB337122A42682971A /* PhoneDex.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = PhoneDex.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		860A56B417B84053261A7EA0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		BBAEE9F726FE8D4C76E5A3B4 /* NotificationViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationViewController.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		3081240A4092FC4EB6F962D9 /* PhoneDexNotificationExtension */ = {
+			isa = PBXGroup;
+			children = (
+				860A56B417B84053261A7EA0 /* Info.plist */,
+				BBAEE9F726FE8D4C76E5A3B4 /* NotificationViewController.swift */,
+			);
+			path = PhoneDexNotificationExtension;
+			sourceTree = "<group>";
+		};
+		51C8001B120ECAFB9D8D26C7 = {
+			isa = PBXGroup;
+			children = (
+				59ABBB4B570D4E9981BB3F2D /* PhoneDexApp */,
+				3081240A4092FC4EB6F962D9 /* PhoneDexNotificationExtension */,
+				F8D2C6157C457C2F55459864 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		59ABBB4B570D4E9981BB3F2D /* PhoneDexApp */ = {
+			isa = PBXGroup;
+			children = (
+				54150915655642C1927495EF /* ContentView.swift */,
+				3240FEAD2F5618D959AFEE78 /* PhoneDexApp.swift */,
+				5DA3B7D5BFCEF5C3D552B1AD /* PhoneDexNotificationScheduler.swift */,
+			);
+			path = PhoneDexApp;
+			sourceTree = "<group>";
+		};
+		F8D2C6157C457C2F55459864 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				73FF60BB337122A42682971A /* PhoneDex.app */,
+				25C82207BC440A87334B4671 /* PhoneDexNotificationExtension.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		02C93F7B509BE88F768CA34A /* PhoneDexNotificationExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8D02033095DC64EDF1DA49AB /* Build configuration list for PBXNativeTarget "PhoneDexNotificationExtension" */;
+			buildPhases = (
+				CF182B62DA49AA419A41D55C /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = PhoneDexNotificationExtension;
+			packageProductDependencies = (
+			);
+			productName = PhoneDexNotificationExtension;
+			productReference = 25C82207BC440A87334B4671 /* PhoneDexNotificationExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		DB6735EA4B07B1A49901E799 /* PhoneDex */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8E65B42D59EA0EE6A1F63519 /* Build configuration list for PBXNativeTarget "PhoneDex" */;
+			buildPhases = (
+				25AB0A277D6AA708EC0FA007 /* Sources */,
+				9812BE1766641A700BDF87C3 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				D22E9A7A3651A216E3C2D811 /* PBXTargetDependency */,
+			);
+			name = PhoneDex;
+			packageProductDependencies = (
+			);
+			productName = PhoneDex;
+			productReference = 73FF60BB337122A42682971A /* PhoneDex.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		50FA6A296EDE92FC2AF9D949 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = 2F10B6D87B6994B81C01B7C9 /* Build configuration list for PBXProject "PhoneDex" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 51C8001B120ECAFB9D8D26C7;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = F8D2C6157C457C2F55459864 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				DB6735EA4B07B1A49901E799 /* PhoneDex */,
+				02C93F7B509BE88F768CA34A /* PhoneDexNotificationExtension */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		25AB0A277D6AA708EC0FA007 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1229201577C351A245C15779 /* ContentView.swift in Sources */,
+				96CDAE56CA505EB72AF1B62E /* PhoneDexApp.swift in Sources */,
+				6227A85E0E24CB5969010156 /* PhoneDexNotificationScheduler.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CF182B62DA49AA419A41D55C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				33C7D800E56A544D6C1FE4A6 /* NotificationViewController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		D22E9A7A3651A216E3C2D811 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 02C93F7B509BE88F768CA34A /* PhoneDexNotificationExtension */;
+			targetProxy = E7CF308EBADFB48089079EBC /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		7C5647D621BB795AF67CDEF9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Debug;
+		};
+		817878487C440D8A62A16A10 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.nash226.PhoneDex;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		896DE0B68E6672119BAC1783 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Release;
+		};
+		906BB9777B6643DAEFA5DED2 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				INFOPLIST_FILE = PhoneDexNotificationExtension/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.nash226.PhoneDex.NotificationExtension;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		9EBD7CBB4A90DC4F83D82C52 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				INFOPLIST_FILE = PhoneDexNotificationExtension/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.nash226.PhoneDex.NotificationExtension;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		F00EB27B4BC94816971A2B62 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.nash226.PhoneDex;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		2F10B6D87B6994B81C01B7C9 /* Build configuration list for PBXProject "PhoneDex" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7C5647D621BB795AF67CDEF9 /* Debug */,
+				896DE0B68E6672119BAC1783 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		8D02033095DC64EDF1DA49AB /* Build configuration list for PBXNativeTarget "PhoneDexNotificationExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				906BB9777B6643DAEFA5DED2 /* Debug */,
+				9EBD7CBB4A90DC4F83D82C52 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		8E65B42D59EA0EE6A1F63519 /* Build configuration list for PBXNativeTarget "PhoneDex" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F00EB27B4BC94816971A2B62 /* Debug */,
+				817878487C440D8A62A16A10 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 50FA6A296EDE92FC2AF9D949 /* Project object */;
+}
