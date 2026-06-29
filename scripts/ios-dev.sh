@@ -10,7 +10,7 @@ usage() {
   cat <<'EOF'
 Usage:
   scripts/ios-dev.sh doctor
-  scripts/ios-dev.sh install-xcode
+  scripts/ios-dev.sh install-xcode [path-to-Xcode.xip]
   scripts/ios-dev.sh generate
   scripts/ios-dev.sh open
 
@@ -51,10 +51,35 @@ doctor() {
   fi
 
   if command -v xcodegen >/dev/null 2>&1; then
-    xcodegen version
+    echo "XcodeGen: $(xcodegen version)"
   else
     echo "XcodeGen: missing. Install with: brew install xcodegen"
     ok=1
+  fi
+
+  if command -v xcodes >/dev/null 2>&1; then
+    echo "xcodes: $(xcodes version)"
+  else
+    echo "xcodes: missing. Install with: brew install xcodes"
+    ok=1
+  fi
+
+  if [[ -n "${FASTLANE_SESSION:-}" ]]; then
+    echo "Fastlane session: configured"
+  else
+    echo "Fastlane session: not configured; xcodes may prompt for Apple ID"
+  fi
+
+  if xcrun --find simctl >/dev/null 2>&1; then
+    echo "Simulator tools: available"
+  else
+    echo "Simulator tools: unavailable until full Xcode is selected"
+  fi
+
+  if xcrun --find devicectl >/dev/null 2>&1; then
+    echo "Device tools: available"
+  else
+    echo "Device tools: unavailable until full Xcode is selected"
   fi
 
   if [[ -d "$PROJECT_PATH" ]]; then
@@ -70,6 +95,19 @@ install_xcode() {
   if ! command -v xcodes >/dev/null 2>&1; then
     echo "xcodes is missing. Install with: brew install xcodes" >&2
     exit 1
+  fi
+
+  if [[ -n "${1:-}" ]]; then
+    local xip_path="$1"
+    if [[ ! -f "$xip_path" ]]; then
+      echo "Xcode .xip not found: $xip_path" >&2
+      exit 1
+    fi
+
+    echo "Installing Xcode $COMPATIBLE_XCODE_VERSION from $xip_path."
+    echo "This may prompt for your macOS admin password."
+    xcodes install "$COMPATIBLE_XCODE_VERSION" --path "$xip_path" --select --empty-trash
+    return
   fi
 
   echo "Installing Xcode $COMPATIBLE_XCODE_VERSION with xcodes."
@@ -100,7 +138,7 @@ case "${1:-}" in
     doctor
     ;;
   install-xcode)
-    install_xcode
+    install_xcode "${2:-}"
     ;;
   generate)
     generate

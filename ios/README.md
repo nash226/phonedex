@@ -49,6 +49,17 @@ Apple's latest App Store Xcode may require macOS Tahoe. The install command can
 prompt for your Apple ID and macOS admin password because Apple gates older
 Xcode downloads and `/Applications` installs.
 
+If you already downloaded the compatible Xcode `.xip` from Apple, install from
+that local file instead:
+
+```sh
+./scripts/ios-dev.sh install-xcode ~/Downloads/Xcode_26.3.xip
+```
+
+`ios:doctor` also reports whether a Fastlane session is configured. If
+`FASTLANE_SESSION` is present, `xcodes` can use it instead of stopping at the
+interactive Apple ID prompt.
+
 Generate and open the project:
 
 ```sh
