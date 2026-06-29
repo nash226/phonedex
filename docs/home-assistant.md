@@ -132,15 +132,18 @@ automation:
     trigger:
       - platform: event
         event_type: mobile_app_notification_action
+      - platform: event
+        event_type: ios.notification_action_fired
     condition:
       - condition: template
         value_template: >
-          {{ trigger.event.data.action in ['CODEX_WATCH_OKAY_WHATS_NEXT', 'CODEX_WATCH_LETS_DO_THAT']
-             or trigger.event.data.action.startswith('WATCHDEX_OKAY_')
-             or trigger.event.data.action.startswith('WATCHDEX_DO_THAT_')
-             or trigger.event.data.action.startswith('WATCHDEX_CUSTOM_')
-             or trigger.event.data.action.startswith('WATCHDEX_DICTATE_')
-             or trigger.event.data.action == 'REPLY' }}
+          {% set action = trigger.event.data.get('action') or trigger.event.data.get('actionName', '') %}
+          {{ action in ['CODEX_WATCH_OKAY_WHATS_NEXT', 'CODEX_WATCH_LETS_DO_THAT']
+             or action.startswith('WATCHDEX_OKAY_')
+             or action.startswith('WATCHDEX_DO_THAT_')
+             or action.startswith('WATCHDEX_CUSTOM_')
+             or action.startswith('WATCHDEX_DICTATE_')
+             or action == 'REPLY' }}
     action:
       - service: rest_command.codex_watch_reply
         data:
@@ -148,27 +151,29 @@ automation:
           token: "{{ trigger.event.data.get('action_data', {}).get('token', 'YOUR_WATCH_BRIDGE_TOKEN') }}"
           task_id: "{{ trigger.event.data.get('action_data', {}).get('taskId', '') }}"
           machine_name: "{{ trigger.event.data.get('action_data', {}).get('machineName', '') }}"
-          action: "{{ trigger.event.data.action }}"
-          reply_text: "{{ trigger.event.data.get('reply_text', '') }}"
+          action: "{{ trigger.event.data.get('action') or trigger.event.data.get('actionName', '') }}"
+          reply_text: "{{ trigger.event.data.get('reply_text') or trigger.event.data.get('textInput', '') }}"
           choice: >
-            {% if trigger.event.data.action.startswith('WATCHDEX_DO_THAT_')
-                  or trigger.event.data.action == 'CODEX_WATCH_LETS_DO_THAT' %}
+            {% set action = trigger.event.data.get('action') or trigger.event.data.get('actionName', '') %}
+            {% if action.startswith('WATCHDEX_DO_THAT_')
+                  or action == 'CODEX_WATCH_LETS_DO_THAT' %}
               lets_do_that
-            {% elif trigger.event.data.action.startswith('WATCHDEX_CUSTOM_')
-                  or trigger.event.data.action.startswith('WATCHDEX_DICTATE_')
-                  or trigger.event.data.action == 'REPLY' %}
+            {% elif action.startswith('WATCHDEX_CUSTOM_')
+                  or action.startswith('WATCHDEX_DICTATE_')
+                  or action == 'REPLY' %}
               custom
             {% else %}
               okay_whats_next
             {% endif %}
           prompt: >
-            {% if trigger.event.data.action.startswith('WATCHDEX_DO_THAT_')
-                  or trigger.event.data.action == 'CODEX_WATCH_LETS_DO_THAT' %}
+            {% set action = trigger.event.data.get('action') or trigger.event.data.get('actionName', '') %}
+            {% if action.startswith('WATCHDEX_DO_THAT_')
+                  or action == 'CODEX_WATCH_LETS_DO_THAT' %}
               lets do that
-            {% elif trigger.event.data.action.startswith('WATCHDEX_CUSTOM_')
-                  or trigger.event.data.action.startswith('WATCHDEX_DICTATE_')
-                  or trigger.event.data.action == 'REPLY' %}
-              {{ trigger.event.data.get('reply_text', '') }}
+            {% elif action.startswith('WATCHDEX_CUSTOM_')
+                  or action.startswith('WATCHDEX_DICTATE_')
+                  or action == 'REPLY' %}
+              {{ trigger.event.data.get('reply_text') or trigger.event.data.get('textInput', '') }}
             {% else %}
               okay whats next
             {% endif %}
