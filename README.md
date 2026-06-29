@@ -87,8 +87,8 @@ No npm package dependencies are required for the bridge itself.
 Clone the repo, then from the project root:
 
 ```sh
-git clone https://github.com/nash226/WatchDex.git
-cd WatchDex
+git clone https://github.com/nash226/phonedex.git
+cd phonedex
 npm run check
 node ./bin/codex-watch.js setup
 npm run install-hook
@@ -172,6 +172,7 @@ Cloudflare Quick Tunnel, see [docs/home-assistant.md](docs/home-assistant.md).
 
 For the full system design, see [docs/architecture.md](docs/architecture.md).
 For the legacy native Apple Watch app scaffold, see [watchos/README.md](watchos/README.md).
+For the native iOS notification UI prototype, see [ios/README.md](ios/README.md).
 
 ## Multiple Machines
 
@@ -322,22 +323,27 @@ Tailscale. Keep the token private either way.
   older static actions still fall back to the latest task.
 - Home Assistant supports a `Custom reply` action that prompts for text and
   submits that exact text to Codex in foreground mode.
+- Home Assistant notifications use native iOS expansion, subtitle/subject
+  fields, and action icons; fully branded scrollable notification chrome
+  requires the native PhoneDex iOS app path.
 - Auto-resume depends on usable Codex session ids in hook payloads or the
   session watcher fallback.
-- There is no native iOS app yet, so PhoneDex relies on Home Assistant
-  or Pushcut for notification delivery.
+- The native iOS app is scaffolded, but Home Assistant and Pushcut remain the
+  working notification providers today.
 
 ## Roadmap
 
 - Configurable reply choices.
 - Safer Codex resume queue with reviewable pending actions.
 - Packaged install flow.
-- Native iOS app exploration.
+- Native iOS app notification delivery and reply callbacks.
 - Windows foreground submitter.
 
 ## References
 
 - Pushcut notification webhooks and Apple Watch actions: https://www.pushcut.io/support/notifications
 - Home Assistant actionable notifications: https://companion.home-assistant.io/docs/notifications/actionable-notifications/
+- Home Assistant notification options: https://companion.home-assistant.io/docs/notifications/notifications-basic/
+- Apple notification content extensions: https://developer.apple.com/documentation/usernotificationsui/unnotificationcontentextension
 - Codex hooks and the `Stop` event: https://developers.openai.com/codex/hooks
 - Codex user-level config and hook locations: https://developers.openai.com/codex/config-advanced

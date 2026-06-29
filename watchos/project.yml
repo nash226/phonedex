@@ -1,4 +1,4 @@
-name: WatchDexWatch
+name: PhoneDexWatch
 
 options:
   bundleIdPrefix: com.nash226
@@ -11,13 +11,13 @@ settings:
   SWIFT_VERSION: 6.0
 
 targets:
-  WatchDex Watch App:
+  PhoneDex Watch App:
     type: application.watchapp2
     platform: watchOS
     deploymentTarget: "10.0"
     sources:
       - WatchDexWatchApp
     settings:
-      PRODUCT_BUNDLE_IDENTIFIER: com.nash226.WatchDex.watchkitapp
+      PRODUCT_BUNDLE_IDENTIFIER: com.nash226.PhoneDex.watchkitapp
       INFOPLIST_FILE: WatchDexWatchApp/Info.plist
       ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

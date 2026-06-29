@@ -106,9 +106,15 @@ npm run test-notify
 ```
 
 On iPhone, PhoneDex keeps the notification tap target native by setting
-`url: noAction` and sends the Codex output as both `message` and the long-form
-`subject` notification field. Expand the notification to see as much of the
-response as iOS allows without opening a browser.
+`url: noAction` and sends a PhoneDex subtitle, SF Symbol action icons, and the
+Codex output as both `message` and the long-form `subject` notification field.
+Expand the notification by pulling it down, pressing and holding, or using
+View on the lock screen to see as much of the response as iOS allows without
+opening a browser.
+
+The Home Assistant app still owns the outer notification chrome. To make the
+expanded notification visually match the PhoneDex README mockup exactly,
+PhoneDex needs its native iOS app and notification content extension.
 
 ## Home Assistant Callback Automations
 

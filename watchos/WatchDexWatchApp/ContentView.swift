@@ -13,7 +13,7 @@ struct ContentView: View {
                     SetupView(client: client)
                 }
             }
-            .navigationTitle("WatchDex")
+            .navigationTitle("PhoneDex")
             .toolbar {
                 ToolbarItem {
                     Button {

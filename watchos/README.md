@@ -1,11 +1,12 @@
-# WatchDex Watch App
+# PhoneDex Watch App
 
-This is the native Apple Watch path for WatchDex. It talks directly to the
-WatchDex bridge instead of relying on Home Assistant notification text input.
+This is the legacy native Apple Watch path for PhoneDex. It talks directly to
+the PhoneDex bridge instead of relying on Home Assistant notification text
+input.
 
 ## Current MVP
 
-- Fetches recent WatchDex tasks from `/tasks`.
+- Fetches recent PhoneDex tasks from `/tasks`.
 - Sends canned replies to `/reply`.
 - Sends custom text from a Watch text field to `/reply`.
 - Stores the bridge URL and token in watchOS user defaults.
@@ -20,12 +21,12 @@ After Xcode is installed:
 brew install xcodegen
 cd watchos
 xcodegen generate
-open WatchDexWatch.xcodeproj
+open PhoneDexWatch.xcodeproj
 ```
 
 In Xcode:
 
-1. Select the `WatchDex Watch App` scheme.
+1. Select the `PhoneDex Watch App` scheme.
 2. Choose your Apple Watch or a watchOS simulator.
 3. Set a development team for signing.
 4. Build and run.
