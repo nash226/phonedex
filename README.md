@@ -52,7 +52,9 @@ that` is the action-oriented reply.
 
 If you want the watch reply to appear in the currently open Codex desktop
 thread, use `foreground` mode. It activates Codex.app, pastes the mapped prompt
-into the visible input, and submits it through the UI.
+into the visible input, and submits it through the UI. macOS must allow the
+process running WatchDex, plus `osascript` when prompted, to control the
+computer in **Privacy & Security > Accessibility**.
 
 ## Requirements
 

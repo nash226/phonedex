@@ -690,16 +690,26 @@ on run argv
 end run
 `;
 
-  await runChild("osascript", ["-e", script, prompt], {
-    cwd: task.cwd || ROOT
-  });
-
-  appendJsonl(cfg.dataDir, "events.jsonl", {
-    at: new Date().toISOString(),
-    type: "foreground-resume-submitted",
-    taskId: task.id,
-    sessionId: task.sessionId || ""
-  });
+  try {
+    await runChild("osascript", ["-e", script, prompt], {
+      cwd: task.cwd || ROOT
+    });
+    appendJsonl(cfg.dataDir, "events.jsonl", {
+      at: new Date().toISOString(),
+      type: "foreground-resume-submitted",
+      taskId: task.id,
+      sessionId: task.sessionId || ""
+    });
+  } catch (error) {
+    appendJsonl(cfg.dataDir, "events.jsonl", {
+      at: new Date().toISOString(),
+      type: "foreground-resume-failed",
+      taskId: task.id,
+      sessionId: task.sessionId || "",
+      error: error.message
+    });
+    throw error;
+  }
 }
 
 async function runAppServerTurn(cfg, task, prompt) {
