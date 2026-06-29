@@ -176,6 +176,9 @@ Restart the WatchDex bridge after changing these values. New replies will be
 logged in `data/replies.jsonl`, and app-server resume attempts will be logged
 in `data/events.jsonl` plus `data/app-server-resume.log`.
 
+`Okay, what's next` is sent to Codex as a status-only prompt so it does not
+start new background work. `Let's do that` is the action-oriented reply.
+
 ## Notes
 
 Home Assistant receives the watch action event first, then calls the bridge.

@@ -46,7 +46,9 @@ Codex finishes work
 
 Auto-continuing Codex from a watch tap is off by default. When enabled,
 `app-server` mode uses Codex's local app-server protocol to resume the recorded
-session and submit the watch reply as a new turn.
+session and submit the watch reply as a new turn. `Okay, what's next` is wrapped
+as a status-only prompt so it does not start new background work; `Let's do
+that` is the action-oriented reply.
 
 ## Requirements
 

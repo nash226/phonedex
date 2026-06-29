@@ -17,6 +17,13 @@ const RESPONSE_CHOICES = {
   lets_do_that: "lets do that"
 };
 
+const CODEX_RESUME_PROMPTS = {
+  okay_whats_next:
+    "The user tapped the WatchDex quick reply: okay whats next. Provide a concise status update and the next recommended action only. Do not run tools, edit files, or start new work.",
+  lets_do_that:
+    "The user tapped the WatchDex quick reply: lets do that. Continue with the previously recommended next step, keeping the scope tight and reporting back when done."
+};
+
 main().catch((error) => {
   logError(error);
   process.exitCode = 1;
@@ -517,7 +524,7 @@ function attemptAutoResume(cfg, task, reply) {
   const out = fs.openSync(logPath, "a");
   const child = spawn(
     cfg.codexBin,
-    ["exec", "resume", "--skip-git-repo-check", task.sessionId, reply.prompt],
+    ["exec", "resume", "--skip-git-repo-check", task.sessionId, buildCodexResumePrompt(reply)],
     {
       cwd: task.cwd || ROOT,
       detached: true,
@@ -551,7 +558,7 @@ function attemptAppServerAutoResume(cfg, task, reply) {
       "--taskId",
       reply.taskId,
       "--prompt",
-      reply.prompt
+      buildCodexResumePrompt(reply)
     ],
     {
       cwd: task.cwd || ROOT,
@@ -584,10 +591,15 @@ async function appServerResumeCommand(args) {
   if (!task) throw new Error(`No task found for app-server resume: ${taskId || "(latest)"}`);
   if (!task.sessionId) throw new Error(`Task ${task.id} does not have a Codex session id`);
 
-  const prompt = flags.prompt || RESPONSE_CHOICES[normalizeChoice(flags.choice || "")] || "";
+  const prompt = flags.prompt || buildCodexResumePrompt({ choice: flags.choice || "" });
   if (!prompt) throw new Error("Missing --prompt for app-server resume");
 
   await runAppServerTurn(cfg, task, prompt);
+}
+
+function buildCodexResumePrompt(reply) {
+  const choice = normalizeChoice(reply.choice || "");
+  return CODEX_RESUME_PROMPTS[choice] || reply.prompt || RESPONSE_CHOICES[choice] || choice;
 }
 
 async function runAppServerTurn(cfg, task, prompt) {
