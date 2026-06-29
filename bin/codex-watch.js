@@ -449,6 +449,10 @@ async function startServer() {
         return handleReplyRequest(req, res, requestUrl, cfg);
       }
 
+      if (requestUrl.pathname === "/ha-action-event") {
+        return handleHomeAssistantActionEvent(req, res, requestUrl, cfg);
+      }
+
       if (requestUrl.pathname === "/replies") {
         return sendJson(res, 200, readJsonl(cfg.dataDir, "replies.jsonl").slice(-25));
       }
@@ -459,7 +463,7 @@ async function startServer() {
 
       sendJson(res, 200, {
         service: "watchdex",
-        endpoints: ["/health", "/reply", "/replies", "/tasks"]
+        endpoints: ["/health", "/reply", "/ha-action-event", "/replies", "/tasks"]
       });
     } catch (error) {
       logError(error);
@@ -470,6 +474,37 @@ async function startServer() {
   await new Promise((resolve) => server.listen(cfg.port, cfg.host, resolve));
   console.log(`WatchDex listening on http://${cfg.host}:${cfg.port}`);
   console.log(`Watch reply callback public URL should be: ${cfg.publicUrl}/reply`);
+}
+
+async function handleHomeAssistantActionEvent(req, res, requestUrl, cfg) {
+  const body = await readHttpBody(req);
+  const fields = {
+    ...Object.fromEntries(requestUrl.searchParams.entries()),
+    ...parseBodyFields(body, req.headers["content-type"] || "")
+  };
+  const event = fields.event && typeof fields.event === "object" ? fields.event : fields;
+  const token = fields.token || event?.action_data?.token || "";
+
+  if (cfg.token && token !== cfg.token) {
+    return sendJson(res, 401, { ok: false, error: "Invalid token" });
+  }
+
+  appendJsonl(cfg.dataDir, "action-events.jsonl", {
+    at: new Date().toISOString(),
+    source: "home-assistant-action-event",
+    event: redactActionEvent(event),
+    userAgent: req.headers["user-agent"] || ""
+  });
+
+  sendJson(res, 200, { ok: true });
+}
+
+function redactActionEvent(event) {
+  if (!event || typeof event !== "object") return event;
+  const clone = JSON.parse(JSON.stringify(event));
+  if (clone.action_data?.token) clone.action_data.token = "[redacted]";
+  if (clone.token) clone.token = "[redacted]";
+  return clone;
 }
 
 async function handleReplyRequest(req, res, requestUrl, cfg) {
