@@ -34,6 +34,17 @@ Check the local Mac setup:
 npm run ios:doctor
 ```
 
+Install compatible full Xcode if `ios:doctor` reports it missing:
+
+```sh
+npm run ios:install-xcode
+```
+
+This currently pins Xcode 26.3 because this Mac is on macOS Sequoia 15.6.x.
+Apple's latest App Store Xcode may require macOS Tahoe. The install command can
+prompt for your Apple ID and macOS admin password because Apple gates older
+Xcode downloads and `/Applications` installs.
+
 Generate and open the project:
 
 ```sh
