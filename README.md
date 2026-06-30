@@ -168,6 +168,7 @@ heartbeats at `POST /devices/heartbeat`; check coverage on the hub with:
 
 ```sh
 npm run devices
+npm run devices:verify
 ```
 
 ## Delivery Rails
@@ -188,6 +189,8 @@ PhoneDex can now run as a hub-and-agent mesh:
   and session that created the notification.
 - `/devices` and `npm run devices` show which machines are online, stale,
   missing, or task-only.
+- `npm run devices:verify` fails unless every id in `PHONEDEX_EXPECTED_DEVICES`
+  is currently online. This is the hub's proof gate for account-wide coverage.
 
 Hub `.env`:
 
@@ -241,6 +244,12 @@ Device status meanings:
 - `task-only`: the hub has task history for the device, but no service
   heartbeat yet.
 
+Use `npm run devices:verify` on the hub after enrolling each machine. It exits
+nonzero when `PHONEDEX_EXPECTED_DEVICES` is empty, or when any expected device
+is `missing`, `stale`, or `task-only`. That means the hub is not yet in a state
+where it can reliably receive future Codex completions from every listed
+device.
+
 For the full system design, see [docs/architecture.md](docs/architecture.md).
 For the legacy native Apple Watch app scaffold, see [watchos/README.md](watchos/README.md).
 For the native iOS notification UI prototype, see [ios/README.md](ios/README.md).
@@ -279,6 +288,7 @@ callers cannot record replies.
 | `npm run replies` | Print recent phone replies. |
 | `npm run tasks` | Print recent recorded tasks. |
 | `npm run devices` | Print machines that have reported tasks to this hub. |
+| `npm run devices:verify` | Fail unless every configured expected device is online. |
 | `node ./bin/codex-watch.js run -- <command>` | Run a command and notify when it exits. |
 | `npm run services:install` | Install the macOS LaunchAgent for the PhoneDex service. |
 | `npm run services:start` | Start the LaunchAgents. |
@@ -292,6 +302,7 @@ callers cannot record replies.
 | `npm run watch:sessions` | Watch Codex session logs for completed responses missed by hooks. |
 | `npm run scan:sessions` | Scan recent Codex session logs once without notifying old history. |
 | `npm run test:session-watch` | Verify the session watcher captures Codex task-complete and final-answer records. |
+| `npm run test:device-coverage` | Verify the device coverage pass/fail logic with fixtures. |
 | `npm run ios:doctor` | Check whether this Mac can build/run the native PhoneDex iOS app. |
 | `npm run ios:install-xcode` | Install the compatible full Xcode version needed for the native iOS app. |
 | `npm run ios:generate` | Generate the native iOS Xcode project with XcodeGen. |

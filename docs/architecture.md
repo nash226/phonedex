@@ -53,6 +53,10 @@ The PhoneDex hub stores the shared task stream and device status. Each Codex
 machine still runs its own local PhoneDex bridge, because each machine owns its
 local Codex sessions and foreground paste permissions.
 
+The hub only knows the full device set when `PHONEDEX_EXPECTED_DEVICES` is
+configured. `phonedex verify-devices` is the coverage gate: it exits nonzero
+until every expected device is heartbeating as `online`.
+
 ## Completion Detection
 
 PhoneDex has two completion paths:
@@ -197,6 +201,7 @@ append-only and easy to inspect:
 | `data/replies.jsonl` | Phone replies and custom text entries. |
 | `data/events.jsonl` | Notification attempts and auto-resume events. |
 | `data/session-watch-state.json` | Deduplication state for the session watcher. |
+| `data/devices.json` | Latest heartbeat for each reporting PhoneDex service. |
 
 Security is handled with `WATCH_BRIDGE_TOKEN`. The token is verified by
 `/reply`, `/tasks`, `/devices`, and `/replies` when it is set. Native app

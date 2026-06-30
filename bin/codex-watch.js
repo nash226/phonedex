@@ -85,6 +85,11 @@ async function main() {
     return;
   }
 
+  if (command === "verify-devices") {
+    verifyDeviceCoverageCommand(args);
+    return;
+  }
+
   if (command === "watch-sessions") {
     await watchSessions(args);
     return;
@@ -1358,6 +1363,24 @@ function printKnownDevices() {
   console.log(JSON.stringify(devices, null, 2));
 }
 
+function verifyDeviceCoverageCommand(args) {
+  const cfg = config();
+  const flags = parseFlags(args);
+  const report = buildDeviceCoverageReport(cfg, {
+    failOnUnexpected: parseBoolean(flags.failOnUnexpected || flags["fail-on-unexpected"], false)
+  });
+
+  if (flags.json) {
+    console.log(JSON.stringify(report, null, 2));
+  } else {
+    printDeviceCoverageReport(report);
+  }
+
+  if (!report.ok) {
+    process.exitCode = 1;
+  }
+}
+
 function printHelp() {
   console.log(`PhoneDex
 
@@ -1371,6 +1394,7 @@ Usage:
   phonedex scan-sessions --notify-existing
   phonedex reply --choice okay_whats_next
   phonedex devices
+  phonedex verify-devices
   phonedex replies
   phonedex run -- <command> [args...]
 
@@ -1384,6 +1408,7 @@ Compatibility aliases:
   watchdex scan-sessions --notify-existing
   watchdex reply --choice okay_whats_next
   watchdex devices
+  watchdex verify-devices
   watchdex replies
   watchdex run -- <command> [args...]
 `);
@@ -1657,6 +1682,89 @@ function listDeviceCoverage(cfg) {
   }
 
   return [...devices.values()].sort(compareDeviceCoverage);
+}
+
+function buildDeviceCoverageReport(cfg, options = {}) {
+  const devices = listDeviceCoverage(cfg);
+  const expectedDevices = devices.filter((device) => device.expected);
+  const unexpectedDevices = devices.filter((device) => !device.expected);
+  const failingExpectedDevices = expectedDevices.filter(
+    (device) => device.status !== "online"
+  );
+  const issues = [];
+
+  if (cfg.expectedDevices.length === 0) {
+    issues.push({
+      code: "expected-devices-empty",
+      message:
+        "PHONEDEX_EXPECTED_DEVICES is empty, so PhoneDex cannot prove account-wide coverage."
+    });
+  }
+
+  for (const device of failingExpectedDevices) {
+    issues.push({
+      code: `device-${device.status}`,
+      deviceId: device.deviceId,
+      machineName: device.machineName || device.deviceId,
+      status: device.status,
+      message: `${device.machineName || device.deviceId} is ${device.status}.`
+    });
+  }
+
+  if (options.failOnUnexpected && unexpectedDevices.length > 0) {
+    for (const device of unexpectedDevices) {
+      issues.push({
+        code: "unexpected-device",
+        deviceId: device.deviceId,
+        machineName: device.machineName || device.deviceId,
+        status: device.status,
+        message:
+          `${device.machineName || device.deviceId} is reporting but is not listed ` +
+          "in PHONEDEX_EXPECTED_DEVICES."
+      });
+    }
+  }
+
+  return {
+    ok: issues.length === 0,
+    checkedAt: new Date().toISOString(),
+    expectedCount: cfg.expectedDevices.length,
+    onlineExpectedCount: expectedDevices.filter((device) => device.status === "online")
+      .length,
+    failingExpectedCount: failingExpectedDevices.length,
+    unexpectedCount: unexpectedDevices.length,
+    staleMs: cfg.deviceStaleMs,
+    devices,
+    issues
+  };
+}
+
+function printDeviceCoverageReport(report) {
+  console.log(
+    `PhoneDex device coverage: ${report.ok ? "OK" : "NOT OK"} ` +
+      `(${report.onlineExpectedCount}/${report.expectedCount} expected online)`
+  );
+
+  if (report.expectedCount === 0) {
+    console.log("No expected devices configured.");
+  }
+
+  for (const device of report.devices) {
+    const expected = device.expected ? "expected" : "unlisted";
+    const label = device.machineName || device.deviceId;
+    const lastSeen = device.lastHeartbeatAt || device.lastTaskAt || "never";
+    console.log(
+      `- ${label} [${device.deviceId}] ${device.status} ${expected}; last seen ${lastSeen}`
+    );
+  }
+
+  if (report.issues.length > 0) {
+    console.log("");
+    console.log("Issues:");
+    for (const issue of report.issues) {
+      console.log(`- ${issue.message}`);
+    }
+  }
 }
 
 function readDeviceHeartbeats(dataDir) {
