@@ -1,14 +1,8 @@
 # PhoneDex iOS App
 
-This is the native iPhone path for PhoneDex. It exists because Home Assistant
-can deliver useful native iPhone actions, but it cannot make the notification
-look like it came from a separate PhoneDex app or render a custom branded
-expanded notification surface.
-
-If the notification arrives from Home Assistant Companion, it will still look
-like a Home Assistant notification. The custom PhoneDex card appears only for
-notifications delivered by the native PhoneDex app with category
-`PHONEDEX_TASK`.
+This is the native iPhone path for PhoneDex. It owns the branded notification
+surface, lets you scroll longer Codex results, and posts typed or dictated
+replies back to the PhoneDex bridge.
 
 The iOS app scaffold includes:
 
@@ -88,5 +82,6 @@ Use the Mac's LAN IP, not `127.0.0.1`, when running on a real iPhone.
 ## Current Scope
 
 This native path can fetch local bridge tasks and post replies back to the
-bridge, but it still needs device install/signing through Xcode before it can
-replace Home Assistant as the daily notification provider.
+bridge. Native remote push wakeup is still in progress; until then, open the
+app to fetch the latest hub task or use Pushcut as an optional webhook
+fallback.
