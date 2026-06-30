@@ -23,6 +23,7 @@ const DEFAULT_DEVICE_HEARTBEAT_INTERVAL_MS = 30 * 1000;
 const DEFAULT_DEVICE_STALE_MS = 2 * 60 * 1000;
 const DEFAULT_COVERAGE_ALERT_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const DEFAULT_AGENT_INVITE_TTL_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_AGENT_INVITE_MAX_ACTIVE = 5;
 
 const RESPONSE_CHOICES = {
   okay_whats_next: "okay whats next",
@@ -196,6 +197,10 @@ function config() {
     agentInviteTtlMs: positiveNumber(
       env.PHONEDEX_AGENT_INVITE_TTL_MS,
       DEFAULT_AGENT_INVITE_TTL_MS
+    ),
+    agentInviteMaxActive: positiveNumber(
+      env.PHONEDEX_AGENT_INVITE_MAX_ACTIVE,
+      DEFAULT_AGENT_INVITE_MAX_ACTIVE
     ),
     host,
     port,
@@ -906,15 +911,15 @@ function createAgentInvite(cfg, options = {}) {
     expiresAt,
     uses: 0
   };
-  const invites = pruneAgentInvites(readAgentInvites(cfg), now);
+  const invites = pruneAgentInvites(readAgentInvites(cfg), cfg, now);
   invites.push(invite);
-  writeAgentInvites(cfg, invites);
+  writeAgentInvites(cfg, pruneAgentInvites(invites, cfg, now));
   return publicAgentInvite(cfg, invite);
 }
 
 function validateAgentInvite(cfg, code) {
   const now = new Date();
-  const invites = pruneAgentInvites(readAgentInvites(cfg), now);
+  const invites = pruneAgentInvites(readAgentInvites(cfg), cfg, now);
   writeAgentInvites(cfg, invites);
 
   const invite = invites.find((candidate) => candidate.code === code);
@@ -945,7 +950,7 @@ function recordAgentInviteUse(cfg, invite, event = {}) {
     lastFileName: nextEvent.fileName,
     events: [...events.slice(-19), nextEvent]
   };
-  writeAgentInvites(cfg, pruneAgentInvites(invites));
+  writeAgentInvites(cfg, pruneAgentInvites(invites, cfg));
 }
 
 function readAgentInvites(cfg) {
@@ -960,9 +965,33 @@ function writeAgentInvites(cfg, invites) {
   });
 }
 
-function pruneAgentInvites(invites, now = new Date()) {
+function pruneAgentInvites(invites, cfg = {}, now = new Date()) {
   const nowMs = now.getTime();
-  return invites.filter((invite) => Date.parse(invite.expiresAt || "") > nowMs);
+  const active = invites.filter((invite) => Date.parse(invite.expiresAt || "") > nowMs);
+  const maxActive = positiveNumber(cfg.agentInviteMaxActive, DEFAULT_AGENT_INVITE_MAX_ACTIVE);
+  if (active.length <= maxActive) return active;
+
+  return active
+    .slice()
+    .sort((left, right) => compareAgentInviteRetention(left, right))
+    .slice(-maxActive)
+    .sort(compareAgentInviteCreatedAt);
+}
+
+function compareAgentInviteRetention(left, right) {
+  const usedDelta = agentInviteHasActivity(left) - agentInviteHasActivity(right);
+  if (usedDelta !== 0) return usedDelta;
+  return compareAgentInviteCreatedAt(left, right);
+}
+
+function compareAgentInviteCreatedAt(left, right) {
+  const leftAt = Date.parse(left.createdAt || "");
+  const rightAt = Date.parse(right.createdAt || "");
+  return (Number.isNaN(leftAt) ? 0 : leftAt) - (Number.isNaN(rightAt) ? 0 : rightAt);
+}
+
+function agentInviteHasActivity(invite) {
+  return Number(invite.uses || 0) > 0 || Boolean(invite.lastUsedAt);
 }
 
 function publicAgentInvite(cfg, invite) {
@@ -2062,9 +2091,9 @@ function agentInviteCommand(args) {
 }
 
 function listAgentInvites(cfg) {
-  return pruneAgentInvites(readAgentInvites(cfg)).map((invite) =>
-    publicAgentInvite(cfg, invite)
-  );
+  const invites = pruneAgentInvites(readAgentInvites(cfg), cfg);
+  writeAgentInvites(cfg, invites);
+  return invites.map((invite) => publicAgentInvite(cfg, invite));
 }
 
 function printAgentInvites(invites) {
