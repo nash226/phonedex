@@ -25,6 +25,10 @@ enum PhoneDexNotificationScheduler {
 
     static func schedulePreviewNotification() async throws {
         registerCategories()
+        let identifier = "phonedex-preview"
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: [identifier])
+        center.removeDeliveredNotifications(withIdentifiers: [identifier])
 
         let content = UNMutableNotificationContent()
         content.title = "Codex done: PR update"
@@ -40,16 +44,20 @@ enum PhoneDexNotificationScheduler {
         ]
 
         let request = UNNotificationRequest(
-            identifier: "phonedex-preview-\(UUID().uuidString)",
+            identifier: identifier,
             content: content,
             trigger: UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
         )
 
-        try await UNUserNotificationCenter.current().add(request)
+        try await center.add(request)
     }
 
     static func scheduleTaskNotification(_ task: PhoneDexTask, bridgeURL: URL, token: String) async throws {
         registerCategories()
+        let identifier = "phonedex-task-\(task.id)"
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: [identifier])
+        center.removeDeliveredNotifications(withIdentifiers: [identifier])
 
         let content = UNMutableNotificationContent()
         content.title = task.title
@@ -67,12 +75,12 @@ enum PhoneDexNotificationScheduler {
         ]
 
         let request = UNNotificationRequest(
-            identifier: "phonedex-task-\(task.id)",
+            identifier: identifier,
             content: content,
             trigger: UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
         )
 
-        try await UNUserNotificationCenter.current().add(request)
+        try await center.add(request)
     }
 
     static func registerCategories() {
