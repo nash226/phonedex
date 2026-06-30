@@ -19,7 +19,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
-	<string>2</string>
+	<string>3</string>
 	<key>NSExtension</key>
 	<dict>
 		<key>NSExtensionAttributes</key>
@@ -27,9 +27,9 @@
 			<key>UNNotificationExtensionCategory</key>
 			<string>PHONEDEX_TASK</string>
 			<key>UNNotificationExtensionDefaultContentHidden</key>
-			<true/>
+			<false/>
 			<key>UNNotificationExtensionInitialContentSizeRatio</key>
-			<real>1.2</real>
+			<real>0.45</real>
 		</dict>
 		<key>NSExtensionPointIdentifier</key>
 		<string>com.apple.usernotifications.content-extension</string>
