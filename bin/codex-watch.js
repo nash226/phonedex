@@ -11,6 +11,7 @@ const ROOT = path.resolve(__dirname, "..");
 const DATA_DIR_DEFAULT = path.join(ROOT, "data");
 const SESSION_WATCH_STATE = "session-watch-state.json";
 const DEVICES_STATE_FILE = "devices.json";
+const AGENT_BOOTSTRAP_DIR_DEFAULT = path.join(ROOT, ".local", "agent-bootstrap");
 const APP_SERVER_RESUME_TIMEOUT_MS = 30 * 60 * 1000;
 const PHONE_NOTIFICATION_TEXT_MAX = 1800;
 const DEFAULT_SESSION_WATCH_LOOKBACK_HOURS = 168;
@@ -170,6 +171,7 @@ function config() {
     host,
     port,
     dataDir: env.WATCH_BRIDGE_DATA_DIR || DATA_DIR_DEFAULT,
+    agentBundleDir: path.resolve(ROOT, env.PHONEDEX_AGENT_BUNDLE_DIR || AGENT_BOOTSTRAP_DIR_DEFAULT),
     pushcutSound: env.PUSHCUT_SOUND || "jobDone",
     pushcutTimeSensitive: parseBoolean(env.PUSHCUT_TIME_SENSITIVE, true),
     autoResume: parseBoolean(env.WATCH_BRIDGE_AUTO_RESUME, false),
@@ -579,6 +581,14 @@ async function startServer(providedCfg) {
         return sendJson(res, 200, listDeviceCoverage(cfg));
       }
 
+      if (
+        requestUrl.pathname === "/agent-bootstrap" ||
+        requestUrl.pathname === "/agent-bootstrap/" ||
+        requestUrl.pathname.startsWith("/agent-bootstrap/")
+      ) {
+        return handleAgentBootstrapRequest(req, res, requestUrl, cfg);
+      }
+
       sendJson(res, 200, {
         service: "watchdex",
         endpoints: [
@@ -588,7 +598,8 @@ async function startServer(providedCfg) {
           "/replies",
           "/tasks",
           "/devices",
-          "/devices/heartbeat"
+          "/devices/heartbeat",
+          "/agent-bootstrap"
         ]
       });
     } catch (error) {
@@ -662,6 +673,67 @@ async function handleDeviceHeartbeatRequest(req, res, requestUrl, cfg) {
   const device = normalizeDeviceHeartbeat(incoming, req);
   recordDeviceHeartbeat(cfg.dataDir, device);
   sendJson(res, 200, { ok: true, device });
+}
+
+async function handleAgentBootstrapRequest(req, res, requestUrl, cfg) {
+  if (req.method !== "GET") {
+    return sendJson(res, 405, { ok: false, error: "GET required" });
+  }
+
+  if (!isRequestTokenValid(req, requestUrl, cfg)) {
+    return sendJson(res, 401, { ok: false, error: "Invalid token" });
+  }
+
+  const fileName = agentBootstrapFileName(requestUrl.pathname);
+  if (!fileName) {
+    return sendJson(res, 400, { ok: false, error: "Invalid bootstrap filename" });
+  }
+
+  const baseDir = path.resolve(cfg.agentBundleDir);
+  const filePath = path.resolve(baseDir, fileName);
+  if (!filePath.startsWith(`${baseDir}${path.sep}`)) {
+    return sendJson(res, 400, { ok: false, error: "Invalid bootstrap path" });
+  }
+
+  let body;
+  try {
+    body = fs.readFileSync(filePath);
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      return sendJson(res, 404, { ok: false, error: "Bootstrap file not found" });
+    }
+    throw error;
+  }
+
+  return sendBuffer(res, 200, body, contentTypeForAgentBootstrapFile(fileName), {
+    "cache-control": "no-store"
+  });
+}
+
+function agentBootstrapFileName(pathname) {
+  const prefix = "/agent-bootstrap";
+  if (pathname === prefix || pathname === `${prefix}/`) return "manifest.json";
+  if (!pathname.startsWith(`${prefix}/`)) return "";
+
+  const rawName = pathname.slice(prefix.length + 1);
+  if (!rawName || rawName.includes("/")) return "";
+
+  let fileName;
+  try {
+    fileName = decodeURIComponent(rawName);
+  } catch {
+    return "";
+  }
+
+  if (!/^[A-Za-z0-9._-]+$/.test(fileName)) return "";
+  if (fileName === "." || fileName === "..") return "";
+  return fileName;
+}
+
+function contentTypeForAgentBootstrapFile(fileName) {
+  if (fileName.endsWith(".json")) return "application/json; charset=utf-8";
+  if (fileName.endsWith(".sh")) return "text/x-shellscript; charset=utf-8";
+  return "text/plain; charset=utf-8";
 }
 
 async function handleTaskPageRequest(req, res, requestUrl, cfg) {
@@ -2182,7 +2254,7 @@ function buildAgentEnrollment(cfg, flags) {
 function buildAgentBundle(cfg, flags) {
   const outputDir = path.resolve(
     ROOT,
-    flags.outputDir || flags["output-dir"] || path.join(".local", "agent-bootstrap")
+    flags.outputDir || flags["output-dir"] || cfg.agentBundleDir
   );
   const includeAll = parseBoolean(flags.all, false);
   const coverage = listDeviceCoverage(cfg);
@@ -2291,6 +2363,7 @@ function printAgentBundle(bundle) {
 
   for (const target of safe.targets) {
     console.log(`- ${target.machineName} [${target.deviceId}] ${target.platform}: ${target.filePath}`);
+    console.log(`  Hub download: ${safe.hubUrl}/agent-bootstrap/${target.fileName}?token=HUB_TOKEN`);
   }
 }
 
@@ -2302,7 +2375,8 @@ function renderAgentBundleReadme(manifest) {
     `Hub URL: ${manifest.hubUrl}`,
     `Expected devices: ${manifest.expectedDevices || "(none)"}`,
     "",
-    "Copy each script to its matching target device and run it there.",
+    "Download or copy each script to its matching target device and run it there.",
+    "The hub serves these private files from /agent-bootstrap/<file>?token=HUB_TOKEN.",
     "Each script contains local tokens from this hub. Treat the files as private.",
     ""
   ];
@@ -2310,6 +2384,7 @@ function renderAgentBundleReadme(manifest) {
   for (const target of manifest.targets) {
     lines.push(`${target.machineName} [${target.deviceId}]`);
     lines.push(`  Script: ${target.fileName}`);
+    lines.push(`  Hub download: ${manifest.hubUrl}/agent-bootstrap/${target.fileName}?token=HUB_TOKEN`);
     lines.push(
       target.platform === "windows"
         ? `  Run on Windows PowerShell: powershell -ExecutionPolicy Bypass -File .\\${target.fileName}`
@@ -3016,6 +3091,15 @@ function sendJson(res, status, value) {
   res.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
     "content-length": Buffer.byteLength(body)
+  });
+  res.end(body);
+}
+
+function sendBuffer(res, status, body, contentType, extraHeaders = {}) {
+  res.writeHead(status, {
+    "content-type": contentType,
+    "content-length": body.length,
+    ...extraHeaders
   });
   res.end(body);
 }
