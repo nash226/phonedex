@@ -164,6 +164,17 @@ the hub `PHONEDEX_EXPECTED_DEVICES` value to use before running
 hub values into one comma-separated `PHONEDEX_EXPECTED_DEVICES` line that
 includes the hub plus every Mac and Windows agent you expect to report.
 
+For a one-shot target-device installer, add `--script` and run the generated
+script on that device:
+
+```sh
+node ./bin/codex-watch.js enroll-agent --device-id macbook-air --name "MacBook Air" --platform macos --callback-url http://MACBOOK_AIR_LAN_IP:8765 --script > phonedex-macbook-agent.sh
+```
+
+```powershell
+node ./bin/codex-watch.js enroll-agent --device-id windows-desktop --name "Windows Desktop" --platform windows --callback-url http://WINDOWS_LAN_IP:8765 --script > phonedex-windows-agent.ps1
+```
+
 On macOS agents, start `npm run service` directly or install the LaunchAgent:
 
 ```sh
@@ -302,7 +313,7 @@ callers cannot record replies.
 | `npm run tasks` | Print recent recorded tasks. |
 | `npm run devices` | Print machines that have reported tasks to this hub. |
 | `npm run devices:verify` | Fail unless every configured expected device is online. |
-| `npm run agent:enroll -- --device-id <id> --name <name> --platform macos\|windows` | Print agent `.env` and install commands for another device. |
+| `npm run agent:enroll -- --device-id <id> --name <name> --platform macos\|windows` | Print agent `.env` and install commands for another device; add `--script` for a one-shot installer. |
 | `node ./bin/codex-watch.js run -- <command>` | Run a command and notify when it exits. |
 | `npm run services:install` | Install the macOS LaunchAgent for the PhoneDex service. |
 | `npm run services:start` | Start the LaunchAgents. |
