@@ -711,9 +711,18 @@ async function handleAgentBootstrapRequest(req, res, requestUrl, cfg) {
     });
   }
 
-  const inviteCode = agentBootstrapInviteCode(requestUrl.pathname);
-  if (inviteCode) {
-    const invite = validateAgentInvite(cfg, inviteCode);
+  const inviteRequest = agentBootstrapInviteRequest(requestUrl.pathname);
+  if (inviteRequest) {
+    if (inviteRequest.invalid) {
+      return sendHtml(
+        res,
+        401,
+        renderMessagePage("PhoneDex Agent Setup", "Invite link not found or expired."),
+        { "cache-control": "no-store" }
+      );
+    }
+
+    const invite = validateAgentInvite(cfg, inviteRequest.code);
     if (!invite.ok) {
       return sendHtml(
         res,
@@ -724,10 +733,14 @@ async function handleAgentBootstrapRequest(req, res, requestUrl, cfg) {
     }
 
     recordAgentInviteUse(cfg, invite.invite);
+    if (inviteRequest.fileName) {
+      return sendAgentBootstrapFile(res, cfg, inviteRequest.fileName);
+    }
+
     const setup = {
-      ...readAgentBootstrapSetup(cfg),
+      ...readAgentBootstrapSetup(cfg, { inviteCode: inviteRequest.code }),
       inviteExpiresAt: invite.invite.expiresAt,
-      inviteCode
+      inviteCode: inviteRequest.code
     };
     return sendHtml(res, 200, renderAgentBootstrapSetupPage(setup), {
       "cache-control": "no-store"
@@ -757,25 +770,7 @@ async function handleAgentBootstrapRequest(req, res, requestUrl, cfg) {
     return sendJson(res, 400, { ok: false, error: "Invalid bootstrap filename" });
   }
 
-  const baseDir = path.resolve(cfg.agentBundleDir);
-  const filePath = path.resolve(baseDir, fileName);
-  if (!filePath.startsWith(`${baseDir}${path.sep}`)) {
-    return sendJson(res, 400, { ok: false, error: "Invalid bootstrap path" });
-  }
-
-  let body;
-  try {
-    body = fs.readFileSync(filePath);
-  } catch (error) {
-    if (error.code === "ENOENT") {
-      return sendJson(res, 404, { ok: false, error: "Bootstrap file not found" });
-    }
-    throw error;
-  }
-
-  return sendBuffer(res, 200, body, contentTypeForAgentBootstrapFile(fileName), {
-    "cache-control": "no-store"
-  });
+  return sendAgentBootstrapFile(res, cfg, fileName);
 }
 
 function agentBootstrapFileName(pathname) {
@@ -798,26 +793,55 @@ function agentBootstrapFileName(pathname) {
   return fileName;
 }
 
+function sendAgentBootstrapFile(res, cfg, fileName) {
+  const baseDir = path.resolve(cfg.agentBundleDir);
+  const filePath = path.resolve(baseDir, fileName);
+  if (!filePath.startsWith(`${baseDir}${path.sep}`)) {
+    return sendJson(res, 400, { ok: false, error: "Invalid bootstrap path" });
+  }
+
+  let body;
+  try {
+    body = fs.readFileSync(filePath);
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      return sendJson(res, 404, { ok: false, error: "Bootstrap file not found" });
+    }
+    throw error;
+  }
+
+  return sendBuffer(res, 200, body, contentTypeForAgentBootstrapFile(fileName), {
+    "cache-control": "no-store"
+  });
+}
+
 function contentTypeForAgentBootstrapFile(fileName) {
   if (fileName.endsWith(".json")) return "application/json; charset=utf-8";
   if (fileName.endsWith(".sh")) return "text/x-shellscript; charset=utf-8";
   return "text/plain; charset=utf-8";
 }
 
-function agentBootstrapInviteCode(pathname) {
+function agentBootstrapInviteRequest(pathname) {
   const prefix = "/agent-bootstrap/invite/";
-  if (!pathname.startsWith(prefix)) return "";
+  if (!pathname.startsWith(prefix)) return null;
   const rawCode = pathname.slice(prefix.length).replace(/\/+$/, "");
-  if (!rawCode || rawCode.includes("/")) return "";
+  if (!rawCode) return { invalid: true };
+  const parts = rawCode.split("/");
+  if (parts.length > 2) return { invalid: true };
 
   let code;
+  let fileName = "";
   try {
-    code = decodeURIComponent(rawCode);
+    code = decodeURIComponent(parts[0]);
+    if (parts[1]) fileName = decodeURIComponent(parts[1]);
   } catch {
-    return "";
+    return { invalid: true };
   }
 
-  return /^[A-Za-z0-9_-]{12,80}$/.test(code) ? code : "";
+  if (!/^[A-Za-z0-9_-]{12,80}$/.test(code)) return { invalid: true };
+  if (fileName && !/^[A-Za-z0-9._-]+$/.test(fileName)) return { invalid: true };
+  if (fileName === "." || fileName === "..") return { invalid: true };
+  return { code, fileName, invalid: false };
 }
 
 function createAgentInvite(cfg, options = {}) {
@@ -887,7 +911,7 @@ function publicAgentInvite(cfg, invite) {
   };
 }
 
-function readAgentBootstrapSetup(cfg) {
+function readAgentBootstrapSetup(cfg, options = {}) {
   const manifestPath = path.join(path.resolve(cfg.agentBundleDir), "manifest.json");
   let manifest;
   try {
@@ -902,7 +926,9 @@ function readAgentBootstrapSetup(cfg) {
   const hubUrl = trimTrailingSlash(manifest.hubUrl || cfg.publicUrl);
   const targets = (manifest.targets || []).map((target) => {
     const platform = target.platform || guessAgentPlatform(target);
-    const downloadUrl = agentBootstrapDownloadUrl(hubUrl, target.fileName, cfg.token);
+    const downloadUrl = options.inviteCode
+      ? agentBootstrapInviteDownloadUrl(hubUrl, options.inviteCode, target.fileName)
+      : agentBootstrapDownloadUrl(hubUrl, target.fileName, cfg.token);
     return {
       deviceId: target.deviceId || "",
       machineName: target.machineName || target.deviceId || "",
@@ -917,7 +943,9 @@ function readAgentBootstrapSetup(cfg) {
   return {
     generatedAt: manifest.generatedAt || "",
     hubUrl,
-    setupUrl: `${hubUrl}/agent-bootstrap/setup?token=${encodeURIComponent(cfg.token)}`,
+    setupUrl: options.inviteCode
+      ? `${hubUrl}/agent-bootstrap/invite/${encodeURIComponent(options.inviteCode)}`
+      : `${hubUrl}/agent-bootstrap/setup?token=${encodeURIComponent(cfg.token)}`,
     expectedDevices: manifest.expectedDevices || "",
     targets
   };
@@ -925,6 +953,10 @@ function readAgentBootstrapSetup(cfg) {
 
 function agentBootstrapDownloadUrl(hubUrl, fileName, token) {
   return `${hubUrl}/agent-bootstrap/${encodeURIComponent(fileName)}?token=${encodeURIComponent(token)}`;
+}
+
+function agentBootstrapInviteDownloadUrl(hubUrl, inviteCode, fileName) {
+  return `${hubUrl}/agent-bootstrap/invite/${encodeURIComponent(inviteCode)}/${encodeURIComponent(fileName)}`;
 }
 
 function agentBootstrapInstallCommands(target, downloadUrl) {
