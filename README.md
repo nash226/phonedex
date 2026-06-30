@@ -343,8 +343,9 @@ npm run devices:alert
 ```
 
 The alert intentionally avoids embedding your hub token in visible notification
-text. Run `npm run agent:invite` on the hub for a short-lived setup link, or
-add `?token=YOUR_WATCH_BRIDGE_TOKEN` from the hub `.env` when opening
+text. It includes a short-lived invite link for the setup page. You can also
+run `npm run agent:invite` on the hub to create a fresh link, or add
+`?token=YOUR_WATCH_BRIDGE_TOKEN` from the hub `.env` when opening
 `/agent-bootstrap/setup` from a trusted device.
 
 For the full system design, see [docs/architecture.md](docs/architecture.md).

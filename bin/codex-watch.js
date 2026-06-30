@@ -2222,10 +2222,11 @@ async function maybeSendCoverageAlert(cfg, options = {}) {
     };
   }
 
+  const invite = createAgentInvite(cfg, { reason: "coverage-alert" });
   const task = createTask({
     source: "device-coverage-alert",
     title: "PhoneDex coverage needs setup",
-    text: buildCoverageAlertText(cfg, report),
+    text: buildCoverageAlertText(cfg, report, invite),
     cwd: ROOT,
     machineName: cfg.machineName,
     deviceId: cfg.deviceId
@@ -2239,6 +2240,8 @@ async function maybeSendCoverageAlert(cfg, options = {}) {
     lastAlertAt: new Date().toISOString(),
     reason: options.reason || "",
     taskId: task.id,
+    inviteUrl: invite.setupUrl,
+    inviteExpiresAt: invite.expiresAt,
     issues: report.issues.map((issue) => ({
       code: issue.code,
       deviceId: issue.deviceId || "",
@@ -2252,11 +2255,12 @@ async function maybeSendCoverageAlert(cfg, options = {}) {
     reason: options.reason || "coverage-incomplete",
     report,
     signature,
+    invite,
     task
   };
 }
 
-function buildCoverageAlertText(cfg, report) {
+function buildCoverageAlertText(cfg, report, invite) {
   const issueLines = report.issues.map((issue) => `- ${issue.message}`).join("\n");
   const setupUrl = `${cfg.publicUrl}/agent-bootstrap/setup`;
 
@@ -2264,10 +2268,13 @@ function buildCoverageAlertText(cfg, report) {
     `PhoneDex is receiving ${report.onlineExpectedCount}/${report.expectedCount} expected devices.`,
     issueLines,
     "",
-    "On the hub, run npm run agent:invite for a short-lived setup link.",
-    "Or open the token-protected setup page from a trusted device:",
-    setupUrl,
-    "Add ?token=YOUR_WATCH_BRIDGE_TOKEN from the hub .env.",
+    invite
+      ? "Open this short-lived setup link from the missing Mac or Windows device:"
+      : "On the hub, run npm run agent:invite for a short-lived setup link.",
+    invite ? invite.setupUrl : setupUrl,
+    invite
+      ? `Invite expires: ${invite.expiresAt}`
+      : "Add ?token=YOUR_WATCH_BRIDGE_TOKEN from the hub .env.",
     "",
     "After each missing agent installs, run npm run devices:verify on the hub."
   ]
@@ -2289,6 +2296,7 @@ function publicCoverageAlertResult(result) {
     reason: result.reason,
     signature: result.signature || "",
     nextAlertAt: result.nextAlertAt || "",
+    invite: result.invite || null,
     task: result.task ? publicTask(result.task) : null,
     report: result.report
   };
