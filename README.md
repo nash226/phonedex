@@ -180,6 +180,17 @@ the service, so the target device immediately proves that heartbeat and task
 forwarding work, and that the session watcher can capture a completed Codex
 response.
 
+To write bootstrap scripts for every expected device that is not currently
+online, run this on the hub:
+
+```sh
+npm run agent:bundle
+```
+
+The generated files are written to `.local/agent-bootstrap/`, which is ignored
+by git because the scripts contain the hub token. Copy the matching script to
+each missing device and run it there.
+
 On macOS agents, start `npm run service` directly or install the LaunchAgent:
 
 ```sh
@@ -330,6 +341,7 @@ callers cannot record replies.
 | `npm run devices:verify` | Fail unless every configured expected device is online. |
 | `npm run agent:enroll -- --device-id <id> --name <name> --platform macos\|windows` | Print agent `.env` and install commands for another device; add `--script` for a one-shot installer. |
 | `npm run agent:self-test` | From an agent, prove heartbeat, task forwarding, and session watcher capture to the hub. |
+| `npm run agent:bundle` | On the hub, write private bootstrap scripts for expected agents that are not online. |
 | `node ./bin/codex-watch.js run -- <command>` | Run a command and notify when it exits. |
 | `npm run services:install` | Install the macOS LaunchAgent for the PhoneDex service. |
 | `npm run services:start` | Start the LaunchAgents. |
