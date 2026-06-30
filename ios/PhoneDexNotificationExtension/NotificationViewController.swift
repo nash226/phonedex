@@ -3,10 +3,20 @@ import UserNotifications
 import UserNotificationsUI
 
 final class NotificationViewController: UIViewController, UNNotificationContentExtension {
-    private let appLabel = UILabel()
+    private let iconView = UIView()
+    private let iconImageView = UIImageView()
+    private let headerStack = UIStackView()
+    private let appNameLabel = UILabel()
+    private let timeLabel = UILabel()
     private let titleLabel = UILabel()
     private let scrollView = UIScrollView()
     private let bodyLabel = UILabel()
+    private let scrollRail = UIView()
+    private let scrollThumb = UIView()
+
+    override func loadView() {
+        view = UIView(frame: .zero)
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -22,59 +32,113 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
     func didReceive(_ notification: UNNotification) {
         let content = notification.request.content
         render(
-            app: content.subtitle.isEmpty ? "PhoneDex" : content.subtitle,
+            app: "PhoneDex",
             title: content.title,
             body: content.body
         )
     }
 
     private func configureView() {
-        preferredContentSize = CGSize(width: UIScreen.main.bounds.width, height: 520)
-        view.backgroundColor = UIColor(red: 0.08, green: 0.09, blue: 0.11, alpha: 1)
+        preferredContentSize = CGSize(width: UIScreen.main.bounds.width, height: 500)
+        view.backgroundColor = UIColor(red: 0.07, green: 0.08, blue: 0.10, alpha: 1)
         view.isOpaque = true
 
-        appLabel.translatesAutoresizingMaskIntoConstraints = false
-        appLabel.textColor = UIColor(white: 0.82, alpha: 1)
-        appLabel.font = .systemFont(ofSize: 15, weight: .semibold)
-        appLabel.numberOfLines = 1
+        iconView.translatesAutoresizingMaskIntoConstraints = false
+        iconView.backgroundColor = .white
+        iconView.layer.cornerRadius = 11
+        iconView.layer.cornerCurve = .continuous
+
+        iconImageView.translatesAutoresizingMaskIntoConstraints = false
+        iconImageView.image = UIImage(systemName: "bubble.left.and.bubble.right.fill")
+        iconImageView.tintColor = UIColor(red: 0.08, green: 0.09, blue: 0.12, alpha: 1)
+        iconImageView.contentMode = .scaleAspectFit
+
+        headerStack.translatesAutoresizingMaskIntoConstraints = false
+        headerStack.axis = .horizontal
+        headerStack.alignment = .center
+        headerStack.spacing = 14
+
+        appNameLabel.translatesAutoresizingMaskIntoConstraints = false
+        appNameLabel.textColor = .white
+        appNameLabel.font = .systemFont(ofSize: 20, weight: .semibold)
+        appNameLabel.numberOfLines = 1
+
+        timeLabel.translatesAutoresizingMaskIntoConstraints = false
+        timeLabel.textColor = UIColor(white: 0.72, alpha: 1)
+        timeLabel.font = .systemFont(ofSize: 16, weight: .regular)
+        timeLabel.textAlignment = .right
+        timeLabel.text = "now"
+        timeLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
 
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         titleLabel.textColor = .white
-        titleLabel.font = .systemFont(ofSize: 22, weight: .bold)
-        titleLabel.numberOfLines = 3
+        titleLabel.font = .systemFont(ofSize: 23, weight: .bold)
+        titleLabel.numberOfLines = 2
 
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.backgroundColor = .clear
         scrollView.alwaysBounceVertical = true
         scrollView.showsVerticalScrollIndicator = true
         scrollView.indicatorStyle = .white
+        scrollView.contentInset = UIEdgeInsets(top: 0, left: 0, bottom: 18, right: 0)
 
         bodyLabel.translatesAutoresizingMaskIntoConstraints = false
         bodyLabel.textColor = .white
-        bodyLabel.font = .systemFont(ofSize: 18, weight: .regular)
+        bodyLabel.font = .systemFont(ofSize: 19, weight: .regular)
         bodyLabel.numberOfLines = 0
         bodyLabel.lineBreakMode = .byWordWrapping
+
+        scrollRail.translatesAutoresizingMaskIntoConstraints = false
+        scrollRail.backgroundColor = UIColor(white: 1, alpha: 0.18)
+        scrollRail.layer.cornerRadius = 2
+
+        scrollThumb.translatesAutoresizingMaskIntoConstraints = false
+        scrollThumb.backgroundColor = UIColor(white: 1, alpha: 0.62)
+        scrollThumb.layer.cornerRadius = 2
     }
 
     private func configureHierarchy() {
-        view.addSubview(appLabel)
+        view.addSubview(headerStack)
         view.addSubview(titleLabel)
         view.addSubview(scrollView)
+        view.addSubview(scrollRail)
+        scrollRail.addSubview(scrollThumb)
+        iconView.addSubview(iconImageView)
+        headerStack.addArrangedSubview(iconView)
+        headerStack.addArrangedSubview(appNameLabel)
+        headerStack.addArrangedSubview(timeLabel)
         scrollView.addSubview(bodyLabel)
 
         NSLayoutConstraint.activate([
-            appLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 22),
-            appLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -22),
-            appLabel.topAnchor.constraint(equalTo: view.topAnchor, constant: 20),
+            headerStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 22),
+            headerStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -22),
+            headerStack.topAnchor.constraint(equalTo: view.topAnchor, constant: 20),
 
-            titleLabel.leadingAnchor.constraint(equalTo: appLabel.leadingAnchor),
-            titleLabel.trailingAnchor.constraint(equalTo: appLabel.trailingAnchor),
-            titleLabel.topAnchor.constraint(equalTo: appLabel.bottomAnchor, constant: 14),
+            iconView.widthAnchor.constraint(equalToConstant: 48),
+            iconView.heightAnchor.constraint(equalTo: iconView.widthAnchor),
+            iconImageView.centerXAnchor.constraint(equalTo: iconView.centerXAnchor),
+            iconImageView.centerYAnchor.constraint(equalTo: iconView.centerYAnchor),
+            iconImageView.widthAnchor.constraint(equalToConstant: 30),
+            iconImageView.heightAnchor.constraint(equalTo: iconImageView.widthAnchor),
 
-            scrollView.leadingAnchor.constraint(equalTo: appLabel.leadingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: appLabel.trailingAnchor),
+            titleLabel.leadingAnchor.constraint(equalTo: headerStack.leadingAnchor),
+            titleLabel.trailingAnchor.constraint(equalTo: headerStack.trailingAnchor),
+            titleLabel.topAnchor.constraint(equalTo: headerStack.bottomAnchor, constant: 24),
+
+            scrollView.leadingAnchor.constraint(equalTo: headerStack.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: scrollRail.leadingAnchor, constant: -12),
             scrollView.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 14),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20),
+
+            scrollRail.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -18),
+            scrollRail.topAnchor.constraint(equalTo: scrollView.topAnchor, constant: 4),
+            scrollRail.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor, constant: -22),
+            scrollRail.widthAnchor.constraint(equalToConstant: 4),
+
+            scrollThumb.topAnchor.constraint(equalTo: scrollRail.topAnchor, constant: 6),
+            scrollThumb.leadingAnchor.constraint(equalTo: scrollRail.leadingAnchor),
+            scrollThumb.trailingAnchor.constraint(equalTo: scrollRail.trailingAnchor),
+            scrollThumb.heightAnchor.constraint(equalToConstant: 94),
 
             bodyLabel.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor),
             bodyLabel.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor),
@@ -85,10 +149,10 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
     }
 
     private func render(app: String, title: String, body: String) {
-        appLabel.text = app
+        appNameLabel.text = app
         titleLabel.text = title.isEmpty ? "Codex update" : title
         bodyLabel.text = body.isEmpty ? "No notification body was provided." : body
-        preferredContentSize = CGSize(width: UIScreen.main.bounds.width, height: 520)
+        preferredContentSize = CGSize(width: UIScreen.main.bounds.width, height: 500)
         view.setNeedsLayout()
         view.layoutIfNeeded()
     }
