@@ -122,6 +122,22 @@ async function main() {
     assert.equal(script.cacheControl, "no-store");
     assert.match(script.text, /PHONEDEX_HUB_TOKEN=hub-token/);
 
+    const setupJson = await fetchText(`${hubUrl}/agent-bootstrap/setup.json`, {
+      headers: { authorization: "Bearer hub-token" }
+    });
+    assert.equal(setupJson.status, 200);
+    const setup = JSON.parse(setupJson.text);
+    assert.equal(setup.targets[0].deviceId, "macbook-air");
+    assert.match(setup.targets[0].downloadUrl, /token=hub-token/);
+    assert.match(setup.targets[0].commands.join("\n"), /curl -fsSL/);
+
+    const setupPage = await fetchText(`${hubUrl}/agent-bootstrap/setup?token=hub-token`);
+    assert.equal(setupPage.status, 200);
+    assert.match(setupPage.contentType, /text\/html/);
+    assert.match(setupPage.text, /PhoneDex Agent Setup/);
+    assert.match(setupPage.text, /MacBook Air/);
+    assert.match(setupPage.text, /curl -fsSL/);
+
     const traversal = await fetchText(
       `${hubUrl}/agent-bootstrap/%2Ftmp%2Fsecret?token=hub-token`
     );
