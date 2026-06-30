@@ -74,8 +74,12 @@ function runCoverageAlert(dataDir, expectedDevices) {
   assert.equal(result.task.source, "device-coverage-alert");
   assert.equal(result.report.ok, false);
   assert.equal(result.report.failingExpectedCount, 2);
+  assert.match(result.invite.setupUrl, /\/agent-bootstrap\/invite\//);
+  assert.doesNotMatch(result.invite.setupUrl, /hub-secret-token/);
   assert.match(result.task.text, /MacBook Air is missing/);
   assert.match(result.task.text, /Windows Desktop is missing/);
+  assert.match(result.task.text, /Open this short-lived setup link/);
+  assert.match(result.task.text, /\/agent-bootstrap\/invite\//);
   assert.doesNotMatch(result.task.text, /hub-secret-token/);
 
   const tasks = readJsonl(dataDir, "tasks.jsonl");
@@ -87,6 +91,8 @@ function runCoverageAlert(dataDir, expectedDevices) {
   );
   assert.equal(state.ok, false);
   assert.equal(state.taskId, tasks[0].id);
+  assert.match(state.inviteUrl, /\/agent-bootstrap\/invite\//);
+  assert.equal(state.inviteExpiresAt, result.invite.expiresAt);
 }
 
 {
