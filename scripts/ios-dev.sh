@@ -5,6 +5,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 IOS_DIR="$ROOT/ios"
 PROJECT_PATH="$IOS_DIR/PhoneDex.xcodeproj"
 COMPATIBLE_XCODE_VERSION="${PHONEDEX_XCODE_VERSION:-26.3}"
+COMPATIBLE_XCODE_APP_VERSION="${COMPATIBLE_XCODE_VERSION}.0"
 
 usage() {
   cat <<'EOF'
@@ -20,20 +21,48 @@ The native PhoneDex notification UI requires:
 
 This Mac is currently on macOS Sequoia 15.6.x. The latest App Store Xcode may
 require macOS Tahoe, so the install helper pins Xcode 26.3 by default. Override
-with PHONEDEX_XCODE_VERSION if needed.
+with PHONEDEX_XCODE_VERSION if needed. Override the app path with
+PHONEDEX_XCODE_APP when Xcode is installed outside /Applications.
 EOF
 }
 
-has_full_xcode() {
-  [[ -d /Applications/Xcode.app ]] &&
-    xcode-select -p 2>/dev/null | grep -q "/Applications/Xcode.app"
+default_xcode_app_path() {
+  if [[ -n "${PHONEDEX_XCODE_APP:-}" ]]; then
+    echo "$PHONEDEX_XCODE_APP"
+    return
+  fi
+
+  if [[ -d /Applications/Xcode.app ]]; then
+    echo "/Applications/Xcode.app"
+    return
+  fi
+
+  if [[ -d "/Applications/Xcode-${COMPATIBLE_XCODE_APP_VERSION}.app" ]]; then
+    echo "/Applications/Xcode-${COMPATIBLE_XCODE_APP_VERSION}.app"
+    return
+  fi
+
+  find /Applications -maxdepth 1 -type d -name 'Xcode*.app' -print -quit
+}
+
+xcode_developer_dir() {
+  local app_path
+  app_path="$(default_xcode_app_path)"
+
+  if [[ -n "$app_path" ]]; then
+    echo "$app_path/Contents/Developer"
+  fi
 }
 
 doctor() {
   local ok=0
+  local xcode_app
+  local xcode_developer
+  xcode_app="$(default_xcode_app_path)"
+  xcode_developer="$(xcode_developer_dir)"
 
-  if [[ -d /Applications/Xcode.app ]]; then
-    echo "Xcode.app: installed"
+  if [[ -n "$xcode_app" && -d "$xcode_app" ]]; then
+    echo "Xcode.app: $xcode_app"
   else
     echo "Xcode.app: missing"
     ok=1
@@ -43,10 +72,14 @@ doctor() {
   selected="$(xcode-select -p 2>/dev/null || true)"
   echo "Selected developer directory: ${selected:-none}"
 
-  if has_full_xcode; then
-    xcodebuild -version
+  if [[ -n "$xcode_developer" && -d "$xcode_developer" ]]; then
+    DEVELOPER_DIR="$xcode_developer" xcodebuild -version
+    if [[ "$selected" != "$xcode_developer" ]]; then
+      echo "Full Xcode is available but not globally selected."
+      echo "Optional: sudo xcode-select -s $xcode_developer"
+    fi
   else
-    echo "Full Xcode is not selected. Run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer"
+    echo "Full Xcode is not available."
     ok=1
   fi
 
@@ -70,16 +103,16 @@ doctor() {
     echo "Fastlane session: not configured; xcodes may prompt for Apple ID"
   fi
 
-  if xcrun --find simctl >/dev/null 2>&1; then
+  if [[ -n "$xcode_developer" ]] && DEVELOPER_DIR="$xcode_developer" xcrun --find simctl >/dev/null 2>&1; then
     echo "Simulator tools: available"
   else
-    echo "Simulator tools: unavailable until full Xcode is selected"
+    echo "Simulator tools: unavailable until full Xcode is installed"
   fi
 
-  if xcrun --find devicectl >/dev/null 2>&1; then
+  if [[ -n "$xcode_developer" ]] && DEVELOPER_DIR="$xcode_developer" xcrun --find devicectl >/dev/null 2>&1; then
     echo "Device tools: available"
   else
-    echo "Device tools: unavailable until full Xcode is selected"
+    echo "Device tools: unavailable until full Xcode is installed"
   fi
 
   if [[ -d "$PROJECT_PATH" ]]; then
@@ -130,7 +163,14 @@ open_project() {
   if [[ ! -d "$PROJECT_PATH" ]]; then
     generate
   fi
-  open "$PROJECT_PATH"
+
+  local xcode_app
+  xcode_app="$(default_xcode_app_path)"
+  if [[ -n "$xcode_app" && -d "$xcode_app" ]]; then
+    open -a "$xcode_app" "$PROJECT_PATH"
+  else
+    open "$PROJECT_PATH"
+  fi
 }
 
 case "${1:-}" in
