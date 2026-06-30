@@ -154,9 +154,20 @@ PHONEDEX_MACHINE_NAME=Windows Desktop
 PHONEDEX_DEVICE_ID=windows-desktop
 ```
 
-Start `npm run service` on each machine. The hub will receive forwarded
-completions at `POST /tasks` and live device heartbeats at
-`POST /devices/heartbeat`; check coverage with:
+On macOS agents, start `npm run service` directly or install the LaunchAgent:
+
+```sh
+npm run services:install
+```
+
+On Windows agents, install the user-level Scheduled Task:
+
+```powershell
+npm run windows:install
+```
+
+The hub will receive forwarded completions at `POST /tasks` and live device
+heartbeats at `POST /devices/heartbeat`; check coverage on the hub with:
 
 ```sh
 npm run devices
@@ -205,6 +216,19 @@ WATCH_BRIDGE_TOKEN=this-machine-secret
 PHONEDEX_MACHINE_NAME=Windows Desktop
 PHONEDEX_DEVICE_ID=windows-desktop
 ```
+
+On a Windows Codex agent:
+
+```powershell
+npm run install-hook
+npm run windows:install
+npm run windows:status
+```
+
+The Windows task is installed for the current user, starts at logon, runs
+`node bin\codex-watch.js service`, and writes logs to
+`.local\windows-service.log`. It requires Node.js on `PATH` for that Windows
+user and the built-in Windows PowerShell ScheduledTasks module.
 
 Each machine still needs local access to its own Codex session files. There is
 not currently a public Codex account API that lets one Mac read every other
@@ -325,6 +349,11 @@ callers cannot record replies.
 | `npm run services:start` | Start the LaunchAgents. |
 | `npm run services:stop` | Stop the LaunchAgents. |
 | `npm run services:status` | Print LaunchAgent status. |
+| `npm run windows:install` | Install and start the Windows PhoneDex Scheduled Task. |
+| `npm run windows:start` | Start the Windows PhoneDex Scheduled Task. |
+| `npm run windows:stop` | Stop the Windows PhoneDex Scheduled Task. |
+| `npm run windows:status` | Print Windows PhoneDex Scheduled Task status. |
+| `npm run windows:uninstall` | Remove the Windows PhoneDex Scheduled Task. |
 | `npm run watch:sessions` | Watch Codex session logs for completed responses missed by hooks. |
 | `npm run scan:sessions` | Scan recent Codex session logs once without notifying old history. |
 | `npm run remote:install` | Install a Cloudflare Quick Tunnel LaunchAgent for Home Assistant. |
