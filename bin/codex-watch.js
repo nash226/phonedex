@@ -1015,6 +1015,7 @@ function readAgentBootstrapSetup(cfg, options = {}) {
   }
 
   const hubUrl = trimTrailingSlash(manifest.hubUrl || cfg.publicUrl);
+  const installReports = latestAgentInstallReportsByDevice(cfg.dataDir);
   const targets = (manifest.targets || []).map((target) => {
     const platform = target.platform || guessAgentPlatform(target);
     const downloadUrl = options.inviteCode
@@ -1027,6 +1028,7 @@ function readAgentBootstrapSetup(cfg, options = {}) {
       platform,
       fileName: target.fileName || "",
       downloadUrl,
+      install: installReports.get(target.deviceId || "") || null,
       commands: agentBootstrapInstallCommands({ ...target, platform }, downloadUrl)
     };
   });
@@ -1040,6 +1042,28 @@ function readAgentBootstrapSetup(cfg, options = {}) {
     expectedDevices: manifest.expectedDevices || "",
     targets
   };
+}
+
+function latestAgentInstallReportsByDevice(dataDir) {
+  const reports = readJsonl(dataDir, AGENT_INSTALLS_FILE).filter(
+    (report) => report && !report.parseError
+  );
+  const byDevice = new Map();
+
+  for (const report of reports) {
+    const deviceId = report.deviceId || "";
+    if (!deviceId) continue;
+    const previous = byDevice.get(deviceId);
+    const previousAt = Date.parse(previous?.at || "");
+    const currentAt = Date.parse(report.at || "");
+    const previousTime = Number.isNaN(previousAt) ? 0 : previousAt;
+    const currentTime = Number.isNaN(currentAt) ? 0 : currentAt;
+    if (!previous || currentTime >= previousTime) {
+      byDevice.set(deviceId, publicAgentInstallReport(report));
+    }
+  }
+
+  return byDevice;
 }
 
 function agentBootstrapDownloadUrl(hubUrl, fileName, token) {
@@ -3720,6 +3744,7 @@ function renderAgentBootstrapSetupPage(setup) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="refresh" content="15">
   <title>PhoneDex Agent Setup</title>
   <style>
     :root { color-scheme: light dark; }
@@ -3764,6 +3789,20 @@ function renderAgentBootstrapSetupPage(setup) {
       font-size: 0.92rem;
       overflow-wrap: anywhere;
     }
+    .install {
+      margin: 0 0 12px;
+      padding: 9px 10px;
+      border-radius: 6px;
+      background: color-mix(in srgb, CanvasText 7%, Canvas);
+      font-size: 0.92rem;
+      overflow-wrap: anywhere;
+    }
+    .install.ok {
+      background: color-mix(in srgb, #34c759 18%, Canvas);
+    }
+    .install.failed {
+      background: color-mix(in srgb, #ff3b30 18%, Canvas);
+    }
     pre {
       margin: 0;
       padding: 12px;
@@ -3791,11 +3830,25 @@ function renderAgentBootstrapSetupPage(setup) {
 
 function renderAgentBootstrapTarget(target) {
   const commandText = target.commands.join("\n");
+  const installHtml = renderAgentBootstrapInstallStatus(target.install);
   return `<section>
     <h2>${escapeHtml(target.machineName || target.deviceId || "PhoneDex Agent")}</h2>
     <p class="meta">${escapeHtml(target.deviceId || "")} | ${escapeHtml(target.platform || "")} | ${escapeHtml(target.fileName || "")}</p>
+    ${installHtml}
     <pre><code>${escapeHtml(commandText)}</code></pre>
   </section>`;
+}
+
+function renderAgentBootstrapInstallStatus(install) {
+  if (!install || !install.stage) {
+    return '<p class="install pending">Install: not started on this hub yet.</p>';
+  }
+
+  const state = install.ok ? "OK" : "FAILED";
+  const className = install.ok ? "ok" : "failed";
+  const at = install.at ? ` at ${install.at}` : "";
+  const message = install.message ? ` - ${install.message}` : "";
+  return `<p class="install ${className}">Install: ${escapeHtml(install.stage)} ${state}${escapeHtml(at)}${escapeHtml(message)}</p>`;
 }
 
 function renderMessagePage(title, message) {

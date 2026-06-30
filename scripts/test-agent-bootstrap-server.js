@@ -159,12 +159,28 @@ async function main() {
     assert.equal(script.cacheControl, "no-store");
     assert.match(script.text, /PHONEDEX_HUB_TOKEN=hub-token/);
 
+    const installReport = await fetchText(`${hubUrl}/agent-installs`, {
+      method: "POST",
+      body: new URLSearchParams({
+        token: "hub-token",
+        deviceId: "macbook-air",
+        machineName: "MacBook Air",
+        platform: "macos",
+        stage: "self-test-passed",
+        ok: "true",
+        message: "ready"
+      })
+    });
+    assert.equal(installReport.status, 201);
+
     const setupJson = await fetchText(`${hubUrl}/agent-bootstrap/setup.json`, {
       headers: { authorization: "Bearer hub-token" }
     });
     assert.equal(setupJson.status, 200);
     const setup = JSON.parse(setupJson.text);
     assert.equal(setup.targets[0].deviceId, "macbook-air");
+    assert.equal(setup.targets[0].install.stage, "self-test-passed");
+    assert.equal(setup.targets[0].install.ok, true);
     assert.match(setup.targets[0].downloadUrl, /token=hub-token/);
     assert.match(setup.targets[0].commands.join("\n"), /curl -fsSL/);
 
@@ -173,6 +189,7 @@ async function main() {
     assert.match(setupPage.contentType, /text\/html/);
     assert.match(setupPage.text, /PhoneDex Agent Setup/);
     assert.match(setupPage.text, /MacBook Air/);
+    assert.match(setupPage.text, /self-test-passed OK/);
     assert.match(setupPage.text, /curl -fsSL/);
 
     const invitePage = await fetchText(invite.setupUrl);
