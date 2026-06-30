@@ -545,6 +545,7 @@ function formatNotificationTitle(cfg, task) {
 
 function formatPhoneNotificationMessage(task) {
   const text = normalizeNotificationText(task.text || "Task completed");
+  if (task.source === "agent-install-report") return text;
   if (/^completed[:\s]/i.test(text)) return text;
   return `Completed: ${text}`;
 }
@@ -734,7 +735,12 @@ async function handleAgentInstallReportRequest(req, res, requestUrl, cfg) {
 
   const report = createAgentInstallReport(fields, req);
   appendJsonl(cfg.dataDir, AGENT_INSTALLS_FILE, report);
-  sendJson(res, 201, { ok: true, report: publicAgentInstallReport(report) });
+  const notification = await maybeNotifyAgentInstallReport(cfg, report);
+  sendJson(res, 201, {
+    ok: true,
+    report: publicAgentInstallReport(report),
+    notification
+  });
 }
 
 async function handleAgentBootstrapRequest(req, res, requestUrl, cfg) {
@@ -989,6 +995,79 @@ function createAgentInstallReport(fields, req) {
     userAgent: String(req.headers["user-agent"] || "").slice(0, 200),
     receivedFrom: req.socket.remoteAddress || ""
   };
+}
+
+async function maybeNotifyAgentInstallReport(cfg, report) {
+  const notifyStages = new Set(["started", "failed", "completed"]);
+  if (cfg.agentMode || !notifyStages.has(report.stage)) {
+    return { attempted: false, reason: "stage-not-notifiable" };
+  }
+
+  const task = createTask({
+    source: "agent-install-report",
+    title: `PhoneDex agent ${report.stage}`,
+    text: formatAgentInstallNotificationText(report),
+    cwd: ROOT,
+    machineName: report.machineName || report.deviceId || "PhoneDex agent",
+    deviceId: report.deviceId || report.machineName || "unknown-agent",
+    sessionId: `agent-install:${report.deviceId || report.machineName || "unknown"}`,
+    messageId: agentInstallNotificationMessageId(report),
+    hookPayload: {
+      installReportId: report.id,
+      stage: report.stage,
+      ok: report.ok,
+      source: report.source
+    }
+  });
+
+  try {
+    const result = await recordTaskAndDispatch(cfg, task, { forward: false, notify: true });
+    return {
+      attempted: true,
+      ok: true,
+      created: result.created,
+      taskId: result.task?.id || ""
+    };
+  } catch (error) {
+    appendJsonl(cfg.dataDir, "events.jsonl", {
+      at: new Date().toISOString(),
+      type: "agent-install-notification-failed",
+      installReportId: report.id,
+      deviceId: report.deviceId,
+      stage: report.stage,
+      error: error.message
+    });
+    return {
+      attempted: true,
+      ok: false,
+      error: error.message
+    };
+  }
+}
+
+function formatAgentInstallNotificationText(report) {
+  const label = report.machineName || report.deviceId || "PhoneDex agent";
+  const status = report.ok ? "OK" : "FAILED";
+  const message = report.message ? `\n${report.message}` : "";
+  let next = "\nNext: keep the setup page open; it will refresh as the install advances.";
+  if (report.stage === "completed") {
+    next = "\nNext: run npm run devices:verify on the hub.";
+  } else if (report.stage === "failed") {
+    next = "\nNext: open the setup page for the failing device and rerun the bootstrap command.";
+  }
+
+  return `Install ${report.stage} on ${label} [${report.deviceId || "unknown"}]: ${status}${message}${next}`;
+}
+
+function agentInstallNotificationMessageId(report) {
+  const material = [
+    report.deviceId || "",
+    report.stage || "",
+    report.ok ? "ok" : "failed",
+    report.stage === "failed" ? report.message || "" : ""
+  ].join("|");
+  const digest = crypto.createHash("sha256").update(material).digest("hex").slice(0, 12);
+  return `agent-install:${digest}`;
 }
 
 function publicAgentInstallReport(report) {

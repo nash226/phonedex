@@ -215,7 +215,8 @@ Treat the invite URL as secret. The page shows install commands that download
 private bootstrap scripts for missing agents and expires after
 `PHONEDEX_AGENT_INVITE_TTL_MS`. It also refreshes with the latest install
 stage reported by each target, so you can tell whether a device has not
-started, reached self-test, or failed during bootstrap.
+started, reached self-test, or failed during bootstrap. The hub also sends
+PhoneDex alerts when a target bootstrap starts, fails, or completes.
 
 On a missing macOS device:
 

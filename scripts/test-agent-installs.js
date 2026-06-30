@@ -116,7 +116,29 @@ async function main() {
     });
     assert.equal(blockedPost.status, 401);
 
-    const created = await fetchJson(`${hubUrl}/agent-installs`, {
+    const started = await fetchJson(`${hubUrl}/agent-installs`, {
+      method: "POST",
+      body: new URLSearchParams({
+        token: "hub-token",
+        deviceId: "macbook-air",
+        machineName: "MacBook Air",
+        platform: "macos",
+        stage: "started",
+        ok: "true",
+        message: "ready",
+        source: "bootstrap-script"
+      })
+    });
+    assert.equal(started.status, 201);
+    assert.equal(started.json.ok, true);
+    assert.equal(started.json.report.deviceId, "macbook-air");
+    assert.equal(started.json.report.stage, "started");
+    assert.equal(started.json.report.ok, true);
+    assert.equal(started.json.notification.attempted, true);
+    assert.equal(started.json.notification.created, true);
+    assert.equal(started.text.includes("hub-token"), false);
+
+    const progress = await fetchJson(`${hubUrl}/agent-installs`, {
       method: "POST",
       body: new URLSearchParams({
         token: "hub-token",
@@ -129,12 +151,8 @@ async function main() {
         source: "bootstrap-script"
       })
     });
-    assert.equal(created.status, 201);
-    assert.equal(created.json.ok, true);
-    assert.equal(created.json.report.deviceId, "macbook-air");
-    assert.equal(created.json.report.stage, "self-test-passed");
-    assert.equal(created.json.report.ok, true);
-    assert.equal(created.text.includes("hub-token"), false);
+    assert.equal(progress.status, 201);
+    assert.equal(progress.json.notification.attempted, false);
 
     const failed = await fetchJson(`${hubUrl}/agent-installs`, {
       method: "POST",
@@ -155,15 +173,25 @@ async function main() {
       headers: { authorization: "Bearer hub-token" }
     });
     assert.equal(reports.status, 200);
-    assert.equal(reports.json.length, 2);
+    assert.equal(reports.json.length, 3);
     assert.equal(reports.json[0].machineName, "MacBook Air");
-    assert.equal(reports.json[1].stage, "failed");
+    assert.equal(reports.json[1].stage, "self-test-passed");
+    assert.equal(reports.json[2].stage, "failed");
     assert.equal(reports.text.includes("hub-token"), false);
 
+    const tasks = await fetchJson(`${hubUrl}/tasks`, {
+      headers: { authorization: "Bearer hub-token" }
+    });
+    assert.equal(tasks.status, 200);
+    const installTasks = tasks.json.filter((task) => task.source === "agent-install-report");
+    assert.equal(installTasks.length, 2);
+    assert.match(installTasks[0].text, /Install started on MacBook Air/);
+    assert.match(installTasks[1].text, /Install failed on Windows Desktop/);
+
     const cliReports = runAgentInstalls(env);
-    assert.equal(cliReports.length, 2);
+    assert.equal(cliReports.length, 3);
     assert.equal(cliReports[0].deviceId, "macbook-air");
-    assert.equal(cliReports[1].ok, false);
+    assert.equal(cliReports[2].ok, false);
   } finally {
     hub.kill();
   }
