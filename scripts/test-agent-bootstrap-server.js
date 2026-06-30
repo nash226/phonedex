@@ -261,6 +261,16 @@ async function main() {
     assert.equal(retained.some((candidate) => candidate.code === second.code), false);
     assert.equal(retained.some((candidate) => candidate.code === third.code), true);
     assert.equal(retained.some((candidate) => candidate.code === fourth.code), true);
+
+    await fetchText(third.setupUrl);
+    await fetchText(fourth.setupUrl);
+    const newest = createInvite(env);
+    const retainedAfterUsedLinks = listAgentInvites(env);
+    assert.equal(retainedAfterUsedLinks.length, 3);
+    assert.equal(
+      retainedAfterUsedLinks.some((candidate) => candidate.code === newest.code),
+      true
+    );
   } finally {
     hub.kill();
   }
