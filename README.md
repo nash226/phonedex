@@ -46,6 +46,10 @@ hub that your iPhone talks to, plus one PhoneDex agent on every Mac or Windows
 machine where you run Codex. Apple Watch support still exists as a secondary
 surface, but iPhone is the primary reply path.
 
+Home Assistant is no longer part of the PhoneDex path. If you previously used
+the old WatchDex Home Assistant setup, run `npm run services:install` once to
+remove the retired LaunchAgents and keep only the PhoneDex bridge running.
+
 ## Project Status
 
 PhoneDex is currently a working local bridge plus native iOS prototype.
