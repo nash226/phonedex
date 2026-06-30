@@ -11,6 +11,7 @@ const ROOT = path.resolve(__dirname, "..");
 const DATA_DIR_DEFAULT = path.join(ROOT, "data");
 const SESSION_WATCH_STATE = "session-watch-state.json";
 const DEVICES_STATE_FILE = "devices.json";
+const COVERAGE_ALERT_STATE_FILE = "coverage-alert-state.json";
 const AGENT_BOOTSTRAP_DIR_DEFAULT = path.join(ROOT, ".local", "agent-bootstrap");
 const APP_SERVER_RESUME_TIMEOUT_MS = 30 * 60 * 1000;
 const PHONE_NOTIFICATION_TEXT_MAX = 1800;
@@ -18,6 +19,7 @@ const DEFAULT_SESSION_WATCH_LOOKBACK_HOURS = 168;
 const DEFAULT_SESSION_WATCH_FILE_LIMIT = 500;
 const DEFAULT_DEVICE_HEARTBEAT_INTERVAL_MS = 30 * 1000;
 const DEFAULT_DEVICE_STALE_MS = 2 * 60 * 1000;
+const DEFAULT_COVERAGE_ALERT_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
 const RESPONSE_CHOICES = {
   okay_whats_next: "okay whats next",
@@ -88,6 +90,11 @@ async function main() {
 
   if (command === "verify-devices") {
     verifyDeviceCoverageCommand(args);
+    return;
+  }
+
+  if (command === "notify-coverage") {
+    await notifyCoverageCommand(args);
     return;
   }
 
@@ -168,6 +175,11 @@ function config() {
       DEFAULT_DEVICE_HEARTBEAT_INTERVAL_MS
     ),
     deviceStaleMs: positiveNumber(env.PHONEDEX_DEVICE_STALE_MS, DEFAULT_DEVICE_STALE_MS),
+    coverageAlerts: parseBoolean(env.PHONEDEX_COVERAGE_ALERTS, true),
+    coverageAlertIntervalMs: positiveNumber(
+      env.PHONEDEX_COVERAGE_ALERT_INTERVAL_MS,
+      DEFAULT_COVERAGE_ALERT_INTERVAL_MS
+    ),
     host,
     port,
     dataDir: env.WATCH_BRIDGE_DATA_DIR || DATA_DIR_DEFAULT,
@@ -623,6 +635,7 @@ async function startService(args) {
   ensureDataDir(cfg.dataDir);
   await startServer(cfg);
   await startDeviceHeartbeat(cfg);
+  await startCoverageWatcher(cfg);
   await startSessionWatcher(cfg, args);
   console.log(`PhoneDex service running as ${cfg.agentMode ? "agent" : "hub"}.`);
 }
@@ -1559,6 +1572,40 @@ function verifyDeviceCoverageCommand(args) {
   }
 }
 
+async function notifyCoverageCommand(args) {
+  const cfg = config();
+  ensureDataDir(cfg.dataDir);
+  const flags = parseFlags(args);
+  const result = await maybeSendCoverageAlert(cfg, {
+    force: true,
+    reason: "manual"
+  });
+
+  if (flags.json) {
+    console.log(JSON.stringify(publicCoverageAlertResult(result), null, 2));
+    return;
+  }
+
+  printCoverageAlertResult(result);
+}
+
+async function startCoverageWatcher(cfg) {
+  if (cfg.agentMode || !cfg.coverageAlerts) return null;
+
+  try {
+    await maybeSendCoverageAlert(cfg, { reason: "startup" });
+  } catch (error) {
+    logError(error);
+  }
+
+  const timer = setInterval(() => {
+    maybeSendCoverageAlert(cfg, { reason: "interval" }).catch(logError);
+  }, cfg.coverageAlertIntervalMs);
+  timer.unref?.();
+  console.log(`PhoneDex coverage alerts enabled every ${cfg.coverageAlertIntervalMs}ms.`);
+  return timer;
+}
+
 function enrollAgentCommand(args) {
   const cfg = config();
   const flags = parseFlags(args);
@@ -1623,6 +1670,7 @@ Usage:
   phonedex reply --choice okay_whats_next
   phonedex devices
   phonedex verify-devices
+  phonedex notify-coverage
   phonedex enroll-agent --device-id macbook-air --name "MacBook Air" --platform macos
   phonedex enroll-agent --device-id windows-desktop --name "Windows Desktop" --platform windows --script
   phonedex agent-self-test
@@ -1641,6 +1689,7 @@ Compatibility aliases:
   watchdex reply --choice okay_whats_next
   watchdex devices
   watchdex verify-devices
+  watchdex notify-coverage
   watchdex enroll-agent --device-id macbook-air --name "MacBook Air" --platform macos
   watchdex enroll-agent --device-id windows-desktop --name "Windows Desktop" --platform windows --script
   watchdex agent-self-test
@@ -1988,6 +2037,134 @@ function buildDeviceCoverageReport(cfg, options = {}) {
     devices,
     issues
   };
+}
+
+async function maybeSendCoverageAlert(cfg, options = {}) {
+  if (cfg.agentMode) {
+    return {
+      sent: false,
+      reason: "agent-mode",
+      report: buildDeviceCoverageReport(cfg)
+    };
+  }
+
+  const report = buildDeviceCoverageReport(cfg);
+  const signature = coverageAlertSignature(report);
+
+  if (report.ok) {
+    writeJsonFile(cfg.dataDir, COVERAGE_ALERT_STATE_FILE, {
+      ok: true,
+      signature,
+      lastOkAt: new Date().toISOString()
+    });
+    return { sent: false, reason: "coverage-ok", report, signature };
+  }
+
+  const state = readJsonFile(cfg.dataDir, COVERAGE_ALERT_STATE_FILE, {});
+  const now = Date.now();
+  const lastAlertAt = Date.parse(state.lastAlertAt || "");
+  const intervalElapsed =
+    Number.isNaN(lastAlertAt) || now - lastAlertAt >= cfg.coverageAlertIntervalMs;
+  const due = options.force || state.signature !== signature || intervalElapsed;
+
+  if (!due) {
+    return {
+      sent: false,
+      reason: "alert-throttled",
+      report,
+      signature,
+      nextAlertAt: new Date(lastAlertAt + cfg.coverageAlertIntervalMs).toISOString()
+    };
+  }
+
+  const task = createTask({
+    source: "device-coverage-alert",
+    title: "PhoneDex coverage needs setup",
+    text: buildCoverageAlertText(cfg, report),
+    cwd: ROOT,
+    machineName: cfg.machineName,
+    deviceId: cfg.deviceId
+  });
+
+  await recordTaskAndDispatch(cfg, task, { forward: false, notify: true });
+
+  writeJsonFile(cfg.dataDir, COVERAGE_ALERT_STATE_FILE, {
+    ok: false,
+    signature,
+    lastAlertAt: new Date().toISOString(),
+    reason: options.reason || "",
+    taskId: task.id,
+    issues: report.issues.map((issue) => ({
+      code: issue.code,
+      deviceId: issue.deviceId || "",
+      status: issue.status || "",
+      message: issue.message
+    }))
+  });
+
+  return {
+    sent: true,
+    reason: options.reason || "coverage-incomplete",
+    report,
+    signature,
+    task
+  };
+}
+
+function buildCoverageAlertText(cfg, report) {
+  const issueLines = report.issues.map((issue) => `- ${issue.message}`).join("\n");
+  const setupUrl = `${cfg.publicUrl}/agent-bootstrap/setup`;
+
+  return [
+    `PhoneDex is receiving ${report.onlineExpectedCount}/${report.expectedCount} expected devices.`,
+    issueLines,
+    "",
+    "Open the token-protected setup page from a trusted device:",
+    setupUrl,
+    "Add ?token=YOUR_WATCH_BRIDGE_TOKEN from the hub .env.",
+    "",
+    "After each missing agent installs, run npm run devices:verify on the hub."
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function coverageAlertSignature(report) {
+  const material = report.issues
+    .map((issue) => `${issue.code}:${issue.deviceId || ""}:${issue.status || ""}`)
+    .sort()
+    .join("|");
+  return crypto.createHash("sha256").update(material || "ok").digest("hex").slice(0, 16);
+}
+
+function publicCoverageAlertResult(result) {
+  return {
+    sent: result.sent,
+    reason: result.reason,
+    signature: result.signature || "",
+    nextAlertAt: result.nextAlertAt || "",
+    task: result.task ? publicTask(result.task) : null,
+    report: result.report
+  };
+}
+
+function printCoverageAlertResult(result) {
+  if (result.sent) {
+    console.log(`PhoneDex coverage alert sent: ${result.task.id}`);
+    return;
+  }
+
+  if (result.reason === "coverage-ok") {
+    console.log("PhoneDex coverage is OK. No alert sent.");
+    return;
+  }
+
+  if (result.reason === "alert-throttled") {
+    console.log(`PhoneDex coverage alert skipped until ${result.nextAlertAt}.`);
+    return;
+  }
+
+  console.log(`PhoneDex coverage alert skipped: ${result.reason}`);
 }
 
 async function runAgentSelfTest(cfg) {
