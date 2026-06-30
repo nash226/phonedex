@@ -1,8 +1,8 @@
 # PhoneDex
 
 [![Node.js](https://img.shields.io/badge/node-%3E%3D18-339933)](#requirements)
-[![iPhone](https://img.shields.io/badge/iphone-native%20reply-111111)](#providers)
-[![Home Assistant](https://img.shields.io/badge/provider-home%20assistant-18BCF2)](docs/home-assistant.md)
+[![iPhone](https://img.shields.io/badge/iphone-native%20reply-111111)](#delivery-rails)
+[![Multi Device](https://img.shields.io/badge/phonedex-hub%20%2B%20agents-111111)](#multi-device-hub)
 [![Pushcut](https://img.shields.io/badge/provider-pushcut-5A67D8)](#pushcut)
 
 <p align="center">
@@ -24,7 +24,11 @@ obvious prompt: "Okay, what's next?", "Let's do that", or a custom reply.
 
 - Installs a Codex `Stop` hook that fires when a Codex turn completes.
 - Watches Codex session logs as a fallback when hooks miss a completed reply.
-- Sends an actionable notification through Home Assistant or Pushcut.
+- Runs as a central hub plus lightweight agents on each Codex machine.
+- Ingests completed Codex responses from every configured machine through
+  `POST /tasks`.
+- Sends an actionable notification through the native PhoneDex app path or a
+  legacy provider while native push delivery is being finished.
 - Uses native expanded notification fields on iPhone for longer Codex output.
 - Shows iPhone notification actions for:
   - `Okay, what's next`
@@ -37,19 +41,19 @@ obvious prompt: "Okay, what's next?", "Let's do that", or a custom reply.
 - Can wrap any shell command and notify you when it finishes.
 - Includes auto-resume modes for sending replies back to Codex.
 
-PhoneDex is Mac-first and local-first. The free path uses Home Assistant
-Companion for iPhone notifications and dictation. Apple Watch support still
-exists as a secondary surface, but iPhone is the primary reply path.
+PhoneDex is Mac-first and local-first. The new primary shape is one PhoneDex
+hub that your iPhone talks to, plus one PhoneDex agent on every Mac or Windows
+machine where you run Codex. Apple Watch support still exists as a secondary
+surface, but iPhone is the primary reply path.
 
 ## Project Status
 
-PhoneDex is currently a working local bridge, not a native iOS app.
+PhoneDex is currently a working local bridge plus native iOS prototype.
 
-Important: Home Assistant notifications still look like Home Assistant
-notifications. PhoneDex can make them longer, native, expandable, and
-replyable, but iOS does not let a Home Assistant notification render custom
-PhoneDex app chrome. The mockup-style branded scrollable UI requires the
-native PhoneDex iOS app in [ios/](ios/).
+Important: Home Assistant is now a legacy fallback, not the target product
+surface. The branded scrollable UI lives in the native PhoneDex iOS app in
+[ios/](ios/). Until native remote push is finished, Home Assistant or Pushcut
+can still be used as a delivery rail.
 
 The reliable path today is:
 
@@ -57,11 +61,13 @@ The reliable path today is:
 Codex finishes work
   -> Codex Stop hook runs PhoneDex
   -> PhoneDex session watcher catches missed Stop hooks
-  -> PhoneDex sends an iPhone notification
+  -> local PhoneDex agent stores the task and forwards it to the hub
+  -> PhoneDex hub stores every configured machine's tasks
+  -> PhoneDex hub sends or exposes the iPhone notification
   -> you type or dictate a reply
-  -> provider calls PhoneDex /reply
-  -> PhoneDex records the response locally
-  -> optional auto-resume starts a Codex turn with that response
+  -> iPhone calls PhoneDex /reply
+  -> hub records the reply and routes it back to the originating machine
+  -> optional auto-resume starts a Codex turn on that machine
 ```
 
 Auto-continuing Codex from a phone reply is off by default. When enabled,
@@ -78,13 +84,16 @@ computer in **Privacy & Security > Accessibility**.
 
 ## Requirements
 
-- macOS
+- macOS for the hub and native iOS build flow; Node-based agents can run on
+  other Codex machines, including Windows, when they can read that machine's
+  local Codex session files.
 - Node.js 18 or newer
 - Codex desktop app with hooks enabled
-- iPhone with Home Assistant Companion or Pushcut
-- One notification provider:
-  - Home Assistant Companion for the free route
-  - Pushcut for the simpler webhook route
+- iPhone with the native PhoneDex app installed for the app UI
+- Optional legacy notification provider while native remote push is being
+  finished:
+  - Home Assistant Companion for a free fallback route
+  - Pushcut for webhook delivery if you already use it
 
 No npm package dependencies are required for the bridge itself.
 
@@ -100,20 +109,15 @@ node ./bin/codex-watch.js setup
 npm run install-hook
 ```
 
-Edit `.env` and choose a provider. For the free Home Assistant route:
+Edit `.env` for the hub machine. This is the Mac the iPhone app should connect
+to:
 
 ```sh
-WATCH_BRIDGE_PROVIDER=home-assistant
-HOME_ASSISTANT_URL=http://homeassistant.local:8123
-HOME_ASSISTANT_TOKEN=YOUR_LONG_LIVED_ACCESS_TOKEN
-HOME_ASSISTANT_NOTIFY_SERVICE=notify.mobile_app_your_iphone
 WATCH_BRIDGE_PUBLIC_URL=http://YOUR_MAC_LAN_IP:8765
 WATCH_BRIDGE_HOST=0.0.0.0
 PHONEDEX_MACHINE_NAME=MacBook Air
+PHONEDEX_DEVICE_ID=macbook-air
 ```
-
-If you do not have Home Assistant running yet, use the local setup in the
-[Home Assistant](#home-assistant) section before testing notifications.
 
 Start the reply server:
 
@@ -136,18 +140,79 @@ Read replies:
 npm run replies
 ```
 
-## Providers
+On every other Codex machine, install PhoneDex with the same hook and session
+watcher, then point it at the hub:
 
-| Provider | Cost | Best For | Notes |
+```sh
+PHONEDEX_HUB_URL=http://YOUR_HUB_MAC_LAN_IP:8765
+PHONEDEX_HUB_TOKEN=THE_HUB_WATCH_BRIDGE_TOKEN
+PHONEDEX_AGENT_MODE=true
+WATCH_BRIDGE_PUBLIC_URL=http://THIS_MACHINE_CALLBACK_URL:8765
+WATCH_BRIDGE_HOST=0.0.0.0
+PHONEDEX_MACHINE_NAME=Windows Desktop
+PHONEDEX_DEVICE_ID=windows-desktop
+```
+
+Start `npm run server` and `npm run watch:sessions` on each machine. The hub
+will receive forwarded completions at `POST /tasks`; check the connected
+machines with:
+
+```sh
+npm run devices
+```
+
+## Delivery Rails
+
+| Rail | Cost | Best For | Notes |
 | --- | --- | --- | --- |
-| Home Assistant | Free | Local-first iPhone replies without Pushcut | Requires Home Assistant Companion on iPhone plus callback automations. |
-| Pushcut | Pushcut plan may be required for dynamic actions | Fast webhook setup if you already use Pushcut | Dynamic notification fields and actions may require Pushcut Pro. |
+| Native PhoneDex app | Free after local install | Branded iPhone UI, task fetching, and native replies | This is the target path. Remote push wakeup is still in progress. |
+| Home Assistant | Free | Legacy fallback while native remote push is being finished | Requires Home Assistant Companion on iPhone plus callback automations. |
+| Pushcut | Pushcut plan may be required for dynamic actions | Fast webhook fallback if you already use Pushcut | Dynamic notification fields and actions may require Pushcut Pro. |
 
-## Home Assistant
+## Multi-Device Hub
 
-Home Assistant is the recommended free path. PhoneDex sends an actionable
-mobile notification to the Home Assistant Companion app, and Home Assistant
-automations call back into PhoneDex when you tap a phone action.
+PhoneDex can now run as a hub-and-agent mesh:
+
+- The hub stores every configured device's task stream in `data/tasks.jsonl`.
+- Agents run on each Codex machine and forward local completion events to the
+  hub's `POST /tasks` endpoint.
+- The hub keeps origin metadata so a phone reply can route back to the machine
+  and session that created the notification.
+- `/devices` and `npm run devices` show which machines have reported recently.
+
+Hub `.env`:
+
+```sh
+WATCH_BRIDGE_HOST=0.0.0.0
+WATCH_BRIDGE_PUBLIC_URL=http://YOUR_HUB_MAC_LAN_IP:8765
+WATCH_BRIDGE_TOKEN=shared-secret
+PHONEDEX_MACHINE_NAME=MacBook Air
+PHONEDEX_DEVICE_ID=macbook-air
+```
+
+Agent `.env` on another machine:
+
+```sh
+PHONEDEX_HUB_URL=http://YOUR_HUB_MAC_LAN_IP:8765
+PHONEDEX_HUB_TOKEN=shared-secret
+PHONEDEX_AGENT_MODE=true
+WATCH_BRIDGE_HOST=0.0.0.0
+WATCH_BRIDGE_PUBLIC_URL=http://THIS_MACHINE_LAN_IP:8765
+WATCH_BRIDGE_TOKEN=this-machine-secret
+PHONEDEX_MACHINE_NAME=Windows Desktop
+PHONEDEX_DEVICE_ID=windows-desktop
+```
+
+Each machine still needs local access to its own Codex session files. There is
+not currently a public Codex account API that lets one Mac read every other
+device's local thread responses by itself, so every device that should report
+must run the PhoneDex hook and session watcher.
+
+## Home Assistant Legacy
+
+Home Assistant is kept as a free legacy delivery rail. PhoneDex can send an
+actionable mobile notification to the Home Assistant Companion app, and Home
+Assistant automations call back into PhoneDex when you tap a phone action.
 
 For a local Mac test, PhoneDex includes scripts to install Home Assistant Core
 inside an ignored virtualenv:
@@ -179,18 +244,6 @@ Cloudflare Quick Tunnel, see [docs/home-assistant.md](docs/home-assistant.md).
 For the full system design, see [docs/architecture.md](docs/architecture.md).
 For the legacy native Apple Watch app scaffold, see [watchos/README.md](watchos/README.md).
 For the native iOS notification UI prototype, see [ios/README.md](ios/README.md).
-
-## Multiple Machines
-
-One Home Assistant instance can receive PhoneDex notifications from every
-computer where you run Codex. Install PhoneDex on each machine, give each one a
-unique `PHONEDEX_MACHINE_NAME`, and set `WATCH_BRIDGE_PUBLIC_URL` to a callback
-URL for that machine.
-
-New Home Assistant actions include the originating machine's `replyUrl`, token,
-and machine name. That means a reply from your phone can route back to the
-MacBook Air notification that created it instead of always returning to the
-first Mac you configured.
 
 ### Apple Watch Fallback
 
@@ -248,6 +301,7 @@ callers cannot record replies.
 | `npm run test-notify` | Send a manual provider notification. |
 | `npm run replies` | Print recent phone replies. |
 | `npm run tasks` | Print recent recorded tasks. |
+| `npm run devices` | Print machines that have reported tasks to this hub. |
 | `node ./bin/codex-watch.js run -- <command>` | Run a command and notify when it exits. |
 | `npm run ha:install` | Install Home Assistant Core into `.local/`. |
 | `npm run ha:init-config` | Create a minimal local Home Assistant config. |
@@ -275,9 +329,13 @@ PhoneDex reads `.env` from the repo root.
 
 | Variable | Required | Description |
 | --- | --- | --- |
-| `WATCH_BRIDGE_PROVIDER` | Yes | `home-assistant` or `pushcut`. |
+| `WATCH_BRIDGE_PROVIDER` | Local delivery only | `home-assistant` or `pushcut`. Agents with `PHONEDEX_AGENT_MODE=true` can leave provider settings empty. |
 | `WATCH_BRIDGE_PUBLIC_URL` | Yes | URL your provider can call back to, ending before `/reply`. |
 | `PHONEDEX_MACHINE_NAME` | No | Human-readable machine name shown in notifications, for example `MacBook Air`. Defaults to `WATCHDEX_MACHINE_NAME` or the OS hostname. |
+| `PHONEDEX_DEVICE_ID` | No | Stable unique id for this machine, for example `macbook-air` or `windows-desktop`. Defaults to `WATCHDEX_DEVICE_ID` or the OS hostname. |
+| `PHONEDEX_HUB_URL` | Agent machines | Hub base URL that receives forwarded local Codex completions at `POST /tasks`. Leave empty on the hub. |
+| `PHONEDEX_HUB_TOKEN` | Agent machines | The hub's `WATCH_BRIDGE_TOKEN`. Defaults to this machine's `WATCH_BRIDGE_TOKEN`. |
+| `PHONEDEX_AGENT_MODE` | No | When `true`, this machine forwards completions to the hub without sending its own phone notification. |
 | `WATCH_BRIDGE_TOKEN` | Recommended | Shared secret required by `/reply`. Generated by setup. |
 | `WATCH_BRIDGE_HOST` | No | Server bind host. Use `0.0.0.0` for LAN callbacks. |
 | `WATCH_BRIDGE_PORT` | No | Server port. Defaults to `8765`. |
@@ -295,6 +353,8 @@ PhoneDex reads `.env` from the repo root.
 | `WATCH_BRIDGE_AUTO_RESUME_MODE` | No | `cli` for `codex exec resume`, `app-server` for background app-server turns, or `foreground` for visible Codex.app submission. Defaults to `cli`. |
 | `WATCHDEX_SESSION_WATCH_INTERVAL_MS` | No | Session watcher polling interval. Defaults to `5000`. |
 | `WATCHDEX_SESSION_WATCH_DEBOUNCE_MS` | No | Delay before notifying a completed session message. Defaults to `8000`. |
+| `WATCHDEX_SESSION_WATCH_LOOKBACK_HOURS` | No | How far back to scan modified Codex session files. Defaults to `168`. |
+| `WATCHDEX_SESSION_WATCH_FILE_LIMIT` | No | Maximum recent session files scanned per pass. Defaults to `500`. |
 | `CODEX_BIN` | No | Path to the Codex CLI used by `cli` auto-resume. |
 | `CODEX_APP_SERVER_BIN` | No | Path to the Codex CLI used by `app-server` auto-resume. Defaults to `~/.local/bin/codex` when installed. |
 
@@ -322,7 +382,8 @@ CODEX_APP_SERVER_BIN=/Users/YOUR_USER/.local/bin/codex
   the fallback watcher.
 - `/reply` rejects requests with an invalid token when `WATCH_BRIDGE_TOKEN` is
   set.
-- `/tasks` and `/replies` also require `WATCH_BRIDGE_TOKEN` when it is set.
+- `POST /tasks`, `/devices`, `/tasks`, and `/replies` also require
+  `WATCH_BRIDGE_TOKEN` when it is set.
   Native app clients should send it as `Authorization: Bearer ...` or as a
   `?token=...` query parameter.
 
@@ -332,17 +393,16 @@ Tailscale. Keep the token private either way.
 
 ## Current Limitations
 
-- Home Assistant replies include per-task action data for new notifications;
-  older static actions still fall back to the latest task.
-- Home Assistant supports a `Custom reply` action that prompts for text and
-  submits that exact text to Codex in foreground mode.
-- Home Assistant notifications use native iOS expansion, subtitle/subject
-  fields, and action icons; fully branded scrollable notification chrome
-  requires the native PhoneDex iOS app path.
+- Every Codex machine must run its own local PhoneDex hook/session watcher;
+  one hub cannot read another computer's local Codex session files by account
+  alone.
+- Native iOS remote push wakeup is still in progress. Until then, the native
+  app can fetch hub tasks, and Home Assistant or Pushcut can remain as legacy
+  delivery rails.
 - Auto-resume depends on usable Codex session ids in hook payloads or the
   session watcher fallback.
-- The native iOS app is scaffolded, but Home Assistant and Pushcut remain the
-  working notification providers today.
+- Replies to remote-agent tasks route back to the originating machine's
+  `/reply` endpoint when that machine is reachable from the hub.
 
 ## Roadmap
 
@@ -350,6 +410,7 @@ Tailscale. Keep the token private either way.
 - Safer Codex resume queue with reviewable pending actions.
 - Packaged install flow.
 - Native iOS app notification delivery and reply callbacks.
+- Native remote push delivery without Home Assistant or Pushcut.
 - Windows foreground submitter.
 
 ## References

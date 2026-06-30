@@ -34,6 +34,7 @@
     "test-notify": "node ./bin/codex-watch.js notify --title \"PhoneDex test\" --text \"PhoneDex test notification\"",
     "replies": "node ./bin/codex-watch.js replies",
     "tasks": "node ./bin/codex-watch.js tasks",
+    "devices": "node ./bin/codex-watch.js devices",
     "check": "node --check ./bin/codex-watch.js"
   },
   "engines": {

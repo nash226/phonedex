@@ -12,6 +12,8 @@ const DATA_DIR_DEFAULT = path.join(ROOT, "data");
 const SESSION_WATCH_STATE = "session-watch-state.json";
 const APP_SERVER_RESUME_TIMEOUT_MS = 30 * 60 * 1000;
 const PHONE_NOTIFICATION_TEXT_MAX = 1800;
+const DEFAULT_SESSION_WATCH_LOOKBACK_HOURS = 168;
+const DEFAULT_SESSION_WATCH_FILE_LIMIT = 500;
 
 const RESPONSE_CHOICES = {
   okay_whats_next: "okay whats next",
@@ -70,6 +72,11 @@ async function main() {
     return;
   }
 
+  if (command === "devices") {
+    printKnownDevices();
+    return;
+  }
+
   if (command === "watch-sessions") {
     await watchSessions(args);
     return;
@@ -112,9 +119,11 @@ function config() {
   );
   const homeAssistantUrl = trimTrailingSlash(env.HOME_ASSISTANT_URL || "");
   const machineName = env.PHONEDEX_MACHINE_NAME || env.WATCHDEX_MACHINE_NAME || os.hostname();
+  const deviceId = env.PHONEDEX_DEVICE_ID || env.WATCHDEX_DEVICE_ID || os.hostname();
   const provider =
     env.WATCH_BRIDGE_PROVIDER ||
     (homeAssistantUrl && env.HOME_ASSISTANT_TOKEN ? "home-assistant" : "pushcut");
+  const hubUrl = trimTrailingSlash(env.PHONEDEX_HUB_URL || "");
 
   return {
     provider,
@@ -129,9 +138,13 @@ function config() {
     ),
     shortcutName: env.PHONEDEX_SHORTCUT_NAME || env.WATCHDEX_SHORTCUT_NAME || "PhoneDex Reply",
     machineName,
+    deviceId,
     publicUrl,
     replyUrl: `${publicUrl}/reply`,
     token: env.WATCH_BRIDGE_TOKEN || "",
+    hubUrl,
+    hubToken: env.PHONEDEX_HUB_TOKEN || env.WATCH_BRIDGE_TOKEN || "",
+    agentMode: parseBoolean(env.PHONEDEX_AGENT_MODE, false),
     host,
     port,
     dataDir: env.WATCH_BRIDGE_DATA_DIR || DATA_DIR_DEFAULT,
@@ -147,7 +160,13 @@ function config() {
     codexAppServerBin:
       env.CODEX_APP_SERVER_BIN ||
       env.CODEX_BIN ||
-      defaultAppServerCodexBin()
+      defaultAppServerCodexBin(),
+    sessionWatchLookbackHours: Number(
+      env.WATCHDEX_SESSION_WATCH_LOOKBACK_HOURS || DEFAULT_SESSION_WATCH_LOOKBACK_HOURS
+    ),
+    sessionWatchFileLimit: Number(
+      env.WATCHDEX_SESSION_WATCH_FILE_LIMIT || DEFAULT_SESSION_WATCH_FILE_LIMIT
+    )
   };
 }
 
@@ -206,8 +225,7 @@ async function handleHook() {
     rawHookInputBytes: Buffer.byteLength(rawInput || "")
   });
 
-  appendJsonl(cfg.dataDir, "tasks.jsonl", task);
-  await sendWatchNotification(cfg, task);
+  await recordTaskAndDispatch(cfg, task);
 }
 
 async function handleNotify(args) {
@@ -222,8 +240,125 @@ async function handleNotify(args) {
     sessionId: flags.session || flags.sessionId || ""
   });
 
+  await recordTaskAndDispatch(cfg, task);
+}
+
+async function recordTaskAndDispatch(cfg, task, options = {}) {
+  const duplicate = findDuplicateTask(cfg.dataDir, task);
+  if (duplicate) {
+    appendJsonl(cfg.dataDir, "events.jsonl", {
+      at: new Date().toISOString(),
+      type: "duplicate-task-ignored",
+      duplicateOf: duplicate.id,
+      taskId: task.id,
+      originTaskId: task.originTaskId || "",
+      sessionId: task.sessionId || "",
+      machineName: task.machineName || ""
+    });
+
+    return { task: duplicate, created: false };
+  }
+
   appendJsonl(cfg.dataDir, "tasks.jsonl", task);
-  await sendWatchNotification(cfg, task);
+
+  if (options.forward !== false) {
+    await maybeForwardTaskToHub(cfg, task);
+  }
+
+  const shouldNotify = options.notify !== false && !cfg.agentMode;
+  if (shouldNotify) {
+    await sendWatchNotification(cfg, task);
+  }
+
+  return { task, created: true };
+}
+
+function findDuplicateTask(dataDir, task) {
+  const taskAt = Date.parse(task.at || "");
+  const sameOrigin = (candidate) => {
+    const originTaskId = task.originTaskId || task.id || "";
+    if (!originTaskId) return false;
+    return (
+      candidate.originTaskId === originTaskId ||
+      candidate.id === originTaskId ||
+      candidate.originTaskId === task.id
+    );
+  };
+  const sameDevice = (candidate) => {
+    if (task.deviceId && candidate.deviceId) return task.deviceId === candidate.deviceId;
+    if (task.machineName && candidate.machineName) return task.machineName === candidate.machineName;
+    return true;
+  };
+
+  return readJsonl(dataDir, "tasks.jsonl")
+    .slice(-1000)
+    .find((candidate) => {
+      if (!candidate || candidate.parseError) return false;
+      if (sameOrigin(candidate) && sameDevice(candidate)) return true;
+      if (
+        task.messageId &&
+        candidate.messageId === task.messageId &&
+        task.sessionId &&
+        candidate.sessionId === task.sessionId
+      ) {
+        return true;
+      }
+      if (!task.sessionId || candidate.sessionId !== task.sessionId) return false;
+      if (candidate.text !== task.text) return false;
+      const candidateAt = Date.parse(candidate.at || "");
+      return (
+        !Number.isNaN(taskAt) &&
+        !Number.isNaN(candidateAt) &&
+        Math.abs(taskAt - candidateAt) < 5 * 60 * 1000
+      );
+    });
+}
+
+async function maybeForwardTaskToHub(cfg, task) {
+  if (!cfg.hubUrl || isSameBaseUrl(cfg.hubUrl, cfg.publicUrl)) return;
+
+  const event = {
+    at: new Date().toISOString(),
+    type: "hub-forward-attempt",
+    taskId: task.id,
+    hubUrl: cfg.hubUrl,
+    machineName: task.machineName || cfg.machineName
+  };
+
+  try {
+    const response = await fetch(`${cfg.hubUrl}/tasks`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(cfg.hubToken ? { authorization: `Bearer ${cfg.hubToken}` } : {}),
+        "x-phonedex-device-id": cfg.deviceId
+      },
+      body: JSON.stringify({
+        token: cfg.hubToken,
+        task: {
+          ...task,
+          deviceId: task.deviceId || cfg.deviceId,
+          machineName: task.machineName || cfg.machineName,
+          replyUrl: cfg.replyUrl,
+          publicUrl: cfg.publicUrl,
+          replyToken: cfg.token
+        }
+      })
+    });
+    const responseText = await response.text();
+    appendJsonl(cfg.dataDir, "events.jsonl", {
+      ...event,
+      status: response.status,
+      ok: response.ok,
+      response: responseText.slice(0, 500)
+    });
+  } catch (error) {
+    appendJsonl(cfg.dataDir, "events.jsonl", {
+      ...event,
+      ok: false,
+      error: error.message
+    });
+  }
 }
 
 async function sendWatchNotification(cfg, task) {
@@ -333,7 +468,7 @@ function buildPushcutBody(cfg, task) {
           taskId: task.id,
           choice,
           prompt,
-          machineName: cfg.machineName
+          machineName: task.machineName || cfg.machineName
         })
       }
     };
@@ -350,7 +485,7 @@ function buildPushcutBody(cfg, task) {
       taskId: task.id,
       cwd: task.cwd,
       sessionId: task.sessionId || "",
-      machineName: cfg.machineName,
+      machineName: task.machineName || cfg.machineName,
       replyUrl: cfg.replyUrl
     }),
     actions
@@ -400,7 +535,7 @@ function buildHomeAssistantBody(cfg, task) {
       tag: task.id,
       group: "phonedex",
       url: "noAction",
-      subtitle: formatPhoneNotificationSubtitle(cfg),
+      subtitle: formatPhoneNotificationSubtitle(cfg, task),
       subject: message,
       presentation_options: ["alert", "sound"],
       push: {
@@ -424,7 +559,7 @@ function buildHomeAssistantBody(cfg, task) {
                 choice: payload.choice,
                 prompt: RESPONSE_CHOICES[payload.choice],
                 replyUrl: cfg.replyUrl,
-                machineName: cfg.machineName
+                machineName: task.machineName || cfg.machineName
               }
             })
       }))
@@ -465,12 +600,14 @@ function isRequestTokenValid(req, requestUrl, cfg) {
 }
 
 function formatNotificationTitle(cfg, task) {
-  if (!cfg.machineName) return task.title;
-  return `${task.title} @ ${cfg.machineName}`;
+  const machineName = task.machineName || cfg.machineName;
+  if (!machineName) return task.title;
+  return `${task.title} @ ${machineName}`;
 }
 
-function formatPhoneNotificationSubtitle(cfg) {
-  return cfg.machineName ? `PhoneDex • ${cfg.machineName}` : "PhoneDex";
+function formatPhoneNotificationSubtitle(cfg, task = {}) {
+  const machineName = task.machineName || cfg.machineName;
+  return machineName ? `PhoneDex • ${machineName}` : "PhoneDex";
 }
 
 function formatPhoneNotificationMessage(task) {
@@ -516,8 +653,11 @@ async function startServer() {
           ok: true,
           service: "watchdex",
           machineName: cfg.machineName,
+          deviceId: cfg.deviceId,
           publicUrl: cfg.publicUrl,
-          replyUrl: cfg.replyUrl
+          replyUrl: cfg.replyUrl,
+          role: cfg.agentMode ? "agent" : "hub",
+          hubUrl: cfg.hubUrl || ""
         });
       }
 
@@ -541,15 +681,25 @@ async function startServer() {
       }
 
       if (requestUrl.pathname === "/tasks") {
+        if (req.method === "POST") {
+          return handleTaskIngestRequest(req, res, requestUrl, cfg);
+        }
         if (!isRequestTokenValid(req, requestUrl, cfg)) {
           return sendJson(res, 401, { ok: false, error: "Invalid token" });
         }
-        return sendJson(res, 200, readJsonl(cfg.dataDir, "tasks.jsonl").slice(-25));
+        return sendJson(res, 200, readJsonl(cfg.dataDir, "tasks.jsonl").slice(-25).map(publicTask));
+      }
+
+      if (requestUrl.pathname === "/devices") {
+        if (!isRequestTokenValid(req, requestUrl, cfg)) {
+          return sendJson(res, 401, { ok: false, error: "Invalid token" });
+        }
+        return sendJson(res, 200, listKnownDevices(cfg.dataDir));
       }
 
       sendJson(res, 200, {
         service: "watchdex",
-        endpoints: ["/health", "/reply", "/task", "/ha-action-event", "/replies", "/tasks"]
+        endpoints: ["/health", "/reply", "/task", "/ha-action-event", "/replies", "/tasks", "/devices"]
       });
     } catch (error) {
       logError(error);
@@ -560,6 +710,35 @@ async function startServer() {
   await new Promise((resolve) => server.listen(cfg.port, cfg.host, resolve));
   console.log(`PhoneDex listening on http://${cfg.host}:${cfg.port}`);
   console.log(`Phone reply callback public URL should be: ${cfg.publicUrl}/reply`);
+  if (cfg.hubUrl) {
+    console.log(`Forwarding local Codex completions to PhoneDex hub: ${cfg.hubUrl}`);
+  }
+}
+
+async function handleTaskIngestRequest(req, res, requestUrl, cfg) {
+  const body = await readHttpBody(req);
+  const fields = {
+    ...Object.fromEntries(requestUrl.searchParams.entries()),
+    ...parseBodyFields(body, req.headers["content-type"] || "")
+  };
+  const token = fields.token || "";
+
+  if (cfg.token && token !== cfg.token && !isRequestTokenValid(req, requestUrl, cfg)) {
+    return sendJson(res, 401, { ok: false, error: "Invalid token" });
+  }
+
+  const incoming = fields.task && typeof fields.task === "object" ? fields.task : fields;
+  const task = createIngestedTask(incoming, cfg, req);
+  const result = await recordTaskAndDispatch(cfg, task, {
+    forward: false,
+    notify: !cfg.agentMode
+  });
+
+  sendJson(res, result.created ? 201 : 200, {
+    ok: true,
+    duplicate: !result.created,
+    task: publicTask(result.task)
+  });
 }
 
 async function handleTaskPageRequest(req, res, requestUrl, cfg) {
@@ -670,15 +849,65 @@ async function handleReplyRequest(req, res, requestUrl, cfg) {
 
   appendJsonl(cfg.dataDir, "replies.jsonl", reply);
 
-  if (cfg.autoResume) {
+  const originForward = await maybeForwardReplyToOrigin(cfg, task, reply);
+
+  if (cfg.autoResume && !originForward.attempted) {
     attemptAutoResume(cfg, task, reply);
   }
 
   sendJson(res, 200, {
     ok: true,
     recorded: reply,
-    autoResumeQueued: Boolean(cfg.autoResume && task?.sessionId)
+    forwardedToOrigin: originForward.ok,
+    originForwardAttempted: originForward.attempted,
+    autoResumeQueued: Boolean(cfg.autoResume && !originForward.attempted && task?.sessionId)
   });
+}
+
+async function maybeForwardReplyToOrigin(cfg, task, reply) {
+  const originReplyUrl = task?.originReplyUrl || task?.replyUrl || "";
+  if (!originReplyUrl || isSameBaseUrl(originReplyUrl, cfg.replyUrl)) {
+    return { attempted: false, ok: false };
+  }
+
+  const event = {
+    at: new Date().toISOString(),
+    type: "origin-reply-forward-attempt",
+    taskId: reply.taskId,
+    originTaskId: task.originTaskId || "",
+    originReplyUrl,
+    machineName: task.machineName || ""
+  };
+
+  try {
+    const response = await fetch(originReplyUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        token: task.originToken || task.replyToken || "",
+        taskId: task.originTaskId || task.id,
+        choice: reply.choice,
+        prompt: reply.prompt,
+        reply_text: reply.replyText || "",
+        machineName: task.machineName || ""
+      })
+    });
+    const responseText = await response.text();
+    appendJsonl(cfg.dataDir, "events.jsonl", {
+      ...event,
+      status: response.status,
+      ok: response.ok,
+      response: responseText.slice(0, 500)
+    });
+    return { attempted: true, ok: response.ok };
+  } catch (error) {
+    appendJsonl(cfg.dataDir, "events.jsonl", {
+      ...event,
+      ok: false,
+      error: error.message
+    });
+    return { attempted: true, ok: false };
+  }
 }
 
 function findRecentDuplicateReply(dataDir, reply) {
@@ -1149,8 +1378,7 @@ async function runAndNotify(args) {
     text: `${commandArgs.join(" ")} exited ${exitCode} after ${elapsed}s`,
     cwd: process.cwd()
   });
-  appendJsonl(cfg.dataDir, "tasks.jsonl", task);
-  await sendWatchNotification(cfg, task);
+  await recordTaskAndDispatch(cfg, task);
   process.exitCode = exitCode;
 }
 
@@ -1192,7 +1420,45 @@ function createTask(fields) {
       process.env.PHONEDEX_MACHINE_NAME ||
       process.env.WATCHDEX_MACHINE_NAME ||
       os.hostname(),
+    deviceId:
+      fields.deviceId ||
+      process.env.PHONEDEX_DEVICE_ID ||
+      process.env.WATCHDEX_DEVICE_ID ||
+      os.hostname(),
     sessionId: fields.sessionId || "",
+    messageId: fields.messageId || "",
+    hookPayload: fields.hookPayload,
+    rawHookInputBytes: fields.rawHookInputBytes
+  };
+}
+
+function createIngestedTask(fields, cfg, req) {
+  const originTaskId = fields.id || fields.taskId || fields.task_id || "";
+  const machineName = fields.machineName || fields.machine || fields.host || "Unknown device";
+  const deviceId =
+    fields.deviceId ||
+    fields.machineId ||
+    fields.host ||
+    req.headers["x-phonedex-device-id"] ||
+    machineName;
+
+  return {
+    id: makeId("task"),
+    at: fields.at || new Date().toISOString(),
+    source: fields.source ? `remote-${fields.source}` : "remote-agent",
+    title: fields.title || "Codex done",
+    text: normalizeNotificationText(fields.text || fields.body || fields.message || "Task completed"),
+    cwd: fields.cwd || "",
+    machineName,
+    deviceId,
+    sessionId: fields.sessionId || fields.session_id || "",
+    messageId: fields.messageId || fields.message_id || "",
+    originTaskId,
+    originReplyUrl: fields.replyUrl || fields.reply_url || "",
+    originPublicUrl: fields.publicUrl || fields.public_url || "",
+    originToken: fields.replyToken || fields.reply_token || "",
+    receivedAt: new Date().toISOString(),
+    receivedFrom: req.socket.remoteAddress || "",
     hookPayload: fields.hookPayload,
     rawHookInputBytes: fields.rawHookInputBytes
   };
@@ -1226,6 +1492,16 @@ function printRecent(fileName) {
   }
 }
 
+function printKnownDevices() {
+  const cfg = config();
+  const devices = listKnownDevices(cfg.dataDir);
+  if (devices.length === 0) {
+    console.log(`No devices in ${path.join(cfg.dataDir, "tasks.jsonl")}`);
+    return;
+  }
+  console.log(JSON.stringify(devices, null, 2));
+}
+
 function printHelp() {
   console.log(`PhoneDex
 
@@ -1237,6 +1513,7 @@ Usage:
   phonedex watch-sessions
   phonedex scan-sessions --notify-existing
   phonedex reply --choice okay_whats_next
+  phonedex devices
   phonedex replies
   phonedex run -- <command> [args...]
 
@@ -1248,6 +1525,7 @@ Compatibility aliases:
   watchdex watch-sessions
   watchdex scan-sessions --notify-existing
   watchdex reply --choice okay_whats_next
+  watchdex devices
   watchdex replies
   watchdex run -- <command> [args...]
 `);
@@ -1349,6 +1627,63 @@ function findTask(dataDir, taskId) {
   return readJsonl(dataDir, "tasks.jsonl").find((task) => task.id === taskId);
 }
 
+function publicTask(task) {
+  if (!task || typeof task !== "object") return task;
+  const {
+    originToken,
+    replyToken,
+    token,
+    ...safeTask
+  } = task;
+  return safeTask;
+}
+
+function listKnownDevices(dataDir) {
+  const devices = new Map();
+  for (const task of readJsonl(dataDir, "tasks.jsonl")) {
+    if (!task || task.parseError) continue;
+    const key = task.deviceId || task.machineName || "unknown";
+    const previous = devices.get(key);
+    const at = task.at || "";
+    if (previous && Date.parse(previous.lastSeenAt || "") >= Date.parse(at || "")) continue;
+    devices.set(key, {
+      deviceId: task.deviceId || "",
+      machineName: task.machineName || "",
+      lastSeenAt: at,
+      lastTaskId: task.id || "",
+      lastSessionId: task.sessionId || "",
+      lastCwd: task.cwd || "",
+      source: task.source || ""
+    });
+  }
+
+  return [...devices.values()].sort(
+    (a, b) => Date.parse(b.lastSeenAt || "") - Date.parse(a.lastSeenAt || "")
+  );
+}
+
+function isSameBaseUrl(left, right) {
+  if (!left || !right) return false;
+  try {
+    const leftUrl = new URL(left);
+    const rightUrl = new URL(right);
+    return (
+      leftUrl.protocol === rightUrl.protocol &&
+      leftUrl.hostname === rightUrl.hostname &&
+      effectivePort(leftUrl) === effectivePort(rightUrl)
+    );
+  } catch {
+    return trimTrailingSlash(left) === trimTrailingSlash(right);
+  }
+}
+
+function effectivePort(url) {
+  if (url.port) return url.port;
+  if (url.protocol === "https:") return "443";
+  if (url.protocol === "http:") return "80";
+  return "";
+}
+
 async function watchSessions(args) {
   const cfg = config();
   ensureDataDir(cfg.dataDir);
@@ -1378,18 +1713,17 @@ async function scanSessions({ cfg, notify }) {
   const state = readJsonFile(cfg.dataDir, SESSION_WATCH_STATE, { seen: {} });
   state.seen ||= {};
 
-  const existingTasks = readJsonl(cfg.dataDir, "tasks.jsonl");
   const now = Date.now();
   let notified = 0;
 
-  for (const filePath of recentSessionFiles(cfg.codexHome)) {
+  for (const filePath of recentSessionFiles(cfg)) {
     for (const item of readFinalSessionMessages(filePath)) {
       if (state.seen[item.id]) continue;
       if (now - Date.parse(item.at) < cfg.sessionWatchDebounceMs) continue;
 
       state.seen[item.id] = new Date().toISOString();
 
-      if (!notify || hasMatchingTask(existingTasks, item)) continue;
+      if (!notify || hasMatchingTask(readJsonl(cfg.dataDir, "tasks.jsonl"), item)) continue;
 
       const task = createTask({
         source: "codex-session-watch",
@@ -1397,6 +1731,7 @@ async function scanSessions({ cfg, notify }) {
         text: normalizeNotificationText(item.text),
         cwd: item.cwd || ROOT,
         sessionId: item.sessionId,
+        messageId: item.messageId,
         hookPayload: {
           session_file: filePath,
           message_id: item.messageId,
@@ -1404,9 +1739,8 @@ async function scanSessions({ cfg, notify }) {
         }
       });
 
-      appendJsonl(cfg.dataDir, "tasks.jsonl", task);
-      await sendWatchNotification(cfg, task);
-      notified += 1;
+      const result = await recordTaskAndDispatch(cfg, task);
+      if (result.created) notified += 1;
     }
   }
 
@@ -1415,10 +1749,11 @@ async function scanSessions({ cfg, notify }) {
   return notified;
 }
 
-function recentSessionFiles(codexHome) {
+function recentSessionFiles(cfg) {
+  const codexHome = cfg.codexHome;
   const sessionsDir = path.join(codexHome, "sessions");
   if (!fs.existsSync(sessionsDir)) return [];
-  const cutoff = Date.now() - 48 * 60 * 60 * 1000;
+  const cutoff = Date.now() - cfg.sessionWatchLookbackHours * 60 * 60 * 1000;
   const files = [];
   walk(sessionsDir, files);
   return files
@@ -1426,7 +1761,7 @@ function recentSessionFiles(codexHome) {
     .map((filePath) => ({ filePath, stat: fs.statSync(filePath) }))
     .filter(({ stat }) => stat.mtimeMs >= cutoff)
     .sort((a, b) => b.stat.mtimeMs - a.stat.mtimeMs)
-    .slice(0, 80)
+    .slice(0, cfg.sessionWatchFileLimit)
     .map(({ filePath }) => filePath);
 }
 
