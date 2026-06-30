@@ -90,6 +90,11 @@ async function main() {
     return;
   }
 
+  if (command === "enroll-agent") {
+    enrollAgentCommand(args);
+    return;
+  }
+
   if (command === "watch-sessions") {
     await watchSessions(args);
     return;
@@ -1381,6 +1386,19 @@ function verifyDeviceCoverageCommand(args) {
   }
 }
 
+function enrollAgentCommand(args) {
+  const cfg = config();
+  const flags = parseFlags(args);
+  const enrollment = buildAgentEnrollment(cfg, flags);
+
+  if (flags.json) {
+    console.log(JSON.stringify(enrollment, null, 2));
+    return;
+  }
+
+  printAgentEnrollment(enrollment);
+}
+
 function printHelp() {
   console.log(`PhoneDex
 
@@ -1395,6 +1413,7 @@ Usage:
   phonedex reply --choice okay_whats_next
   phonedex devices
   phonedex verify-devices
+  phonedex enroll-agent --device-id macbook-air --name "MacBook Air" --platform macos
   phonedex replies
   phonedex run -- <command> [args...]
 
@@ -1409,6 +1428,7 @@ Compatibility aliases:
   watchdex reply --choice okay_whats_next
   watchdex devices
   watchdex verify-devices
+  watchdex enroll-agent --device-id macbook-air --name "MacBook Air" --platform macos
   watchdex replies
   watchdex run -- <command> [args...]
 `);
@@ -1737,6 +1757,141 @@ function buildDeviceCoverageReport(cfg, options = {}) {
     devices,
     issues
   };
+}
+
+function buildAgentEnrollment(cfg, flags) {
+  const deviceId = String(flags.deviceId || flags["device-id"] || "").trim();
+  if (!deviceId) {
+    throw new Error("enroll-agent requires --device-id");
+  }
+
+  const machineName = String(
+    flags.name || flags.machineName || flags["machine-name"] || deviceId
+  ).trim();
+  const platform = normalizeEnrollmentPlatform(flags.platform || "macos");
+  const callbackUrl = trimTrailingSlash(
+    flags.callbackUrl || flags["callback-url"] || "http://THIS_AGENT_LAN_IP:8765"
+  );
+  const hubUrl = trimTrailingSlash(flags.hubUrl || flags["hub-url"] || cfg.publicUrl);
+  const hubToken = String(flags.hubToken || flags["hub-token"] || cfg.token || "").trim();
+  const agentToken = String(
+    flags.agentToken ||
+      flags["agent-token"] ||
+      flags.replyToken ||
+      flags["reply-token"] ||
+      crypto.randomBytes(24).toString("hex")
+  ).trim();
+
+  if (!hubUrl) {
+    throw new Error("enroll-agent requires WATCH_BRIDGE_PUBLIC_URL or --hub-url");
+  }
+
+  const env = {
+    PHONEDEX_HUB_URL: hubUrl,
+    PHONEDEX_HUB_TOKEN: hubToken,
+    PHONEDEX_AGENT_MODE: "true",
+    PHONEDEX_DEVICE_ID: deviceId,
+    PHONEDEX_MACHINE_NAME: machineName,
+    WATCH_BRIDGE_PUBLIC_URL: callbackUrl,
+    WATCH_BRIDGE_HOST: "0.0.0.0",
+    WATCH_BRIDGE_TOKEN: agentToken
+  };
+
+  return {
+    deviceId,
+    machineName,
+    platform,
+    hubUrl,
+    callbackUrl,
+    env,
+    envLines: Object.entries(env).map(([key, value]) => `${key}=${value}`),
+    commands: enrollmentCommands(platform),
+    hubExpectedDevices: formatExpectedDevices(
+      recommendedExpectedDevices(cfg, { deviceId, machineName })
+    )
+  };
+}
+
+function normalizeEnrollmentPlatform(value) {
+  const platform = String(value || "macos").trim().toLowerCase();
+  if (["mac", "macos", "darwin"].includes(platform)) return "macos";
+  if (["win", "windows", "windows-desktop"].includes(platform)) return "windows";
+  throw new Error("enroll-agent --platform must be macos or windows");
+}
+
+function enrollmentCommands(platform) {
+  if (platform === "windows") {
+    return [
+      "git clone https://github.com/nash226/phonedex.git",
+      "cd phonedex",
+      "node .\\bin\\codex-watch.js setup",
+      "npm run install-hook",
+      "npm run windows:install",
+      "npm run windows:status"
+    ];
+  }
+
+  return [
+    "git clone https://github.com/nash226/phonedex.git",
+    "cd phonedex",
+    "node ./bin/codex-watch.js setup",
+    "npm run install-hook",
+    "npm run services:install",
+    "npm run services:status"
+  ];
+}
+
+function recommendedExpectedDevices(cfg, enrollingDevice) {
+  const devices = new Map();
+  for (const expected of cfg.expectedDevices) {
+    devices.set(expected.deviceId, expected);
+  }
+
+  for (const device of listDeviceCoverage(cfg)) {
+    if (!device?.deviceId || device.deviceId === "unknown") continue;
+    if (device.status !== "online" && !device.expected) continue;
+    devices.set(device.deviceId, {
+      deviceId: device.deviceId,
+      machineName: device.machineName || device.deviceId
+    });
+  }
+
+  devices.set(enrollingDevice.deviceId, enrollingDevice);
+  return [...devices.values()].sort((left, right) =>
+    left.deviceId.localeCompare(right.deviceId)
+  );
+}
+
+function formatExpectedDevices(devices) {
+  return devices
+    .map((device) =>
+      device.machineName && device.machineName !== device.deviceId
+        ? `${device.deviceId}:${device.machineName}`
+        : device.deviceId
+    )
+    .join(",");
+}
+
+function printAgentEnrollment(enrollment) {
+  console.log(`PhoneDex agent enrollment for ${enrollment.machineName}`);
+  console.log("");
+  console.log("Run these commands on the target device:");
+  for (const command of enrollment.commands) {
+    console.log(`  ${command}`);
+  }
+
+  console.log("");
+  console.log("Put this in the target device .env:");
+  console.log(enrollment.envLines.join("\n"));
+
+  console.log("");
+  console.log("Set this on the hub .env so devices:verify can prove coverage:");
+  console.log(`PHONEDEX_EXPECTED_DEVICES=${enrollment.hubExpectedDevices}`);
+
+  console.log("");
+  console.log("After the agent starts, run on the hub:");
+  console.log("  npm run devices");
+  console.log("  npm run devices:verify");
 }
 
 function printDeviceCoverageReport(report) {
