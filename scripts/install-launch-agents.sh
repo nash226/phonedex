@@ -7,15 +7,16 @@ GUI_DOMAIN="gui/$(id -u)"
 
 BRIDGE_LABEL="com.nash226.watchdex.bridge"
 SESSION_WATCH_LABEL="com.nash226.watchdex.session-watch"
-RETIRED_HA_LABEL="com.nash226.watchdex.homeassistant"
-LEGACY_HA_LABEL="com.nash226.codex-watch.homeassistant"
 LEGACY_BRIDGE_LABEL="com.nash226.codex-watch.bridge"
-LEGACY_HA_TUNNEL_LABEL="com.nash226.watchdex.homeassistant-tunnel"
+RETIRED_LABELS=(
+  "$SESSION_WATCH_LABEL"
+  "com.nash226.watchdex.homeassistant"
+  "com.nash226.codex-watch.homeassistant"
+  "com.nash226.watchdex.homeassistant-tunnel"
+  "$LEGACY_BRIDGE_LABEL"
+)
 
 BRIDGE_PLIST="$LAUNCH_AGENTS_DIR/$BRIDGE_LABEL.plist"
-SESSION_WATCH_PLIST="$LAUNCH_AGENTS_DIR/$SESSION_WATCH_LABEL.plist"
-LEGACY_HA_PLIST="$LAUNCH_AGENTS_DIR/$RETIRED_HA_LABEL.plist"
-LEGACY_HA_TUNNEL_PLIST="$LAUNCH_AGENTS_DIR/$LEGACY_HA_TUNNEL_LABEL.plist"
 
 usage() {
   cat <<'EOF'
@@ -72,12 +73,13 @@ write_plists() {
 </plist>
 EOF
 
-  rm -f "$SESSION_WATCH_PLIST" "$LEGACY_HA_PLIST" "$LEGACY_HA_TUNNEL_PLIST"
+  for label in "${RETIRED_LABELS[@]}"; do
+    rm -f "$LAUNCH_AGENTS_DIR/$label.plist"
+  done
 
   plutil -lint "$BRIDGE_PLIST"
   echo "Wrote $BRIDGE_PLIST"
-  echo "Removed legacy $SESSION_WATCH_PLIST"
-  echo "Removed retired notification LaunchAgents"
+  echo "Removed retired WatchDex/Codex-Watch LaunchAgents"
 }
 
 bootout_if_loaded() {
@@ -97,11 +99,9 @@ case "${1:-}" in
   install)
     write_plists
     bootout_if_loaded "$BRIDGE_LABEL"
-    bootout_if_loaded "$SESSION_WATCH_LABEL"
-    bootout_if_loaded "$RETIRED_HA_LABEL"
-    bootout_if_loaded "$LEGACY_HA_LABEL"
-    bootout_if_loaded "$LEGACY_HA_TUNNEL_LABEL"
-    bootout_if_loaded "$LEGACY_BRIDGE_LABEL"
+    for label in "${RETIRED_LABELS[@]}"; do
+      bootout_if_loaded "$label"
+    done
     bootstrap
     kickstart
     ;;
@@ -113,10 +113,9 @@ case "${1:-}" in
 
   stop)
     bootout_if_loaded "$BRIDGE_LABEL"
-    bootout_if_loaded "$SESSION_WATCH_LABEL"
-    bootout_if_loaded "$RETIRED_HA_LABEL"
-    bootout_if_loaded "$LEGACY_HA_LABEL"
-    bootout_if_loaded "$LEGACY_HA_TUNNEL_LABEL"
+    for label in "${RETIRED_LABELS[@]}"; do
+      bootout_if_loaded "$label"
+    done
     ;;
 
   status)
