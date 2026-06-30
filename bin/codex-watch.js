@@ -12,6 +12,7 @@ const DATA_DIR_DEFAULT = path.join(ROOT, "data");
 const SESSION_WATCH_STATE = "session-watch-state.json";
 const DEVICES_STATE_FILE = "devices.json";
 const COVERAGE_ALERT_STATE_FILE = "coverage-alert-state.json";
+const AGENT_INVITES_FILE = "agent-invites.json";
 const AGENT_BOOTSTRAP_DIR_DEFAULT = path.join(ROOT, ".local", "agent-bootstrap");
 const APP_SERVER_RESUME_TIMEOUT_MS = 30 * 60 * 1000;
 const PHONE_NOTIFICATION_TEXT_MAX = 1800;
@@ -20,6 +21,7 @@ const DEFAULT_SESSION_WATCH_FILE_LIMIT = 500;
 const DEFAULT_DEVICE_HEARTBEAT_INTERVAL_MS = 30 * 1000;
 const DEFAULT_DEVICE_STALE_MS = 2 * 60 * 1000;
 const DEFAULT_COVERAGE_ALERT_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const DEFAULT_AGENT_INVITE_TTL_MS = 24 * 60 * 60 * 1000;
 
 const RESPONSE_CHOICES = {
   okay_whats_next: "okay whats next",
@@ -113,6 +115,11 @@ async function main() {
     return;
   }
 
+  if (command === "agent-invite") {
+    agentInviteCommand(args);
+    return;
+  }
+
   if (command === "watch-sessions") {
     await watchSessions(args);
     return;
@@ -179,6 +186,10 @@ function config() {
     coverageAlertIntervalMs: positiveNumber(
       env.PHONEDEX_COVERAGE_ALERT_INTERVAL_MS,
       DEFAULT_COVERAGE_ALERT_INTERVAL_MS
+    ),
+    agentInviteTtlMs: positiveNumber(
+      env.PHONEDEX_AGENT_INVITE_TTL_MS,
+      DEFAULT_AGENT_INVITE_TTL_MS
     ),
     host,
     port,
@@ -700,6 +711,29 @@ async function handleAgentBootstrapRequest(req, res, requestUrl, cfg) {
     });
   }
 
+  const inviteCode = agentBootstrapInviteCode(requestUrl.pathname);
+  if (inviteCode) {
+    const invite = validateAgentInvite(cfg, inviteCode);
+    if (!invite.ok) {
+      return sendHtml(
+        res,
+        401,
+        renderMessagePage("PhoneDex Agent Setup", invite.error),
+        { "cache-control": "no-store" }
+      );
+    }
+
+    recordAgentInviteUse(cfg, invite.invite);
+    const setup = {
+      ...readAgentBootstrapSetup(cfg),
+      inviteExpiresAt: invite.invite.expiresAt,
+      inviteCode
+    };
+    return sendHtml(res, 200, renderAgentBootstrapSetupPage(setup), {
+      "cache-control": "no-store"
+    });
+  }
+
   if (!isRequestTokenValid(req, requestUrl, cfg)) {
     return sendJson(res, 401, { ok: false, error: "Invalid token" });
   }
@@ -709,7 +743,9 @@ async function handleAgentBootstrapRequest(req, res, requestUrl, cfg) {
     requestUrl.pathname === "/agent-bootstrap/setup/"
   ) {
     const setup = readAgentBootstrapSetup(cfg);
-    return sendHtml(res, 200, renderAgentBootstrapSetupPage(setup));
+    return sendHtml(res, 200, renderAgentBootstrapSetupPage(setup), {
+      "cache-control": "no-store"
+    });
   }
 
   if (requestUrl.pathname === "/agent-bootstrap/setup.json") {
@@ -766,6 +802,89 @@ function contentTypeForAgentBootstrapFile(fileName) {
   if (fileName.endsWith(".json")) return "application/json; charset=utf-8";
   if (fileName.endsWith(".sh")) return "text/x-shellscript; charset=utf-8";
   return "text/plain; charset=utf-8";
+}
+
+function agentBootstrapInviteCode(pathname) {
+  const prefix = "/agent-bootstrap/invite/";
+  if (!pathname.startsWith(prefix)) return "";
+  const rawCode = pathname.slice(prefix.length).replace(/\/+$/, "");
+  if (!rawCode || rawCode.includes("/")) return "";
+
+  let code;
+  try {
+    code = decodeURIComponent(rawCode);
+  } catch {
+    return "";
+  }
+
+  return /^[A-Za-z0-9_-]{12,80}$/.test(code) ? code : "";
+}
+
+function createAgentInvite(cfg, options = {}) {
+  const ttlMs = positiveNumber(options.ttlMs, cfg.agentInviteTtlMs);
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + ttlMs).toISOString();
+  const invite = {
+    code: crypto.randomBytes(12).toString("base64url"),
+    createdAt: now.toISOString(),
+    expiresAt,
+    uses: 0
+  };
+  const invites = pruneAgentInvites(readAgentInvites(cfg), now);
+  invites.push(invite);
+  writeAgentInvites(cfg, invites);
+  return publicAgentInvite(cfg, invite);
+}
+
+function validateAgentInvite(cfg, code) {
+  const now = new Date();
+  const invites = pruneAgentInvites(readAgentInvites(cfg), now);
+  writeAgentInvites(cfg, invites);
+
+  const invite = invites.find((candidate) => candidate.code === code);
+  if (!invite) return { ok: false, error: "Invite link not found or expired." };
+  if (Date.parse(invite.expiresAt || "") <= now.getTime()) {
+    return { ok: false, error: "Invite link expired." };
+  }
+  return { ok: true, invite };
+}
+
+function recordAgentInviteUse(cfg, invite) {
+  const invites = readAgentInvites(cfg);
+  const index = invites.findIndex((candidate) => candidate.code === invite.code);
+  if (index < 0) return;
+  invites[index] = {
+    ...invites[index],
+    uses: Number(invites[index].uses || 0) + 1,
+    lastUsedAt: new Date().toISOString()
+  };
+  writeAgentInvites(cfg, pruneAgentInvites(invites));
+}
+
+function readAgentInvites(cfg) {
+  const state = readJsonFile(cfg.dataDir, AGENT_INVITES_FILE, { invites: [] });
+  return Array.isArray(state.invites) ? state.invites : [];
+}
+
+function writeAgentInvites(cfg, invites) {
+  writeJsonFile(cfg.dataDir, AGENT_INVITES_FILE, {
+    updatedAt: new Date().toISOString(),
+    invites
+  });
+}
+
+function pruneAgentInvites(invites, now = new Date()) {
+  const nowMs = now.getTime();
+  return invites.filter((invite) => Date.parse(invite.expiresAt || "") > nowMs);
+}
+
+function publicAgentInvite(cfg, invite) {
+  return {
+    code: invite.code,
+    createdAt: invite.createdAt,
+    expiresAt: invite.expiresAt,
+    setupUrl: `${cfg.publicUrl}/agent-bootstrap/invite/${encodeURIComponent(invite.code)}`
+  };
 }
 
 function readAgentBootstrapSetup(cfg) {
@@ -1656,6 +1775,30 @@ function agentBundleCommand(args) {
   printAgentBundle(bundle);
 }
 
+function agentInviteCommand(args) {
+  const cfg = config();
+  ensureDataDir(cfg.dataDir);
+  const flags = parseFlags(args);
+
+  if (!cfg.token) {
+    throw new Error("WATCH_BRIDGE_TOKEN is required to create an agent invite.");
+  }
+
+  const invite = createAgentInvite(cfg, {
+    ttlMs: flags.ttlMs || flags["ttl-ms"]
+  });
+
+  if (flags.json) {
+    console.log(JSON.stringify(invite, null, 2));
+    return;
+  }
+
+  console.log("PhoneDex agent invite created.");
+  console.log(`Setup URL: ${invite.setupUrl}`);
+  console.log(`Expires: ${invite.expiresAt}`);
+  console.log("Treat this URL as secret; it opens token-bearing agent install commands.");
+}
+
 function printHelp() {
   console.log(`PhoneDex
 
@@ -1675,6 +1818,7 @@ Usage:
   phonedex enroll-agent --device-id windows-desktop --name "Windows Desktop" --platform windows --script
   phonedex agent-self-test
   phonedex agent-bundle
+  phonedex agent-invite
   phonedex replies
   phonedex run -- <command> [args...]
 
@@ -1694,6 +1838,7 @@ Compatibility aliases:
   watchdex enroll-agent --device-id windows-desktop --name "Windows Desktop" --platform windows --script
   watchdex agent-self-test
   watchdex agent-bundle
+  watchdex agent-invite
   watchdex replies
   watchdex run -- <command> [args...]
 `);
@@ -2119,7 +2264,8 @@ function buildCoverageAlertText(cfg, report) {
     `PhoneDex is receiving ${report.onlineExpectedCount}/${report.expectedCount} expected devices.`,
     issueLines,
     "",
-    "Open the token-protected setup page from a trusted device:",
+    "On the hub, run npm run agent:invite for a short-lived setup link.",
+    "Or open the token-protected setup page from a trusted device:",
     setupUrl,
     "Add ?token=YOUR_WATCH_BRIDGE_TOKEN from the hub .env.",
     "",
@@ -3300,6 +3446,9 @@ function renderAgentBootstrapSetupPage(setup) {
   const targetHtml = setup.targets.length
     ? setup.targets.map(renderAgentBootstrapTarget).join("\n")
     : "<p>No missing expected agents need bootstrap scripts right now.</p>";
+  const inviteMeta = setup.inviteExpiresAt
+    ? `<br>Invite expires: ${escapeHtml(setup.inviteExpiresAt)}`
+    : "";
 
   return `<!doctype html>
 <html lang="en">
@@ -3368,7 +3517,7 @@ function renderAgentBootstrapSetupPage(setup) {
 <body>
   <main>
     <h1>PhoneDex Agent Setup</h1>
-    <p class="summary">Hub: ${escapeHtml(setup.hubUrl)}<br>Generated: ${escapeHtml(setup.generatedAt || "unknown")}</p>
+    <p class="summary">Hub: ${escapeHtml(setup.hubUrl)}<br>Generated: ${escapeHtml(setup.generatedAt || "unknown")}${inviteMeta}</p>
     ${targetHtml}
   </main>
 </body>
@@ -3420,10 +3569,11 @@ function escapeHtml(value) {
   });
 }
 
-function sendHtml(res, status, body) {
+function sendHtml(res, status, body, extraHeaders = {}) {
   res.writeHead(status, {
     "content-type": "text/html; charset=utf-8",
-    "content-length": Buffer.byteLength(body)
+    "content-length": Buffer.byteLength(body),
+    ...extraHeaders
   });
   res.end(body);
 }

@@ -5,7 +5,7 @@ const fs = require("node:fs");
 const net = require("node:net");
 const os = require("node:os");
 const path = require("node:path");
-const { spawn } = require("node:child_process");
+const { spawn, spawnSync } = require("node:child_process");
 
 const root = path.resolve(__dirname, "..");
 const bridge = path.join(root, "bin", "codex-watch.js");
@@ -52,6 +52,22 @@ async function fetchText(url, options = {}) {
   };
 }
 
+function runAgentInvite(env) {
+  const result = spawnSync(
+    process.execPath,
+    [bridge, "agent-invite", "--json", "--ttl-ms", "60000"],
+    {
+      cwd: root,
+      encoding: "utf8",
+      env
+    }
+  );
+
+  assert.equal(result.stderr, "");
+  assert.equal(result.status, 0);
+  return JSON.parse(result.stdout);
+}
+
 async function main() {
   const port = await getFreePort();
   const hubUrl = `http://127.0.0.1:${port}`;
@@ -78,20 +94,25 @@ async function main() {
     "#!/usr/bin/env bash\nPHONEDEX_HUB_TOKEN=hub-token\n"
   );
 
+  const env = {
+    ...process.env,
+    WATCH_BRIDGE_DATA_DIR: dataDir,
+    PHONEDEX_AGENT_BUNDLE_DIR: bundleDir,
+    WATCH_BRIDGE_HOST: "127.0.0.1",
+    WATCH_BRIDGE_PORT: String(port),
+    WATCH_BRIDGE_PUBLIC_URL: hubUrl,
+    WATCH_BRIDGE_TOKEN: "hub-token",
+    WATCH_BRIDGE_PROVIDER: "pushcut",
+    PUSHCUT_WEBHOOK_URL: ""
+  };
+  const invite = runAgentInvite(env);
+  assert.match(invite.setupUrl, /\/agent-bootstrap\/invite\//);
+  assert.doesNotMatch(invite.setupUrl, /hub-token/);
+
   const hub = spawn(process.execPath, [bridge, "server"], {
     cwd: root,
     stdio: ["ignore", "pipe", "pipe"],
-    env: {
-      ...process.env,
-      WATCH_BRIDGE_DATA_DIR: dataDir,
-      PHONEDEX_AGENT_BUNDLE_DIR: bundleDir,
-      WATCH_BRIDGE_HOST: "127.0.0.1",
-      WATCH_BRIDGE_PORT: String(port),
-      WATCH_BRIDGE_PUBLIC_URL: hubUrl,
-      WATCH_BRIDGE_TOKEN: "hub-token",
-      WATCH_BRIDGE_PROVIDER: "pushcut",
-      PUSHCUT_WEBHOOK_URL: ""
-    }
+    env
   });
 
   let stdout = "";
@@ -137,6 +158,18 @@ async function main() {
     assert.match(setupPage.text, /PhoneDex Agent Setup/);
     assert.match(setupPage.text, /MacBook Air/);
     assert.match(setupPage.text, /curl -fsSL/);
+
+    const invitePage = await fetchText(invite.setupUrl);
+    assert.equal(invitePage.status, 200);
+    assert.match(invitePage.contentType, /text\/html/);
+    assert.equal(invitePage.cacheControl, "no-store");
+    assert.match(invitePage.text, /PhoneDex Agent Setup/);
+    assert.match(invitePage.text, /Invite expires/);
+    assert.match(invitePage.text, /MacBook Air/);
+    assert.match(invitePage.text, /token=hub-token/);
+
+    const badInvite = await fetchText(`${hubUrl}/agent-bootstrap/invite/not-valid`);
+    assert.equal(badInvite.status, 401);
 
     const traversal = await fetchText(
       `${hubUrl}/agent-bootstrap/%2Ftmp%2Fsecret?token=hub-token`
