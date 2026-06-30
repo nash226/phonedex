@@ -393,6 +393,7 @@ callers cannot record replies.
 | `npm run agent:self-test` | From an agent, prove heartbeat, task forwarding, and session watcher capture to the hub. |
 | `npm run agent:bundle` | On the hub, write private bootstrap scripts for expected agents that are not online. |
 | `npm run agent:invite` | On the hub, create a short-lived invite URL for the missing-agent setup page. |
+| `npm run agent:invites` | Show active invite links, page views, and bootstrap downloads. |
 | `node ./bin/codex-watch.js run -- <command>` | Run a command and notify when it exits. |
 | `npm run services:install` | Install the macOS LaunchAgent for the PhoneDex service. |
 | `npm run services:start` | Start the LaunchAgents. |
