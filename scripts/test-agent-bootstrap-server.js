@@ -68,6 +68,22 @@ function runAgentInvite(env) {
   return JSON.parse(result.stdout);
 }
 
+function listAgentInvites(env) {
+  const result = spawnSync(
+    process.execPath,
+    [bridge, "agent-invite", "--list", "--json"],
+    {
+      cwd: root,
+      encoding: "utf8",
+      env
+    }
+  );
+
+  assert.equal(result.stderr, "");
+  assert.equal(result.status, 0);
+  return JSON.parse(result.stdout);
+}
+
 async function main() {
   const port = await getFreePort();
   const hubUrl = `http://127.0.0.1:${port}`;
@@ -175,6 +191,16 @@ async function main() {
     assert.match(inviteScript.contentType, /text\/x-shellscript/);
     assert.equal(inviteScript.cacheControl, "no-store");
     assert.match(inviteScript.text, /PHONEDEX_HUB_TOKEN=hub-token/);
+
+    const invitesAfterUse = listAgentInvites(env);
+    const usedInvite = invitesAfterUse.find((candidate) => candidate.code === invite.code);
+    assert.equal(usedInvite.uses, 2);
+    assert.equal(usedInvite.lastEventType, "download");
+    assert.equal(usedInvite.lastFileName, "macbook-air.sh");
+    assert.deepEqual(
+      usedInvite.events.map((event) => event.type),
+      ["page", "download"]
+    );
 
     const badInvite = await fetchText(`${hubUrl}/agent-bootstrap/invite/not-valid`);
     assert.equal(badInvite.status, 401);

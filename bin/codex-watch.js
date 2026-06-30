@@ -732,11 +732,19 @@ async function handleAgentBootstrapRequest(req, res, requestUrl, cfg) {
       );
     }
 
-    recordAgentInviteUse(cfg, invite.invite);
     if (inviteRequest.fileName) {
+      recordAgentInviteUse(cfg, invite.invite, {
+        type: "download",
+        fileName: inviteRequest.fileName,
+        userAgent: req.headers["user-agent"] || ""
+      });
       return sendAgentBootstrapFile(res, cfg, inviteRequest.fileName);
     }
 
+    recordAgentInviteUse(cfg, invite.invite, {
+      type: "page",
+      userAgent: req.headers["user-agent"] || ""
+    });
     const setup = {
       ...readAgentBootstrapSetup(cfg, { inviteCode: inviteRequest.code }),
       inviteExpiresAt: invite.invite.expiresAt,
@@ -873,14 +881,25 @@ function validateAgentInvite(cfg, code) {
   return { ok: true, invite };
 }
 
-function recordAgentInviteUse(cfg, invite) {
+function recordAgentInviteUse(cfg, invite, event = {}) {
   const invites = readAgentInvites(cfg);
   const index = invites.findIndex((candidate) => candidate.code === invite.code);
   if (index < 0) return;
+  const now = new Date().toISOString();
+  const events = Array.isArray(invites[index].events) ? invites[index].events : [];
+  const nextEvent = {
+    at: now,
+    type: event.type || "use",
+    fileName: event.fileName || "",
+    userAgent: String(event.userAgent || "").slice(0, 200)
+  };
   invites[index] = {
     ...invites[index],
     uses: Number(invites[index].uses || 0) + 1,
-    lastUsedAt: new Date().toISOString()
+    lastUsedAt: now,
+    lastEventType: nextEvent.type,
+    lastFileName: nextEvent.fileName,
+    events: [...events.slice(-19), nextEvent]
   };
   writeAgentInvites(cfg, pruneAgentInvites(invites));
 }
@@ -907,6 +926,11 @@ function publicAgentInvite(cfg, invite) {
     code: invite.code,
     createdAt: invite.createdAt,
     expiresAt: invite.expiresAt,
+    uses: Number(invite.uses || 0),
+    lastUsedAt: invite.lastUsedAt || "",
+    lastEventType: invite.lastEventType || "",
+    lastFileName: invite.lastFileName || "",
+    events: Array.isArray(invite.events) ? invite.events : [],
     setupUrl: `${cfg.publicUrl}/agent-bootstrap/invite/${encodeURIComponent(invite.code)}`
   };
 }
@@ -1812,6 +1836,16 @@ function agentInviteCommand(args) {
   ensureDataDir(cfg.dataDir);
   const flags = parseFlags(args);
 
+  if (flags.list) {
+    const invites = listAgentInvites(cfg);
+    if (flags.json) {
+      console.log(JSON.stringify(invites, null, 2));
+      return;
+    }
+    printAgentInvites(invites);
+    return;
+  }
+
   if (!cfg.token) {
     throw new Error("WATCH_BRIDGE_TOKEN is required to create an agent invite.");
   }
@@ -1829,6 +1863,29 @@ function agentInviteCommand(args) {
   console.log(`Setup URL: ${invite.setupUrl}`);
   console.log(`Expires: ${invite.expiresAt}`);
   console.log("Treat this URL as secret; it opens token-bearing agent install commands.");
+}
+
+function listAgentInvites(cfg) {
+  return pruneAgentInvites(readAgentInvites(cfg)).map((invite) =>
+    publicAgentInvite(cfg, invite)
+  );
+}
+
+function printAgentInvites(invites) {
+  if (invites.length === 0) {
+    console.log("No active PhoneDex agent invites.");
+    return;
+  }
+
+  for (const invite of invites) {
+    console.log(`${invite.setupUrl}`);
+    console.log(`  expires: ${invite.expiresAt}`);
+    console.log(`  uses: ${invite.uses}`);
+    if (invite.lastUsedAt) {
+      const file = invite.lastFileName ? ` ${invite.lastFileName}` : "";
+      console.log(`  last use: ${invite.lastUsedAt} ${invite.lastEventType}${file}`);
+    }
+  }
 }
 
 function printHelp() {
@@ -1851,6 +1908,7 @@ Usage:
   phonedex agent-self-test
   phonedex agent-bundle
   phonedex agent-invite
+  phonedex agent-invite --list
   phonedex replies
   phonedex run -- <command> [args...]
 
@@ -1871,6 +1929,7 @@ Compatibility aliases:
   watchdex agent-self-test
   watchdex agent-bundle
   watchdex agent-invite
+  watchdex agent-invite --list
   watchdex replies
   watchdex run -- <command> [args...]
 `);

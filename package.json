@@ -38,6 +38,7 @@
     "agent:self-test": "node ./bin/codex-watch.js agent-self-test",
     "agent:bundle": "node ./bin/codex-watch.js agent-bundle",
     "agent:invite": "node ./bin/codex-watch.js agent-invite",
+    "agent:invites": "node ./bin/codex-watch.js agent-invite --list",
     "test:session-watch": "node ./scripts/test-session-watch.js",
     "test:device-coverage": "node ./scripts/test-device-coverage.js",
     "test:coverage-alert": "node ./scripts/test-coverage-alert.js",
