@@ -680,8 +680,27 @@ async function handleAgentBootstrapRequest(req, res, requestUrl, cfg) {
     return sendJson(res, 405, { ok: false, error: "GET required" });
   }
 
+  if (!cfg.token) {
+    return sendJson(res, 403, {
+      ok: false,
+      error: "WATCH_BRIDGE_TOKEN is required to serve agent bootstrap files"
+    });
+  }
+
   if (!isRequestTokenValid(req, requestUrl, cfg)) {
     return sendJson(res, 401, { ok: false, error: "Invalid token" });
+  }
+
+  if (
+    requestUrl.pathname === "/agent-bootstrap/setup" ||
+    requestUrl.pathname === "/agent-bootstrap/setup/"
+  ) {
+    const setup = readAgentBootstrapSetup(cfg);
+    return sendHtml(res, 200, renderAgentBootstrapSetupPage(setup));
+  }
+
+  if (requestUrl.pathname === "/agent-bootstrap/setup.json") {
+    return sendJson(res, 200, readAgentBootstrapSetup(cfg));
   }
 
   const fileName = agentBootstrapFileName(requestUrl.pathname);
@@ -734,6 +753,62 @@ function contentTypeForAgentBootstrapFile(fileName) {
   if (fileName.endsWith(".json")) return "application/json; charset=utf-8";
   if (fileName.endsWith(".sh")) return "text/x-shellscript; charset=utf-8";
   return "text/plain; charset=utf-8";
+}
+
+function readAgentBootstrapSetup(cfg) {
+  const manifestPath = path.join(path.resolve(cfg.agentBundleDir), "manifest.json");
+  let manifest;
+  try {
+    manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      throw new Error(`Agent bootstrap manifest not found at ${manifestPath}`);
+    }
+    throw error;
+  }
+
+  const hubUrl = trimTrailingSlash(manifest.hubUrl || cfg.publicUrl);
+  const targets = (manifest.targets || []).map((target) => {
+    const platform = target.platform || guessAgentPlatform(target);
+    const downloadUrl = agentBootstrapDownloadUrl(hubUrl, target.fileName, cfg.token);
+    return {
+      deviceId: target.deviceId || "",
+      machineName: target.machineName || target.deviceId || "",
+      status: target.status || "",
+      platform,
+      fileName: target.fileName || "",
+      downloadUrl,
+      commands: agentBootstrapInstallCommands({ ...target, platform }, downloadUrl)
+    };
+  });
+
+  return {
+    generatedAt: manifest.generatedAt || "",
+    hubUrl,
+    setupUrl: `${hubUrl}/agent-bootstrap/setup?token=${encodeURIComponent(cfg.token)}`,
+    expectedDevices: manifest.expectedDevices || "",
+    targets
+  };
+}
+
+function agentBootstrapDownloadUrl(hubUrl, fileName, token) {
+  return `${hubUrl}/agent-bootstrap/${encodeURIComponent(fileName)}?token=${encodeURIComponent(token)}`;
+}
+
+function agentBootstrapInstallCommands(target, downloadUrl) {
+  const fileName = target.fileName || "phonedex-agent";
+  if (target.platform === "windows") {
+    return [
+      `Invoke-WebRequest "${powershellDoubleQuote(downloadUrl)}" -OutFile "${powershellDoubleQuote(fileName)}"`,
+      `powershell -ExecutionPolicy Bypass -File .\\${powershellDoubleQuote(fileName)}`
+    ];
+  }
+
+  return [
+    `curl -fsSL "${shellDoubleQuote(downloadUrl)}" -o "${shellDoubleQuote(fileName)}"`,
+    `chmod +x ./${shellDoubleQuote(fileName)}`,
+    `./${shellDoubleQuote(fileName)}`
+  ];
 }
 
 async function handleTaskPageRequest(req, res, requestUrl, cfg) {
@@ -2356,6 +2431,7 @@ function printAgentBundle(bundle) {
   console.log(`PhoneDex agent bootstrap bundle written to ${safe.outputDir}`);
   console.log(`Manifest: ${safe.manifestPath}`);
   console.log(`Readme: ${safe.readmePath}`);
+  console.log(`Setup page: ${safe.hubUrl}/agent-bootstrap/setup?token=HUB_TOKEN`);
   if (safe.targets.length === 0) {
     console.log("No missing expected agents need bootstrap scripts right now.");
     return;
@@ -2377,6 +2453,7 @@ function renderAgentBundleReadme(manifest) {
     "",
     "Download or copy each script to its matching target device and run it there.",
     "The hub serves these private files from /agent-bootstrap/<file>?token=HUB_TOKEN.",
+    `Setup page: ${manifest.hubUrl}/agent-bootstrap/setup?token=HUB_TOKEN`,
     "Each script contains local tokens from this hub. Treat the files as private.",
     ""
   ];
@@ -3040,6 +3117,94 @@ function renderTaskPage(task) {
   </main>
 </body>
 </html>`;
+}
+
+function renderAgentBootstrapSetupPage(setup) {
+  const targetHtml = setup.targets.length
+    ? setup.targets.map(renderAgentBootstrapTarget).join("\n")
+    : "<p>No missing expected agents need bootstrap scripts right now.</p>";
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>PhoneDex Agent Setup</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.45;
+      background: Canvas;
+      color: CanvasText;
+    }
+    main {
+      max-width: 820px;
+      margin: 0 auto;
+      padding: max(20px, env(safe-area-inset-top)) 18px max(32px, env(safe-area-inset-bottom));
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(1.55rem, 7vw, 2.35rem);
+      line-height: 1.08;
+      letter-spacing: 0;
+    }
+    .summary {
+      margin: 0 0 22px;
+      color: color-mix(in srgb, CanvasText 72%, transparent);
+      overflow-wrap: anywhere;
+    }
+    section {
+      border: 1px solid color-mix(in srgb, CanvasText 14%, transparent);
+      border-radius: 8px;
+      padding: 16px;
+      margin: 14px 0;
+      background: color-mix(in srgb, CanvasText 4%, Canvas);
+    }
+    h2 {
+      margin: 0 0 4px;
+      font-size: 1.05rem;
+      letter-spacing: 0;
+    }
+    .meta {
+      margin: 0 0 12px;
+      color: color-mix(in srgb, CanvasText 68%, transparent);
+      font-size: 0.92rem;
+      overflow-wrap: anywhere;
+    }
+    pre {
+      margin: 0;
+      padding: 12px;
+      overflow-x: auto;
+      border-radius: 6px;
+      background: color-mix(in srgb, CanvasText 9%, Canvas);
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      white-space: pre;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>PhoneDex Agent Setup</h1>
+    <p class="summary">Hub: ${escapeHtml(setup.hubUrl)}<br>Generated: ${escapeHtml(setup.generatedAt || "unknown")}</p>
+    ${targetHtml}
+  </main>
+</body>
+</html>`;
+}
+
+function renderAgentBootstrapTarget(target) {
+  const commandText = target.commands.join("\n");
+  return `<section>
+    <h2>${escapeHtml(target.machineName || target.deviceId || "PhoneDex Agent")}</h2>
+    <p class="meta">${escapeHtml(target.deviceId || "")} | ${escapeHtml(target.platform || "")} | ${escapeHtml(target.fileName || "")}</p>
+    <pre><code>${escapeHtml(commandText)}</code></pre>
+  </section>`;
 }
 
 function renderMessagePage(title, message) {
