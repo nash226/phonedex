@@ -188,8 +188,27 @@ npm run agent:bundle
 ```
 
 The generated files are written to `.local/agent-bootstrap/`, which is ignored
-by git because the scripts contain the hub token. Copy the matching script to
-each missing device and run it there.
+by git because the scripts contain the hub token. The hub also serves those
+private files at `GET /agent-bootstrap/<file>?token=...`, protected by
+`WATCH_BRIDGE_TOKEN`, so each missing device can pull only its matching script.
+
+On a missing macOS device:
+
+```sh
+curl -fsSL "http://YOUR_HUB_MAC_LAN_IP:8765/agent-bootstrap/macbook-air.sh?token=YOUR_WATCH_BRIDGE_TOKEN" -o phonedex-macbook-agent.sh
+chmod +x ./phonedex-macbook-agent.sh
+./phonedex-macbook-agent.sh
+```
+
+On a missing Windows device:
+
+```powershell
+Invoke-WebRequest "http://YOUR_HUB_MAC_LAN_IP:8765/agent-bootstrap/windows-desktop.ps1?token=YOUR_WATCH_BRIDGE_TOKEN" -OutFile phonedex-windows-agent.ps1
+powershell -ExecutionPolicy Bypass -File .\phonedex-windows-agent.ps1
+```
+
+Use the real hub token from the hub's ignored `.env` file, and do not commit or
+post these generated scripts because they can enroll agents into your hub.
 
 On macOS agents, start `npm run service` directly or install the LaunchAgent:
 

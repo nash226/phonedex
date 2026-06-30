@@ -39,6 +39,7 @@
     "test:session-watch": "node ./scripts/test-session-watch.js",
     "test:device-coverage": "node ./scripts/test-device-coverage.js",
     "test:agent-enrollment": "node ./scripts/test-agent-enrollment.js",
+    "test:agent-bootstrap-server": "node ./scripts/test-agent-bootstrap-server.js",
     "test:agent-self-test": "node ./scripts/test-agent-self-test.js",
     "check": "node --check ./bin/codex-watch.js"
   },
