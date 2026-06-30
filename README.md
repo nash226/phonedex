@@ -205,8 +205,9 @@ putting the main hub token in the URL:
 npm run agent:invite
 ```
 
-Treat the invite URL as secret. The page shows token-bearing install commands
-for missing agents and expires after `PHONEDEX_AGENT_INVITE_TTL_MS`.
+Treat the invite URL as secret. The page shows install commands that download
+private bootstrap scripts for missing agents and expires after
+`PHONEDEX_AGENT_INVITE_TTL_MS`.
 
 On a missing macOS device:
 

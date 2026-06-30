@@ -166,10 +166,21 @@ async function main() {
     assert.match(invitePage.text, /PhoneDex Agent Setup/);
     assert.match(invitePage.text, /Invite expires/);
     assert.match(invitePage.text, /MacBook Air/);
-    assert.match(invitePage.text, /token=hub-token/);
+    assert.match(invitePage.text, /agent-bootstrap\/invite/);
+    assert.doesNotMatch(invitePage.text, /token=hub-token/);
+
+    const inviteScriptUrl = `${invite.setupUrl}/macbook-air.sh`;
+    const inviteScript = await fetchText(inviteScriptUrl);
+    assert.equal(inviteScript.status, 200);
+    assert.match(inviteScript.contentType, /text\/x-shellscript/);
+    assert.equal(inviteScript.cacheControl, "no-store");
+    assert.match(inviteScript.text, /PHONEDEX_HUB_TOKEN=hub-token/);
 
     const badInvite = await fetchText(`${hubUrl}/agent-bootstrap/invite/not-valid`);
     assert.equal(badInvite.status, 401);
+
+    const badInvitePath = await fetchText(`${invite.setupUrl}/../../secret`);
+    assert.equal(badInvitePath.status, 401);
 
     const traversal = await fetchText(
       `${hubUrl}/agent-bootstrap/%2Ftmp%2Fsecret?token=hub-token`
