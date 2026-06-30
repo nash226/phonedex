@@ -192,6 +192,12 @@ by git because the scripts contain the hub token. The hub also serves those
 private files at `GET /agent-bootstrap/<file>?token=...`, protected by
 `WATCH_BRIDGE_TOKEN`, so each missing device can pull only its matching script.
 
+For a token-protected setup page with the exact live commands, open:
+
+```text
+http://YOUR_HUB_MAC_LAN_IP:8765/agent-bootstrap/setup?token=YOUR_WATCH_BRIDGE_TOKEN
+```
+
 On a missing macOS device:
 
 ```sh
