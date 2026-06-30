@@ -148,6 +148,12 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					02C93F7B509BE88F768CA34A = {
+						DevelopmentTeam = RQRRLJ37K2;
+					};
+					DB6735EA4B07B1A49901E799 = {
+						DevelopmentTeam = RQRRLJ37K2;
+					};
 				};
 			};
 			buildConfigurationList = 2F10B6D87B6994B81C01B7C9 /* Build configuration list for PBXProject "PhoneDex" */;
@@ -272,6 +278,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = RQRRLJ37K2;
 				INFOPLIST_FILE = PhoneDexApp/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -343,6 +350,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
+				DEVELOPMENT_TEAM = RQRRLJ37K2;
 				INFOPLIST_FILE = PhoneDexNotificationExtension/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -359,6 +367,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
+				DEVELOPMENT_TEAM = RQRRLJ37K2;
 				INFOPLIST_FILE = PhoneDexNotificationExtension/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -376,6 +385,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = RQRRLJ37K2;
 				INFOPLIST_FILE = PhoneDexApp/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

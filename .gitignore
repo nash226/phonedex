@@ -4,3 +4,6 @@ data/*.jsonl
 data/*.log
 data/*.json
 node_modules/
+ios/PhoneDex.xcodeproj/xcuserdata/
+ios/PhoneDex.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcuserstate
