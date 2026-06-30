@@ -10,10 +10,13 @@ const { spawn } = require("node:child_process");
 const ROOT = path.resolve(__dirname, "..");
 const DATA_DIR_DEFAULT = path.join(ROOT, "data");
 const SESSION_WATCH_STATE = "session-watch-state.json";
+const DEVICES_STATE_FILE = "devices.json";
 const APP_SERVER_RESUME_TIMEOUT_MS = 30 * 60 * 1000;
 const PHONE_NOTIFICATION_TEXT_MAX = 1800;
 const DEFAULT_SESSION_WATCH_LOOKBACK_HOURS = 168;
 const DEFAULT_SESSION_WATCH_FILE_LIMIT = 500;
+const DEFAULT_DEVICE_HEARTBEAT_INTERVAL_MS = 30 * 1000;
+const DEFAULT_DEVICE_STALE_MS = 2 * 60 * 1000;
 
 const RESPONSE_CHOICES = {
   okay_whats_next: "okay whats next",
@@ -150,6 +153,12 @@ function config() {
     hubUrl,
     hubToken: env.PHONEDEX_HUB_TOKEN || env.WATCH_BRIDGE_TOKEN || "",
     agentMode: parseBoolean(env.PHONEDEX_AGENT_MODE, false),
+    expectedDevices: parseExpectedDevices(env.PHONEDEX_EXPECTED_DEVICES || ""),
+    deviceHeartbeatIntervalMs: positiveNumber(
+      env.PHONEDEX_HEARTBEAT_INTERVAL_MS,
+      DEFAULT_DEVICE_HEARTBEAT_INTERVAL_MS
+    ),
+    deviceStaleMs: positiveNumber(env.PHONEDEX_DEVICE_STALE_MS, DEFAULT_DEVICE_STALE_MS),
     host,
     port,
     dataDir: env.WATCH_BRIDGE_DATA_DIR || DATA_DIR_DEFAULT,
@@ -695,16 +704,29 @@ async function startServer(providedCfg) {
         return sendJson(res, 200, readJsonl(cfg.dataDir, "tasks.jsonl").slice(-25).map(publicTask));
       }
 
+      if (requestUrl.pathname === "/devices/heartbeat") {
+        return handleDeviceHeartbeatRequest(req, res, requestUrl, cfg);
+      }
+
       if (requestUrl.pathname === "/devices") {
         if (!isRequestTokenValid(req, requestUrl, cfg)) {
           return sendJson(res, 401, { ok: false, error: "Invalid token" });
         }
-        return sendJson(res, 200, listKnownDevices(cfg.dataDir));
+        return sendJson(res, 200, listDeviceCoverage(cfg));
       }
 
       sendJson(res, 200, {
         service: "watchdex",
-        endpoints: ["/health", "/reply", "/task", "/ha-action-event", "/replies", "/tasks", "/devices"]
+        endpoints: [
+          "/health",
+          "/reply",
+          "/task",
+          "/ha-action-event",
+          "/replies",
+          "/tasks",
+          "/devices",
+          "/devices/heartbeat"
+        ]
       });
     } catch (error) {
       logError(error);
@@ -726,6 +748,7 @@ async function startService(args) {
   const cfg = config();
   ensureDataDir(cfg.dataDir);
   await startServer(cfg);
+  await startDeviceHeartbeat(cfg);
   await startSessionWatcher(cfg, args);
   console.log(`PhoneDex service running as ${cfg.agentMode ? "agent" : "hub"}.`);
 }
@@ -754,6 +777,28 @@ async function handleTaskIngestRequest(req, res, requestUrl, cfg) {
     duplicate: !result.created,
     task: publicTask(result.task)
   });
+}
+
+async function handleDeviceHeartbeatRequest(req, res, requestUrl, cfg) {
+  if (req.method !== "POST") {
+    return sendJson(res, 405, { ok: false, error: "POST required" });
+  }
+
+  const body = await readHttpBody(req);
+  const fields = {
+    ...Object.fromEntries(requestUrl.searchParams.entries()),
+    ...parseBodyFields(body, req.headers["content-type"] || "")
+  };
+  const token = fields.token || "";
+
+  if (cfg.token && token !== cfg.token && !isRequestTokenValid(req, requestUrl, cfg)) {
+    return sendJson(res, 401, { ok: false, error: "Invalid token" });
+  }
+
+  const incoming = fields.device && typeof fields.device === "object" ? fields.device : fields;
+  const device = normalizeDeviceHeartbeat(incoming, req);
+  recordDeviceHeartbeat(cfg.dataDir, device);
+  sendJson(res, 200, { ok: true, device });
 }
 
 async function handleTaskPageRequest(req, res, requestUrl, cfg) {
@@ -1509,9 +1554,9 @@ function printRecent(fileName) {
 
 function printKnownDevices() {
   const cfg = config();
-  const devices = listKnownDevices(cfg.dataDir);
+  const devices = listDeviceCoverage(cfg);
   if (devices.length === 0) {
-    console.log(`No devices in ${path.join(cfg.dataDir, "tasks.jsonl")}`);
+    console.log(`No devices in ${cfg.dataDir}`);
     return;
   }
   console.log(JSON.stringify(devices, null, 2));
@@ -1655,18 +1700,186 @@ function publicTask(task) {
   return safeTask;
 }
 
-function listKnownDevices(dataDir) {
+async function startDeviceHeartbeat(cfg) {
+  const beat = async () => {
+    const device = buildLocalDeviceHeartbeat(cfg);
+    recordDeviceHeartbeat(cfg.dataDir, device);
+    await maybeForwardDeviceHeartbeatToHub(cfg, device);
+  };
+
+  await beat();
+  setInterval(() => {
+    beat().catch(logError);
+  }, cfg.deviceHeartbeatIntervalMs);
+}
+
+function buildLocalDeviceHeartbeat(cfg) {
+  return {
+    deviceId: cfg.deviceId,
+    machineName: cfg.machineName,
+    role: cfg.agentMode ? "agent" : "hub",
+    publicUrl: cfg.publicUrl,
+    replyUrl: cfg.replyUrl,
+    hubUrl: cfg.hubUrl || "",
+    codexHome: cfg.codexHome,
+    platform: process.platform,
+    hostname: os.hostname(),
+    pid: process.pid,
+    version: "0.1.0",
+    lastSeenAt: new Date().toISOString()
+  };
+}
+
+async function maybeForwardDeviceHeartbeatToHub(cfg, device) {
+  if (!cfg.hubUrl || isSameBaseUrl(cfg.hubUrl, cfg.publicUrl)) return;
+
+  try {
+    const response = await fetch(`${cfg.hubUrl}/devices/heartbeat`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(cfg.hubToken ? { authorization: `Bearer ${cfg.hubToken}` } : {})
+      },
+      body: JSON.stringify({
+        token: cfg.hubToken,
+        device
+      })
+    });
+    const responseText = await response.text();
+    if (!response.ok) {
+      appendJsonl(cfg.dataDir, "events.jsonl", {
+        at: new Date().toISOString(),
+        type: "hub-heartbeat-attempt",
+        hubUrl: cfg.hubUrl,
+        deviceId: device.deviceId,
+        status: response.status,
+        ok: false,
+        response: responseText.slice(0, 500)
+      });
+    }
+  } catch (error) {
+    appendJsonl(cfg.dataDir, "events.jsonl", {
+      at: new Date().toISOString(),
+      type: "hub-heartbeat-attempt",
+      hubUrl: cfg.hubUrl,
+      deviceId: device.deviceId,
+      ok: false,
+      error: error.message
+    });
+  }
+}
+
+function normalizeDeviceHeartbeat(fields, req) {
+  const now = new Date().toISOString();
+  const machineName = fields.machineName || fields.machine || fields.hostname || "Unknown device";
+  return {
+    deviceId: fields.deviceId || fields.id || fields.machineId || machineName,
+    machineName,
+    role: fields.role || "agent",
+    publicUrl: fields.publicUrl || fields.public_url || "",
+    replyUrl: fields.replyUrl || fields.reply_url || "",
+    hubUrl: fields.hubUrl || fields.hub_url || "",
+    codexHome: fields.codexHome || fields.codex_home || "",
+    platform: fields.platform || "",
+    hostname: fields.hostname || "",
+    pid: fields.pid || "",
+    version: fields.version || "",
+    lastSeenAt: fields.lastSeenAt || fields.at || now,
+    receivedAt: now,
+    receivedFrom: req?.socket?.remoteAddress || ""
+  };
+}
+
+function recordDeviceHeartbeat(dataDir, device) {
+  const state = readJsonFile(dataDir, DEVICES_STATE_FILE, { devices: [] });
+  const devices = Array.isArray(state.devices) ? state.devices : [];
+  const index = devices.findIndex((candidate) => candidate.deviceId === device.deviceId);
+  const previous = index >= 0 ? devices[index] : {};
+  const next = {
+    ...previous,
+    ...device,
+    firstSeenAt: previous.firstSeenAt || device.lastSeenAt || new Date().toISOString()
+  };
+
+  if (index >= 0) devices[index] = next;
+  else devices.push(next);
+
+  writeJsonFile(dataDir, DEVICES_STATE_FILE, {
+    updatedAt: new Date().toISOString(),
+    devices: devices.sort(
+      (a, b) => Date.parse(b.lastSeenAt || "") - Date.parse(a.lastSeenAt || "")
+    )
+  });
+}
+
+function listDeviceCoverage(cfg) {
+  const devices = new Map();
+  for (const device of readDeviceHeartbeats(cfg.dataDir)) {
+    if (!device?.deviceId) continue;
+    devices.set(device.deviceId, {
+      ...device,
+      lastHeartbeatAt: device.lastSeenAt || "",
+      status: heartbeatStatus(device.lastSeenAt, cfg.deviceStaleMs)
+    });
+  }
+
+  for (const taskDevice of listTaskDevices(cfg.dataDir)) {
+    const current = devices.get(taskDevice.deviceId);
+    devices.set(taskDevice.deviceId, {
+      ...taskDevice,
+      ...current,
+      deviceId: current?.deviceId || taskDevice.deviceId,
+      machineName: current?.machineName || taskDevice.machineName,
+      lastTaskAt: taskDevice.lastTaskAt,
+      lastTaskId: taskDevice.lastTaskId,
+      lastSessionId: taskDevice.lastSessionId,
+      lastCwd: taskDevice.lastCwd,
+      source: taskDevice.source,
+      status: current?.status || "task-only"
+    });
+  }
+
+  for (const expected of cfg.expectedDevices) {
+    const current = devices.get(expected.deviceId);
+    if (current) {
+      devices.set(expected.deviceId, {
+        ...current,
+        expected: true,
+        machineName: current.machineName || expected.machineName || expected.deviceId
+      });
+      continue;
+    }
+
+    devices.set(expected.deviceId, {
+      deviceId: expected.deviceId,
+      machineName: expected.machineName || expected.deviceId,
+      expected: true,
+      status: "missing",
+      lastHeartbeatAt: "",
+      lastTaskAt: ""
+    });
+  }
+
+  return [...devices.values()].sort(compareDeviceCoverage);
+}
+
+function readDeviceHeartbeats(dataDir) {
+  const state = readJsonFile(dataDir, DEVICES_STATE_FILE, { devices: [] });
+  return Array.isArray(state.devices) ? state.devices : [];
+}
+
+function listTaskDevices(dataDir) {
   const devices = new Map();
   for (const task of readJsonl(dataDir, "tasks.jsonl")) {
     if (!task || task.parseError) continue;
     const key = task.deviceId || task.machineName || "unknown";
     const previous = devices.get(key);
     const at = task.at || "";
-    if (previous && Date.parse(previous.lastSeenAt || "") >= Date.parse(at || "")) continue;
+    if (previous && Date.parse(previous.lastTaskAt || "") >= Date.parse(at || "")) continue;
     devices.set(key, {
-      deviceId: task.deviceId || "",
+      deviceId: task.deviceId || task.machineName || "unknown",
       machineName: task.machineName || "",
-      lastSeenAt: at,
+      lastTaskAt: at,
       lastTaskId: task.id || "",
       lastSessionId: task.sessionId || "",
       lastCwd: task.cwd || "",
@@ -1674,9 +1887,27 @@ function listKnownDevices(dataDir) {
     });
   }
 
-  return [...devices.values()].sort(
-    (a, b) => Date.parse(b.lastSeenAt || "") - Date.parse(a.lastSeenAt || "")
-  );
+  return [...devices.values()];
+}
+
+function heartbeatStatus(lastSeenAt, staleMs) {
+  const lastSeen = Date.parse(lastSeenAt || "");
+  if (Number.isNaN(lastSeen)) return "missing";
+  return Date.now() - lastSeen <= staleMs ? "online" : "stale";
+}
+
+function compareDeviceCoverage(a, b) {
+  const statusRank = {
+    online: 0,
+    stale: 1,
+    "task-only": 2,
+    missing: 3
+  };
+  const rankDelta = (statusRank[a.status] ?? 9) - (statusRank[b.status] ?? 9);
+  if (rankDelta !== 0) return rankDelta;
+  const aSeen = Date.parse(a.lastHeartbeatAt || a.lastTaskAt || "");
+  const bSeen = Date.parse(b.lastHeartbeatAt || b.lastTaskAt || "");
+  return (Number.isNaN(bSeen) ? 0 : bSeen) - (Number.isNaN(aSeen) ? 0 : aSeen);
 }
 
 function isSameBaseUrl(left, right) {
@@ -2090,6 +2321,23 @@ function sendJson(res, status, value) {
 function parseBoolean(value, defaultValue) {
   if (value === undefined || value === "") return defaultValue;
   return ["1", "true", "yes", "on"].includes(String(value).toLowerCase());
+}
+
+function positiveNumber(value, defaultValue) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : defaultValue;
+}
+
+function parseExpectedDevices(value) {
+  return String(value || "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const [deviceId, machineName = ""] = part.split(":", 2).map((item) => item.trim());
+      return { deviceId, machineName };
+    })
+    .filter((device) => device.deviceId);
 }
 
 function trimTrailingSlash(value) {
