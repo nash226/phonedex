@@ -59,6 +59,32 @@ function runEnroll(args) {
   return JSON.parse(result.stdout);
 }
 
+function runEnrollScript(args) {
+  const dataDir = makeDataDir();
+  writeDevices(dataDir);
+  const result = spawnSync(
+    process.execPath,
+    [bridge, "enroll-agent", "--script", ...args],
+    {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        WATCH_BRIDGE_DATA_DIR: dataDir,
+        WATCH_BRIDGE_PUBLIC_URL: "http://hub.local:8765",
+        WATCH_BRIDGE_TOKEN: "hub-token",
+        PHONEDEX_EXPECTED_DEVICES: "imac:iMac",
+        WATCH_BRIDGE_PROVIDER: "pushcut",
+        PUSHCUT_WEBHOOK_URL: ""
+      }
+    }
+  );
+
+  assert.equal(result.stderr, "");
+  assert.equal(result.status, 0);
+  return result.stdout;
+}
+
 {
   const enrollment = runEnroll([
     "--device-id",
@@ -86,6 +112,27 @@ function runEnroll(args) {
 }
 
 {
+  const script = runEnrollScript([
+    "--device-id",
+    "macbook-air",
+    "--name",
+    "MacBook Air",
+    "--platform",
+    "macos",
+    "--callback-url",
+    "http://macbook.local:8765",
+    "--agent-token",
+    "agent-token"
+  ]);
+
+  assert.equal(script.startsWith("#!/usr/bin/env bash"), true);
+  assert.equal(script.includes('INSTALL_DIR="$HOME/phonedex"'), true);
+  assert.equal(script.includes("PHONEDEX_HUB_URL=http://hub.local:8765"), true);
+  assert.equal(script.includes("npm run services:install"), true);
+  assert.equal(script.includes("npm run windows:install"), false);
+}
+
+{
   const enrollment = runEnroll([
     "--device-id",
     "windows-desktop",
@@ -104,6 +151,24 @@ function runEnroll(args) {
     enrollment.hubExpectedDevices,
     "imac:iMac,windows-desktop:Windows Desktop"
   );
+}
+
+{
+  const script = runEnrollScript([
+    "--device-id",
+    "windows-desktop",
+    "--name",
+    "Windows Desktop",
+    "--platform",
+    "windows",
+    "--agent-token",
+    "agent-token"
+  ]);
+
+  assert.equal(script.includes('$InstallDir = "$env:USERPROFILE\\phonedex"'), true);
+  assert.equal(script.includes("PHONEDEX_HUB_TOKEN=hub-token"), true);
+  assert.equal(script.includes("npm run windows:install"), true);
+  assert.equal(script.includes("npm run services:install"), false);
 }
 
 console.log("agent enrollment fixture test passed");

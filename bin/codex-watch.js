@@ -1391,6 +1391,11 @@ function enrollAgentCommand(args) {
   const flags = parseFlags(args);
   const enrollment = buildAgentEnrollment(cfg, flags);
 
+  if (flags.script) {
+    console.log(buildEnrollmentScript(enrollment));
+    return;
+  }
+
   if (flags.json) {
     console.log(JSON.stringify(enrollment, null, 2));
     return;
@@ -1414,6 +1419,7 @@ Usage:
   phonedex devices
   phonedex verify-devices
   phonedex enroll-agent --device-id macbook-air --name "MacBook Air" --platform macos
+  phonedex enroll-agent --device-id windows-desktop --name "Windows Desktop" --platform windows --script
   phonedex replies
   phonedex run -- <command> [args...]
 
@@ -1429,6 +1435,7 @@ Compatibility aliases:
   watchdex devices
   watchdex verify-devices
   watchdex enroll-agent --device-id macbook-air --name "MacBook Air" --platform macos
+  watchdex enroll-agent --device-id windows-desktop --name "Windows Desktop" --platform windows --script
   watchdex replies
   watchdex run -- <command> [args...]
 `);
@@ -1773,6 +1780,9 @@ function buildAgentEnrollment(cfg, flags) {
     flags.callbackUrl || flags["callback-url"] || "http://THIS_AGENT_LAN_IP:8765"
   );
   const hubUrl = trimTrailingSlash(flags.hubUrl || flags["hub-url"] || cfg.publicUrl);
+  const installDir = String(
+    flags.installDir || flags["install-dir"] || defaultEnrollmentInstallDir(platform)
+  ).trim();
   const hubToken = String(flags.hubToken || flags["hub-token"] || cfg.token || "").trim();
   const agentToken = String(
     flags.agentToken ||
@@ -1803,6 +1813,7 @@ function buildAgentEnrollment(cfg, flags) {
     platform,
     hubUrl,
     callbackUrl,
+    installDir,
     env,
     envLines: Object.entries(env).map(([key, value]) => `${key}=${value}`),
     commands: enrollmentCommands(platform),
@@ -1817,6 +1828,11 @@ function normalizeEnrollmentPlatform(value) {
   if (["mac", "macos", "darwin"].includes(platform)) return "macos";
   if (["win", "windows", "windows-desktop"].includes(platform)) return "windows";
   throw new Error("enroll-agent --platform must be macos or windows");
+}
+
+function defaultEnrollmentInstallDir(platform) {
+  if (platform === "windows") return "$env:USERPROFILE\\phonedex";
+  return "$HOME/phonedex";
 }
 
 function enrollmentCommands(platform) {
@@ -1839,6 +1855,93 @@ function enrollmentCommands(platform) {
     "npm run services:install",
     "npm run services:status"
   ];
+}
+
+function buildEnrollmentScript(enrollment) {
+  if (enrollment.platform === "windows") return buildWindowsEnrollmentScript(enrollment);
+  return buildMacEnrollmentScript(enrollment);
+}
+
+function buildMacEnrollmentScript(enrollment) {
+  return `#!/usr/bin/env bash
+set -euo pipefail
+
+${macInstallDirAssignment(enrollment.installDir)}
+REPO_URL="https://github.com/nash226/phonedex.git"
+
+if [[ -d "$INSTALL_DIR/.git" ]]; then
+  git -C "$INSTALL_DIR" pull --ff-only
+else
+  git clone "$REPO_URL" "$INSTALL_DIR"
+fi
+
+cd "$INSTALL_DIR"
+cat > .env <<'EOF'
+${enrollment.envLines.join("\n")}
+EOF
+chmod 600 .env
+npm run install-hook
+npm run services:install
+npm run services:status
+
+echo ""
+echo "PhoneDex agent ${shellEscapePlain(enrollment.machineName)} is installed."
+echo "On the hub, set:"
+echo "PHONEDEX_EXPECTED_DEVICES=${shellEscapePlain(enrollment.hubExpectedDevices)}"
+echo "Then run: npm run devices:verify"
+`;
+}
+
+function buildWindowsEnrollmentScript(enrollment) {
+  return `$ErrorActionPreference = "Stop"
+
+${windowsInstallDirAssignment(enrollment.installDir)}
+$RepoUrl = "https://github.com/nash226/phonedex.git"
+
+if (Test-Path (Join-Path $InstallDir ".git")) {
+  git -C $InstallDir pull --ff-only
+} else {
+  git clone $RepoUrl $InstallDir
+}
+
+Set-Location $InstallDir
+@'
+${enrollment.envLines.join("\n")}
+'@ | Set-Content -NoNewline -Encoding utf8 .env
+npm run install-hook
+npm run windows:install
+npm run windows:status
+
+Write-Host ""
+Write-Host "PhoneDex agent ${powershellDoubleQuote(enrollment.machineName)} is installed."
+Write-Host "On the hub, set:"
+Write-Host "PHONEDEX_EXPECTED_DEVICES=${powershellDoubleQuote(enrollment.hubExpectedDevices)}"
+Write-Host "Then run: npm run devices:verify"
+`;
+}
+
+function macInstallDirAssignment(installDir) {
+  if (installDir === "$HOME/phonedex") return 'INSTALL_DIR="$HOME/phonedex"';
+  return `INSTALL_DIR="${shellDoubleQuote(installDir)}"`;
+}
+
+function windowsInstallDirAssignment(installDir) {
+  if (installDir === "$env:USERPROFILE\\phonedex") {
+    return '$InstallDir = "$env:USERPROFILE\\phonedex"';
+  }
+  return `$InstallDir = "${powershellDoubleQuote(installDir)}"`;
+}
+
+function shellDoubleQuote(value) {
+  return String(value).replace(/["\\$`]/g, "\\$&");
+}
+
+function shellEscapePlain(value) {
+  return String(value).replace(/[$`\\"]/g, "\\$&");
+}
+
+function powershellDoubleQuote(value) {
+  return String(value).replace(/[`"$]/g, "`$&");
 }
 
 function recommendedExpectedDevices(cfg, enrollingDevice) {
