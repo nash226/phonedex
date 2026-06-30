@@ -356,6 +356,7 @@ callers cannot record replies.
 | `npm run windows:uninstall` | Remove the Windows PhoneDex Scheduled Task. |
 | `npm run watch:sessions` | Watch Codex session logs for completed responses missed by hooks. |
 | `npm run scan:sessions` | Scan recent Codex session logs once without notifying old history. |
+| `npm run test:session-watch` | Verify the session watcher captures Codex task-complete and final-answer records. |
 | `npm run remote:install` | Install a Cloudflare Quick Tunnel LaunchAgent for Home Assistant. |
 | `npm run remote:start` | Start the Cloudflare Quick Tunnel LaunchAgent. |
 | `npm run remote:stop` | Stop the Cloudflare Quick Tunnel LaunchAgent. |
