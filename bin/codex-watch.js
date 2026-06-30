@@ -1850,6 +1850,7 @@ async function runAgentSelfTest(cfg) {
     skipped: true,
     reason: "task forwarding result was not recorded"
   };
+  const sessionWatch = await runAgentSessionWatchSelfTest(cfg, startedAt);
 
   const devicesCheck = hubReady
     ? await fetchHubJson(cfg, "/devices")
@@ -1869,6 +1870,13 @@ async function runAgentSelfTest(cfg) {
           candidate.sessionId === task.sessionId
       )
     : null;
+  const hubSessionTask = Array.isArray(tasksCheck.json)
+    ? tasksCheck.json.find(
+        (candidate) =>
+          candidate.originTaskId === sessionWatch.taskId ||
+          candidate.sessionId === sessionWatch.sessionId
+      )
+    : null;
 
   if (!heartbeatForward.ok || heartbeatForward.skipped) {
     issues.push({
@@ -1881,6 +1889,13 @@ async function runAgentSelfTest(cfg) {
     issues.push({
       code: "task-forward-failed",
       message: taskForward.reason || taskForward.error || "Self-test task did not reach hub."
+    });
+  }
+
+  if (!sessionWatch.ok) {
+    issues.push({
+      code: "session-watch-self-test-failed",
+      message: sessionWatch.error || "Session watcher did not capture the fixture response."
     });
   }
 
@@ -1906,6 +1921,13 @@ async function runAgentSelfTest(cfg) {
       code: "hub-task-not-visible",
       message: `${task.id} was not visible in hub /tasks after forwarding.`
     });
+  } else if (!hubSessionTask) {
+    issues.push({
+      code: "hub-session-watch-task-not-visible",
+      message:
+        `${sessionWatch.taskId || sessionWatch.sessionId} was not visible in hub /tasks ` +
+        "after session watcher self-test."
+    });
   }
 
   return {
@@ -1917,11 +1939,100 @@ async function runAgentSelfTest(cfg) {
     publicUrl: cfg.publicUrl,
     heartbeatForward,
     taskForward,
+    sessionWatch,
     hubDevice: hubDevice || null,
     hubTask: hubTask || null,
+    hubSessionTask: hubSessionTask || null,
     task: publicTask(task),
     issues
   };
+}
+
+async function runAgentSessionWatchSelfTest(cfg, startedAt) {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "phonedex-agent-session-"));
+  const codexHome = path.join(tmp, "codex-home");
+  const sessionsDir = path.join(codexHome, "sessions", "2026", "06", "30");
+  const sessionId = `019fself-${crypto.randomBytes(2).toString("hex")}-7333-8444-555555555555`;
+  const text = `Agent session watcher self-test from ${cfg.machineName} at ${startedAt}`;
+
+  try {
+    fs.mkdirSync(sessionsDir, { recursive: true });
+    const sessionFile = path.join(
+      sessionsDir,
+      `rollout-2026-06-30T03-00-00-${sessionId}.jsonl`
+    );
+    fs.writeFileSync(
+      sessionFile,
+      [
+        JSON.stringify({
+          type: "session_meta",
+          timestamp: "2026-06-30T03:00:00.000Z",
+          payload: { cwd: process.cwd() }
+        }),
+        JSON.stringify({
+          type: "event_msg",
+          timestamp: "2026-06-30T03:01:00.000Z",
+          payload: {
+            type: "agent_message",
+            phase: "final_answer",
+            message: text
+          }
+        })
+      ].join("\n") + "\n"
+    );
+
+    const originalCodexHome = cfg.codexHome;
+    const originalDebounceMs = cfg.sessionWatchDebounceMs;
+    const originalLookbackHours = cfg.sessionWatchLookbackHours;
+    const originalFileLimit = cfg.sessionWatchFileLimit;
+    cfg.codexHome = codexHome;
+    cfg.sessionWatchDebounceMs = 0;
+    cfg.sessionWatchLookbackHours = 87600;
+    cfg.sessionWatchFileLimit = 20;
+
+    try {
+      const notified = await scanSessions({ cfg, notify: true });
+      const task = readJsonl(cfg.dataDir, "tasks.jsonl")
+        .slice()
+        .reverse()
+        .find(
+          (candidate) =>
+            candidate &&
+            !candidate.parseError &&
+            candidate.source === "codex-session-watch" &&
+            candidate.sessionId === sessionId &&
+            candidate.text === text
+        );
+
+      return {
+        ok: notified === 1 && Boolean(task),
+        notified,
+        taskId: task?.id || "",
+        sessionId,
+        text,
+        error:
+          notified === 1 && task
+            ? ""
+            : `Expected one session watcher task for ${sessionId}, got ${notified}.`
+      };
+    } finally {
+      cfg.codexHome = originalCodexHome;
+      cfg.sessionWatchDebounceMs = originalDebounceMs;
+      cfg.sessionWatchLookbackHours = originalLookbackHours;
+      cfg.sessionWatchFileLimit = originalFileLimit;
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      notified: 0,
+      taskId: "",
+      sessionId,
+      text,
+      error: error.message
+    };
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
 }
 
 async function fetchHubJson(cfg, pathname) {
@@ -1964,8 +2075,13 @@ function printAgentSelfTestReport(report) {
   console.log(
     `Task forward: ${report.taskForward.ok ? "OK" : "FAILED"} ${statusSuffix(report.taskForward)}`
   );
+  console.log(
+    `Session watcher capture: ${report.sessionWatch.ok ? "OK" : "FAILED"} ` +
+      `(${report.sessionWatch.notified || 0} fixture task)`
+  );
   console.log(`Hub device visible: ${report.hubDevice ? "yes" : "no"}`);
   console.log(`Hub task visible: ${report.hubTask ? "yes" : "no"}`);
+  console.log(`Hub session watcher task visible: ${report.hubSessionTask ? "yes" : "no"}`);
 
   if (report.issues.length > 0) {
     console.log("");
