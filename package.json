@@ -35,6 +35,7 @@
     "devices:verify": "node ./bin/codex-watch.js verify-devices",
     "agent:enroll": "node ./bin/codex-watch.js enroll-agent",
     "agent:self-test": "node ./bin/codex-watch.js agent-self-test",
+    "agent:bundle": "node ./bin/codex-watch.js agent-bundle",
     "test:session-watch": "node ./scripts/test-session-watch.js",
     "test:device-coverage": "node ./scripts/test-device-coverage.js",
     "test:agent-enrollment": "node ./scripts/test-agent-enrollment.js",

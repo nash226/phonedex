@@ -85,6 +85,37 @@ function runEnrollScript(args) {
   return result.stdout;
 }
 
+function runBundle(args) {
+  const dataDir = makeDataDir();
+  const outputDir = path.join(dataDir, "bundle");
+  writeDevices(dataDir);
+  const result = spawnSync(
+    process.execPath,
+    [bridge, "agent-bundle", "--json", "--output-dir", outputDir, ...args],
+    {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        WATCH_BRIDGE_DATA_DIR: dataDir,
+        WATCH_BRIDGE_PUBLIC_URL: "http://hub.local:8765",
+        WATCH_BRIDGE_TOKEN: "hub-token",
+        PHONEDEX_EXPECTED_DEVICES:
+          "imac:iMac,macbook-air:MacBook Air,windows-desktop:Windows Desktop",
+        WATCH_BRIDGE_PROVIDER: "pushcut",
+        PUSHCUT_WEBHOOK_URL: ""
+      }
+    }
+  );
+
+  assert.equal(result.stderr, "");
+  assert.equal(result.status, 0);
+  return {
+    outputDir,
+    bundle: JSON.parse(result.stdout)
+  };
+}
+
 {
   const enrollment = runEnroll([
     "--device-id",
@@ -171,6 +202,27 @@ function runEnrollScript(args) {
   assert.equal(script.includes("PHONEDEX_HUB_TOKEN=hub-token"), true);
   assert.equal(script.includes("npm run windows:install"), true);
   assert.equal(script.includes("npm run services:install"), false);
+}
+
+{
+  const { outputDir, bundle } = runBundle([]);
+  const files = fs.readdirSync(outputDir).sort();
+  assert.deepEqual(files, [
+    "README.txt",
+    "macbook-air.sh",
+    "manifest.json",
+    "windows-desktop.ps1"
+  ]);
+  assert.equal(bundle.targets.length, 2);
+  assert.equal(bundle.targets.some((target) => target.platform === "macos"), true);
+  assert.equal(bundle.targets.some((target) => target.platform === "windows"), true);
+
+  const macScript = fs.readFileSync(path.join(outputDir, "macbook-air.sh"), "utf8");
+  const winScript = fs.readFileSync(path.join(outputDir, "windows-desktop.ps1"), "utf8");
+  const manifest = fs.readFileSync(path.join(outputDir, "manifest.json"), "utf8");
+  assert.equal(macScript.includes("PHONEDEX_HUB_TOKEN=hub-token"), true);
+  assert.equal(winScript.includes("PHONEDEX_HUB_TOKEN=hub-token"), true);
+  assert.equal(manifest.includes("hub-token"), false);
 }
 
 console.log("agent enrollment fixture test passed");

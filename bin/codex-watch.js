@@ -100,6 +100,11 @@ async function main() {
     return;
   }
 
+  if (command === "agent-bundle") {
+    agentBundleCommand(args);
+    return;
+  }
+
   if (command === "watch-sessions") {
     await watchSessions(args);
     return;
@@ -1442,6 +1447,21 @@ async function agentSelfTestCommand(args) {
   }
 }
 
+function agentBundleCommand(args) {
+  const cfg = config();
+  ensureDataDir(cfg.dataDir);
+  const flags = parseFlags(args);
+  const bundle = buildAgentBundle(cfg, flags);
+  writeAgentBundle(bundle);
+
+  if (flags.json) {
+    console.log(JSON.stringify(publicAgentBundle(bundle), null, 2));
+    return;
+  }
+
+  printAgentBundle(bundle);
+}
+
 function printHelp() {
   console.log(`PhoneDex
 
@@ -1459,6 +1479,7 @@ Usage:
   phonedex enroll-agent --device-id macbook-air --name "MacBook Air" --platform macos
   phonedex enroll-agent --device-id windows-desktop --name "Windows Desktop" --platform windows --script
   phonedex agent-self-test
+  phonedex agent-bundle
   phonedex replies
   phonedex run -- <command> [args...]
 
@@ -1476,6 +1497,7 @@ Compatibility aliases:
   watchdex enroll-agent --device-id macbook-air --name "MacBook Air" --platform macos
   watchdex enroll-agent --device-id windows-desktop --name "Windows Desktop" --platform windows --script
   watchdex agent-self-test
+  watchdex agent-bundle
   watchdex replies
   watchdex run -- <command> [args...]
 `);
@@ -2155,6 +2177,169 @@ function buildAgentEnrollment(cfg, flags) {
       recommendedExpectedDevices(cfg, { deviceId, machineName })
     )
   };
+}
+
+function buildAgentBundle(cfg, flags) {
+  const outputDir = path.resolve(
+    ROOT,
+    flags.outputDir || flags["output-dir"] || path.join(".local", "agent-bootstrap")
+  );
+  const includeAll = parseBoolean(flags.all, false);
+  const coverage = listDeviceCoverage(cfg);
+  const targets = coverage
+    .filter((device) => device.expected)
+    .filter((device) => device.deviceId !== cfg.deviceId)
+    .filter((device) => includeAll || device.status !== "online")
+    .map((device) => buildAgentBundleTarget(cfg, device, flags));
+
+  return {
+    outputDir,
+    generatedAt: new Date().toISOString(),
+    hubUrl: cfg.publicUrl,
+    expectedDevices: formatExpectedDevices(cfg.expectedDevices),
+    targets
+  };
+}
+
+function buildAgentBundleTarget(cfg, device, flags) {
+  const platform = guessAgentPlatform(device);
+  const callbackUrl =
+    flags.callbackUrl ||
+    flags["callback-url"] ||
+    defaultAgentCallbackUrl(device.deviceId);
+  const enrollment = buildAgentEnrollment(cfg, {
+    deviceId: device.deviceId,
+    name: device.machineName || device.deviceId,
+    platform,
+    callbackUrl
+  });
+  const extension = platform === "windows" ? "ps1" : "sh";
+  const fileName = `${safeFileStem(device.deviceId)}.${extension}`;
+
+  return {
+    deviceId: device.deviceId,
+    machineName: device.machineName || device.deviceId,
+    status: device.status || "missing",
+    platform,
+    fileName,
+    filePath: path.join(cfg.dataDir, "..", ".local", "agent-bootstrap", fileName),
+    script: buildEnrollmentScript(enrollment),
+    enrollment
+  };
+}
+
+function writeAgentBundle(bundle) {
+  fs.mkdirSync(bundle.outputDir, { recursive: true });
+  const manifestTargets = [];
+
+  for (const target of bundle.targets) {
+    const filePath = path.join(bundle.outputDir, target.fileName);
+    fs.writeFileSync(filePath, target.script);
+    if (target.platform === "macos") fs.chmodSync(filePath, 0o700);
+    target.filePath = filePath;
+    manifestTargets.push({
+      deviceId: target.deviceId,
+      machineName: target.machineName,
+      status: target.status,
+      platform: target.platform,
+      fileName: target.fileName,
+      filePath
+    });
+  }
+
+  const manifest = {
+    generatedAt: bundle.generatedAt,
+    hubUrl: bundle.hubUrl,
+    expectedDevices: bundle.expectedDevices,
+    targets: manifestTargets
+  };
+  const readme = renderAgentBundleReadme(manifest);
+  fs.writeFileSync(path.join(bundle.outputDir, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
+  fs.writeFileSync(path.join(bundle.outputDir, "README.txt"), readme);
+  bundle.manifestPath = path.join(bundle.outputDir, "manifest.json");
+  bundle.readmePath = path.join(bundle.outputDir, "README.txt");
+}
+
+function publicAgentBundle(bundle) {
+  return {
+    outputDir: bundle.outputDir,
+    generatedAt: bundle.generatedAt,
+    hubUrl: bundle.hubUrl,
+    expectedDevices: bundle.expectedDevices,
+    manifestPath: bundle.manifestPath,
+    readmePath: bundle.readmePath,
+    targets: bundle.targets.map((target) => ({
+      deviceId: target.deviceId,
+      machineName: target.machineName,
+      status: target.status,
+      platform: target.platform,
+      fileName: target.fileName,
+      filePath: target.filePath
+    }))
+  };
+}
+
+function printAgentBundle(bundle) {
+  const safe = publicAgentBundle(bundle);
+  console.log(`PhoneDex agent bootstrap bundle written to ${safe.outputDir}`);
+  console.log(`Manifest: ${safe.manifestPath}`);
+  console.log(`Readme: ${safe.readmePath}`);
+  if (safe.targets.length === 0) {
+    console.log("No missing expected agents need bootstrap scripts right now.");
+    return;
+  }
+
+  for (const target of safe.targets) {
+    console.log(`- ${target.machineName} [${target.deviceId}] ${target.platform}: ${target.filePath}`);
+  }
+}
+
+function renderAgentBundleReadme(manifest) {
+  const lines = [
+    "PhoneDex agent bootstrap bundle",
+    "",
+    `Generated: ${manifest.generatedAt}`,
+    `Hub URL: ${manifest.hubUrl}`,
+    `Expected devices: ${manifest.expectedDevices || "(none)"}`,
+    "",
+    "Copy each script to its matching target device and run it there.",
+    "Each script contains local tokens from this hub. Treat the files as private.",
+    ""
+  ];
+
+  for (const target of manifest.targets) {
+    lines.push(`${target.machineName} [${target.deviceId}]`);
+    lines.push(`  Script: ${target.fileName}`);
+    lines.push(
+      target.platform === "windows"
+        ? `  Run on Windows PowerShell: powershell -ExecutionPolicy Bypass -File .\\${target.fileName}`
+        : `  Run on macOS: chmod +x ./${target.fileName} && ./${target.fileName}`
+    );
+    lines.push("");
+  }
+
+  lines.push("After every target script passes, run on the hub:");
+  lines.push("  npm run devices");
+  lines.push("  npm run devices:verify");
+  return `${lines.join("\n")}\n`;
+}
+
+function guessAgentPlatform(device) {
+  const value = `${device.deviceId || ""} ${device.machineName || ""}`.toLowerCase();
+  if (/\bwin|windows/.test(value)) return "windows";
+  return "macos";
+}
+
+function defaultAgentCallbackUrl(deviceId) {
+  return `http://${safeFileStem(deviceId)}.local:8765`;
+}
+
+function safeFileStem(value) {
+  return String(value || "agent")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "agent";
 }
 
 function normalizeEnrollmentPlatform(value) {
