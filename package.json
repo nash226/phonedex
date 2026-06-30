@@ -41,6 +41,7 @@
     "replies": "node ./bin/codex-watch.js replies",
     "tasks": "node ./bin/codex-watch.js tasks",
     "devices": "node ./bin/codex-watch.js devices",
+    "test:session-watch": "node ./scripts/test-session-watch.js",
     "check": "node --check ./bin/codex-watch.js"
   },
   "engines": {

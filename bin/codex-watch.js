@@ -2029,6 +2029,7 @@ function readFinalSessionMessages(filePath) {
   const sessionId = path.basename(filePath).match(/(019[a-z0-9-]+)/i)?.[1] || "";
   const messages = [];
   let cwd = "";
+  let sequence = 0;
 
   for (const line of fs.readFileSync(filePath, "utf8").split(/\r?\n/)) {
     if (!line) continue;
@@ -2061,6 +2062,22 @@ function readFinalSessionMessages(filePath) {
         id: `${filePath}:${payload.turn_id || record.timestamp}:task_complete`,
         messageId: payload.turn_id || "",
         at: sessionEventTimestamp(record, payload),
+        text,
+        cwd,
+        sessionId
+      });
+      continue;
+    }
+
+    if (record.type === "event_msg" && payload.type === "agent_message") {
+      const text = String(payload.message || "").trim();
+      if (payload.phase !== "final_answer" || !text) continue;
+
+      sequence += 1;
+      messages.push({
+        id: `${filePath}:${record.timestamp || sequence}:agent_message:${sequence}`,
+        messageId: record.timestamp || "",
+        at: record.timestamp || new Date().toISOString(),
         text,
         cwd,
         sessionId
