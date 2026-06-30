@@ -971,17 +971,28 @@ function pruneAgentInvites(invites, cfg = {}, now = new Date()) {
   const maxActive = positiveNumber(cfg.agentInviteMaxActive, DEFAULT_AGENT_INVITE_MAX_ACTIVE);
   if (active.length <= maxActive) return active;
 
-  return active
-    .slice()
-    .sort((left, right) => compareAgentInviteRetention(left, right))
-    .slice(-maxActive)
-    .sort(compareAgentInviteCreatedAt);
-}
+  const sorted = active.slice().sort(compareAgentInviteCreatedAt);
+  const newest = sorted[sorted.length - 1];
+  const selected = [newest];
+  const remainingSlots = maxActive - selected.length;
+  const used = sorted
+    .slice(0, -1)
+    .filter(agentInviteHasActivity)
+    .slice(-remainingSlots);
+  selected.push(...used);
 
-function compareAgentInviteRetention(left, right) {
-  const usedDelta = agentInviteHasActivity(left) - agentInviteHasActivity(right);
-  if (usedDelta !== 0) return usedDelta;
-  return compareAgentInviteCreatedAt(left, right);
+  const stillAvailable = maxActive - selected.length;
+  if (stillAvailable > 0) {
+    const selectedCodes = new Set(selected.map((invite) => invite.code));
+    selected.push(
+      ...sorted
+        .slice(0, -1)
+        .filter((invite) => !selectedCodes.has(invite.code))
+        .slice(-stillAvailable)
+    );
+  }
+
+  return selected.sort(compareAgentInviteCreatedAt);
 }
 
 function compareAgentInviteCreatedAt(left, right) {
