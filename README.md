@@ -182,7 +182,9 @@ node ./bin/codex-watch.js enroll-agent --device-id windows-desktop --name "Windo
 The generated bootstrap script runs `npm run agent:self-test` after installing
 the service, so the target device immediately proves that heartbeat and task
 forwarding work, and that the session watcher can capture a completed Codex
-response.
+response. It also reports install stages back to the hub at `/agent-installs`,
+so `npm run agent:installs` can show whether the target reached clone, env
+write, service install, self-test, or failure.
 
 To write bootstrap scripts for every expected device that is not currently
 online, run this on the hub:
@@ -398,6 +400,7 @@ callers cannot record replies.
 | `npm run agent:bundle` | On the hub, write private bootstrap scripts for expected agents that are not online. |
 | `npm run agent:invite` | On the hub, create a short-lived invite URL for the missing-agent setup page. |
 | `npm run agent:invites` | Show active invite links, page views, and bootstrap downloads. |
+| `npm run agent:installs` | Show recent bootstrap install stage reports from missing agents. |
 | `node ./bin/codex-watch.js run -- <command>` | Run a command and notify when it exits. |
 | `npm run services:install` | Install the macOS LaunchAgent for the PhoneDex service. |
 | `npm run services:start` | Start the LaunchAgents. |
@@ -477,6 +480,8 @@ CODEX_APP_SERVER_BIN=/Users/YOUR_USER/.local/bin/codex
 - `data/events.jsonl` stores provider delivery attempts.
 - `data/devices.json` stores the latest service heartbeat for each configured
   device.
+- `data/agent-installs.jsonl` stores bootstrap install stage reports from
+  remote agents.
 - `data/session-watch-state.json` stores session message ids already seen by
   the fallback watcher.
 - `/reply` rejects requests with an invalid token when `WATCH_BRIDGE_TOKEN` is

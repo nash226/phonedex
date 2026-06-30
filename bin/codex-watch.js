@@ -13,6 +13,7 @@ const SESSION_WATCH_STATE = "session-watch-state.json";
 const DEVICES_STATE_FILE = "devices.json";
 const COVERAGE_ALERT_STATE_FILE = "coverage-alert-state.json";
 const AGENT_INVITES_FILE = "agent-invites.json";
+const AGENT_INSTALLS_FILE = "agent-installs.jsonl";
 const AGENT_BOOTSTRAP_DIR_DEFAULT = path.join(ROOT, ".local", "agent-bootstrap");
 const APP_SERVER_RESUME_TIMEOUT_MS = 30 * 60 * 1000;
 const PHONE_NOTIFICATION_TEXT_MAX = 1800;
@@ -117,6 +118,11 @@ async function main() {
 
   if (command === "agent-invite") {
     agentInviteCommand(args);
+    return;
+  }
+
+  if (command === "agent-installs") {
+    printAgentInstalls(args);
     return;
   }
 
@@ -597,6 +603,20 @@ async function startServer(providedCfg) {
         return handleDeviceHeartbeatRequest(req, res, requestUrl, cfg);
       }
 
+      if (requestUrl.pathname === "/agent-installs") {
+        if (req.method === "POST") {
+          return handleAgentInstallReportRequest(req, res, requestUrl, cfg);
+        }
+        if (!isRequestTokenValid(req, requestUrl, cfg)) {
+          return sendJson(res, 401, { ok: false, error: "Invalid token" });
+        }
+        return sendJson(
+          res,
+          200,
+          readJsonl(cfg.dataDir, AGENT_INSTALLS_FILE).slice(-50).map(publicAgentInstallReport)
+        );
+      }
+
       if (requestUrl.pathname === "/devices") {
         if (!isRequestTokenValid(req, requestUrl, cfg)) {
           return sendJson(res, 401, { ok: false, error: "Invalid token" });
@@ -622,6 +642,7 @@ async function startServer(providedCfg) {
           "/tasks",
           "/devices",
           "/devices/heartbeat",
+          "/agent-installs",
           "/agent-bootstrap"
         ]
       });
@@ -697,6 +718,23 @@ async function handleDeviceHeartbeatRequest(req, res, requestUrl, cfg) {
   const device = normalizeDeviceHeartbeat(incoming, req);
   recordDeviceHeartbeat(cfg.dataDir, device);
   sendJson(res, 200, { ok: true, device });
+}
+
+async function handleAgentInstallReportRequest(req, res, requestUrl, cfg) {
+  const body = await readHttpBody(req);
+  const fields = {
+    ...Object.fromEntries(requestUrl.searchParams.entries()),
+    ...parseBodyFields(body, req.headers["content-type"] || "")
+  };
+  const token = fields.token || "";
+
+  if (cfg.token && token !== cfg.token && !isRequestTokenValid(req, requestUrl, cfg)) {
+    return sendJson(res, 401, { ok: false, error: "Invalid token" });
+  }
+
+  const report = createAgentInstallReport(fields, req);
+  appendJsonl(cfg.dataDir, AGENT_INSTALLS_FILE, report);
+  sendJson(res, 201, { ok: true, report: publicAgentInstallReport(report) });
 }
 
 async function handleAgentBootstrapRequest(req, res, requestUrl, cfg) {
@@ -933,6 +971,35 @@ function publicAgentInvite(cfg, invite) {
     events: Array.isArray(invite.events) ? invite.events : [],
     setupUrl: `${cfg.publicUrl}/agent-bootstrap/invite/${encodeURIComponent(invite.code)}`
   };
+}
+
+function createAgentInstallReport(fields, req) {
+  return {
+    id: makeId("install"),
+    at: new Date().toISOString(),
+    deviceId: String(fields.deviceId || fields.device_id || "").slice(0, 120),
+    machineName: String(fields.machineName || fields.machine || "").slice(0, 160),
+    platform: String(fields.platform || "").slice(0, 40),
+    stage: String(fields.stage || "unknown").slice(0, 80),
+    ok: parseBoolean(fields.ok, true),
+    message: String(fields.message || "").slice(0, 500),
+    source: String(fields.source || "bootstrap-script").slice(0, 80),
+    fileName: String(fields.fileName || fields.file_name || "").slice(0, 160),
+    inviteCode: String(fields.inviteCode || fields.invite_code || "").slice(0, 120),
+    userAgent: String(req.headers["user-agent"] || "").slice(0, 200),
+    receivedFrom: req.socket.remoteAddress || ""
+  };
+}
+
+function publicAgentInstallReport(report) {
+  if (!report || typeof report !== "object") return report;
+  const {
+    token,
+    hubToken,
+    hub_token,
+    ...safeReport
+  } = report;
+  return safeReport;
 }
 
 function readAgentBootstrapSetup(cfg, options = {}) {
@@ -1719,6 +1786,32 @@ function printRecent(fileName) {
   }
 }
 
+function printAgentInstalls(args) {
+  const cfg = config();
+  const flags = parseFlags(args);
+  const limit = Number(flags.limit || 50);
+  const entries = readJsonl(cfg.dataDir, AGENT_INSTALLS_FILE)
+    .slice(-positiveNumber(limit, 50))
+    .map(publicAgentInstallReport);
+
+  if (flags.json) {
+    console.log(JSON.stringify(entries, null, 2));
+    return;
+  }
+
+  if (entries.length === 0) {
+    console.log(`No entries in ${path.join(cfg.dataDir, AGENT_INSTALLS_FILE)}`);
+    return;
+  }
+
+  for (const entry of entries) {
+    const label = entry.machineName || entry.deviceId || "unknown agent";
+    const status = entry.ok ? "OK" : "FAILED";
+    const suffix = entry.message ? ` - ${entry.message}` : "";
+    console.log(`${entry.at} ${label} [${entry.deviceId}] ${entry.stage}: ${status}${suffix}`);
+  }
+}
+
 function printKnownDevices() {
   const cfg = config();
   const devices = listDeviceCoverage(cfg);
@@ -1909,6 +2002,7 @@ Usage:
   phonedex agent-bundle
   phonedex agent-invite
   phonedex agent-invite --list
+  phonedex agent-installs
   phonedex replies
   phonedex run -- <command> [args...]
 
@@ -1930,6 +2024,7 @@ Compatibility aliases:
   watchdex agent-bundle
   watchdex agent-invite
   watchdex agent-invite --list
+  watchdex agent-installs
   watchdex replies
   watchdex run -- <command> [args...]
 `);
@@ -2959,26 +3054,57 @@ function buildEnrollmentScript(enrollment) {
 
 function buildMacEnrollmentScript(enrollment) {
   return `#!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 
 ${macInstallDirAssignment(enrollment.installDir)}
 REPO_URL="https://github.com/nash226/phonedex.git"
+REPORT_URL="${shellDoubleQuote(enrollment.hubUrl)}/agent-installs"
+REPORT_TOKEN="${shellDoubleQuote(enrollment.env.PHONEDEX_HUB_TOKEN || "")}"
+DEVICE_ID="${shellDoubleQuote(enrollment.deviceId)}"
+MACHINE_NAME="${shellDoubleQuote(enrollment.machineName)}"
+
+report_stage() {
+  local stage="$1"
+  local ok="\${2:-true}"
+  local message="\${3:-}"
+
+  curl -fsS -X POST "$REPORT_URL" \\
+    --data-urlencode "token=$REPORT_TOKEN" \\
+    --data-urlencode "deviceId=$DEVICE_ID" \\
+    --data-urlencode "machineName=$MACHINE_NAME" \\
+    --data-urlencode "platform=macos" \\
+    --data-urlencode "stage=$stage" \\
+    --data-urlencode "ok=$ok" \\
+    --data-urlencode "message=$message" \\
+    --data-urlencode "source=bootstrap-script" >/dev/null 2>&1 || true
+}
+
+trap 'report_stage failed false "line $LINENO"' ERR
+report_stage started true
 
 if [[ -d "$INSTALL_DIR/.git" ]]; then
   git -C "$INSTALL_DIR" pull --ff-only
 else
   git clone "$REPO_URL" "$INSTALL_DIR"
 fi
+report_stage repo-ready true
 
 cd "$INSTALL_DIR"
 cat > .env <<'EOF'
 ${enrollment.envLines.join("\n")}
 EOF
 chmod 600 .env
+report_stage env-written true
 npm run install-hook
+report_stage hook-installed true
 npm run services:install
+report_stage service-installed true
 npm run agent:self-test
+report_stage self-test-passed true
 npm run services:status
+report_stage status-checked true
+report_stage completed true
+trap - ERR
 
 echo ""
 echo "PhoneDex agent ${shellEscapePlain(enrollment.machineName)} is installed."
@@ -2993,21 +3119,61 @@ function buildWindowsEnrollmentScript(enrollment) {
 
 ${windowsInstallDirAssignment(enrollment.installDir)}
 $RepoUrl = "https://github.com/nash226/phonedex.git"
+$ReportUrl = "${powershellDoubleQuote(enrollment.hubUrl)}/agent-installs"
+$ReportToken = "${powershellDoubleQuote(enrollment.env.PHONEDEX_HUB_TOKEN || "")}"
+$DeviceId = "${powershellDoubleQuote(enrollment.deviceId)}"
+$MachineName = "${powershellDoubleQuote(enrollment.machineName)}"
 
-if (Test-Path (Join-Path $InstallDir ".git")) {
-  git -C $InstallDir pull --ff-only
-} else {
-  git clone $RepoUrl $InstallDir
+function Report-Stage {
+  param(
+    [string]$Stage,
+    [string]$Ok = "true",
+    [string]$Message = ""
+  )
+
+  try {
+    Invoke-WebRequest -UseBasicParsing -Method Post -Uri $ReportUrl -Body @{
+      token = $ReportToken
+      deviceId = $DeviceId
+      machineName = $MachineName
+      platform = "windows"
+      stage = $Stage
+      ok = $Ok
+      message = $Message
+      source = "bootstrap-script"
+    } | Out-Null
+  } catch {}
 }
 
-Set-Location $InstallDir
-@'
+try {
+  Report-Stage "started"
+
+  if (Test-Path (Join-Path $InstallDir ".git")) {
+    git -C $InstallDir pull --ff-only
+  } else {
+    git clone $RepoUrl $InstallDir
+  }
+  Report-Stage "repo-ready"
+
+  Set-Location $InstallDir
+$EnvContent = @'
 ${enrollment.envLines.join("\n")}
-'@ | Set-Content -NoNewline -Encoding utf8 .env
-npm run install-hook
-npm run windows:install
-npm run agent:self-test
-npm run windows:status
+'@
+  $EnvContent | Set-Content -NoNewline -Encoding utf8 .env
+  Report-Stage "env-written"
+  npm run install-hook
+  Report-Stage "hook-installed"
+  npm run windows:install
+  Report-Stage "service-installed"
+  npm run agent:self-test
+  Report-Stage "self-test-passed"
+  npm run windows:status
+  Report-Stage "status-checked"
+  Report-Stage "completed"
+} catch {
+  Report-Stage "failed" "false" $_.Exception.Message
+  throw
+}
 
 Write-Host ""
 Write-Host "PhoneDex agent ${powershellDoubleQuote(enrollment.machineName)} is installed."
