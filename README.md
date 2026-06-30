@@ -151,6 +151,19 @@ PHONEDEX_MACHINE_NAME=Windows Desktop
 PHONEDEX_DEVICE_ID=windows-desktop
 ```
 
+Generate a ready-to-paste agent block from the hub with:
+
+```sh
+npm run agent:enroll -- --device-id macbook-air --name "MacBook Air" --platform macos --callback-url http://MACBOOK_AIR_LAN_IP:8765
+npm run agent:enroll -- --device-id windows-desktop --name "Windows Desktop" --platform windows --callback-url http://WINDOWS_LAN_IP:8765
+```
+
+The command prints the target device `.env`, the target install commands, and
+the hub `PHONEDEX_EXPECTED_DEVICES` value to use before running
+`npm run devices:verify`. When enrolling multiple agents, merge those generated
+hub values into one comma-separated `PHONEDEX_EXPECTED_DEVICES` line that
+includes the hub plus every Mac and Windows agent you expect to report.
+
 On macOS agents, start `npm run service` directly or install the LaunchAgent:
 
 ```sh
@@ -289,6 +302,7 @@ callers cannot record replies.
 | `npm run tasks` | Print recent recorded tasks. |
 | `npm run devices` | Print machines that have reported tasks to this hub. |
 | `npm run devices:verify` | Fail unless every configured expected device is online. |
+| `npm run agent:enroll -- --device-id <id> --name <name> --platform macos\|windows` | Print agent `.env` and install commands for another device. |
 | `node ./bin/codex-watch.js run -- <command>` | Run a command and notify when it exits. |
 | `npm run services:install` | Install the macOS LaunchAgent for the PhoneDex service. |
 | `npm run services:start` | Start the LaunchAgents. |
@@ -303,6 +317,7 @@ callers cannot record replies.
 | `npm run scan:sessions` | Scan recent Codex session logs once without notifying old history. |
 | `npm run test:session-watch` | Verify the session watcher captures Codex task-complete and final-answer records. |
 | `npm run test:device-coverage` | Verify the device coverage pass/fail logic with fixtures. |
+| `npm run test:agent-enrollment` | Verify generated agent enrollment output. |
 | `npm run ios:doctor` | Check whether this Mac can build/run the native PhoneDex iOS app. |
 | `npm run ios:install-xcode` | Install the compatible full Xcode version needed for the native iOS app. |
 | `npm run ios:generate` | Generate the native iOS Xcode project with XcodeGen. |
