@@ -9,11 +9,13 @@ The experience is intentionally simple:
 
 1. Codex finishes a response on a computer.
 2. PhoneDex notices the completed response.
-3. PhoneDex sends the completion text to Home Assistant or Pushcut.
-4. The provider delivers an actionable notification to iPhone.
+3. PhoneDex stores the completion locally and forwards it to the hub when this
+   machine is an agent.
+4. The native PhoneDex iOS app fetches the task, or Pushcut delivers an
+   optional webhook notification.
 5. You expand the notification, read the result, then tap a canned action or
    type or dictate a custom reply.
-6. The provider calls the originating machine's PhoneDex `/reply` endpoint.
+6. The iPhone calls the originating machine's PhoneDex `/reply` endpoint.
 7. PhoneDex records the reply and can paste it into the active Codex thread.
 
 ![PhoneDex iPhone notification](assets/phonedex-scroll-preview.png)
@@ -28,33 +30,28 @@ flowchart LR
     Win["Windows\nCodex + PhoneDex"]
   end
 
-  HA["Home Assistant\nnotification hub"]
+  Hub["PhoneDex hub\n/tasks + /devices"]
   Pushcut["Pushcut\noptional provider"]
   Phone["iPhone\nnative notification + dictation"]
   Watch["Apple Watch\noptional mirror/fallback"]
 
-  IMac -- completed reply --> HA
-  Air -- completed reply --> HA
-  Win -- completed reply --> HA
-  IMac -- completed reply --> Pushcut
-  Air -- completed reply --> Pushcut
-  Win -- completed reply --> Pushcut
-  HA --> Phone
+  IMac -- completed reply --> Hub
+  Air -- completed reply --> Hub
+  Win -- completed reply --> Hub
+  Hub -- latest tasks --> Phone
+  Hub -. optional webhook .-> Pushcut
   Pushcut --> Phone
   Phone -. optional mirror .-> Watch
-  Phone -- selected action/custom text --> HA
-  Phone -- selected action/custom text --> Pushcut
-  HA -- per-task replyUrl --> IMac
-  HA -- per-task replyUrl --> Air
-  HA -- per-task replyUrl --> Win
-  Pushcut -- per-task replyUrl --> IMac
-  Pushcut -- per-task replyUrl --> Air
-  Pushcut -- per-task replyUrl --> Win
+  Phone -- selected action/custom text --> Hub
+  Hub -- per-task replyUrl --> IMac
+  Hub -- per-task replyUrl --> Air
+  Hub -- per-task replyUrl --> Win
+  Pushcut -. per-task replyUrl .-> Hub
 ```
 
-Home Assistant or Pushcut acts as the notification hub. Each Codex machine
-still runs its own local PhoneDex bridge, because each machine owns its local
-Codex sessions and foreground paste permissions.
+The PhoneDex hub stores the shared task stream and device status. Each Codex
+machine still runs its own local PhoneDex bridge, because each machine owns its
+local Codex sessions and foreground paste permissions.
 
 ## Completion Detection
 
@@ -67,8 +64,8 @@ PhoneDex has two completion paths:
 
 The session watcher polls recent files under `~/.codex/sessions`, waits a
 short debounce period, then extracts final assistant text. It currently
-understands both older `response_item` final messages and newer `event_msg`
-records with `payload.type = "task_complete"`.
+understands older `response_item` final messages, `event_msg` records with
+`payload.type = "task_complete"`, and final-answer `agent_message` records.
 
 State lives in `data/session-watch-state.json`, so the watcher does not notify
 the same completed reply repeatedly.
@@ -87,8 +84,9 @@ Each task stores:
 - `sessionId`: Codex session id when available
 - `machineName`: human-readable source machine
 
-For Home Assistant, PhoneDex sends a `notify.mobile_app_*` service call with
-action data attached to each button:
+For the native iOS path, the app reads `/tasks`, schedules a local notification
+with category `PHONEDEX_TASK`, and posts action replies back to `/reply`.
+Pushcut can use the same task shape as an optional webhook fallback:
 
 ```json
 {
@@ -101,19 +99,11 @@ action data attached to each button:
 }
 ```
 
-That `replyUrl` is the multi-machine routing key. Home Assistant does not need
-to know which computer owns the task ahead of time; the notification carries
-the callback URL that should receive the reply.
-
-Home Assistant notifications include the full Codex output as the message and
-as the long-form `subject` field. The notification tap target is set to
-`noAction` so the phone stays in the native notification surface instead of
-opening a browser page.
-
-The Home Assistant path cannot change the app name, app icon, or outer system
-notification chrome. PhoneDex's native iOS path uses a notification content
-extension so the expanded view can show a branded, scrollable PhoneDex task
-surface like the README mockup.
+That `replyUrl` is the multi-machine routing key. The notification carries the
+callback URL that should receive the reply, so replies route back to the
+machine and session that created the task. PhoneDex's native iOS path uses a
+notification content extension so the expanded view can show a branded,
+scrollable task surface like the README mockup.
 
 ## Phone Actions
 
@@ -123,7 +113,7 @@ The action set is intentionally small:
 | --- | --- |
 | `Okay, what's next` | Literal foreground text: `okay whats next` |
 | `Let's do that` | Literal foreground text: `lets do that` |
-| `Custom reply` | Text from Home Assistant notification input, including iPhone dictation |
+| `Custom reply` | Text from the native iPhone notification input, including dictation |
 
 For background resume modes, PhoneDex can wrap canned choices in safer Codex
 instructions. In foreground mode, the text is pasted literally into the visible
@@ -137,21 +127,20 @@ primary custom text and dictation path.
 ```mermaid
 sequenceDiagram
   participant Phone as iPhone
-  participant Provider as Home Assistant or Pushcut
+  participant App as PhoneDex app
   participant Bridge as PhoneDex /reply
   participant Codex as Visible Codex thread
 
-  Phone->>Provider: notification action or custom text
-  Provider->>Bridge: POST action_data.replyUrl
+  Phone->>App: notification action or custom text
+  App->>Bridge: POST task replyUrl
   Bridge->>Bridge: verify WATCH_BRIDGE_TOKEN
   Bridge->>Bridge: append data/replies.jsonl
   Bridge->>Codex: foreground paste reply text
 ```
 
-The Home Assistant automation receives `mobile_app_notification_action`, reads
-`action_data.replyUrl`, and posts the reply body to that URL. This makes
-replies route back to the iMac, MacBook Air, or Windows machine that created
-the notification.
+The native app reads the task's `replyUrl` and posts the reply body to that
+URL. This makes replies route back to the iMac, MacBook Air, or Windows
+machine that created the notification.
 
 ## Auto-Resume Modes
 
@@ -172,13 +161,10 @@ On this Mac, launchd keeps the core services running:
 
 | Service | Role |
 | --- | --- |
-| `com.nash226.watchdex.bridge` | HTTP bridge with `/health`, `/reply`, `/tasks`, and `/replies`. |
-| `com.nash226.watchdex.session-watch` | Polls Codex sessions and creates notification tasks. |
-| `com.nash226.watchdex.homeassistant` | Local Home Assistant Core instance. |
-| `com.nash226.watchdex.homeassistant-tunnel` | Temporary Cloudflare tunnel for remote Home Assistant access. |
+| `com.nash226.watchdex.bridge` | PhoneDex service with `/health`, `/reply`, `/tasks`, `/devices`, and the session watcher. |
 
-Those launchd labels still use `watchdex` as legacy compatibility ids. The
-public CLI, docs, notification text, and npm package now present the product as
+That launchd label still uses `watchdex` as a legacy compatibility id. The
+public CLI, docs, notification text, and npm package present the product as
 PhoneDex.
 
 The live bridge health endpoint returns the machine name and reply URL:
@@ -199,8 +185,8 @@ local services.
 ## Engineering Choices
 
 The system is local-first. Codex sessions, replies, and logs stay on the
-machine that generated them. Home Assistant and Pushcut only act as
-notification and routing hubs.
+machine that generated them. The hub stores task metadata for configured
+devices; Pushcut is only an optional webhook notification fallback.
 
 The data model uses JSONL files instead of a database because the workflow is
 append-only and easy to inspect:
@@ -212,9 +198,9 @@ append-only and easy to inspect:
 | `data/events.jsonl` | Notification attempts and auto-resume events. |
 | `data/session-watch-state.json` | Deduplication state for the session watcher. |
 
-Security is handled with `WATCH_BRIDGE_TOKEN`. The token is included in Home
-Assistant action data and verified by `/reply`. The read endpoints used by the
-native app, `/tasks` and `/replies`, also require the token when it is set.
+Security is handled with `WATCH_BRIDGE_TOKEN`. The token is verified by
+`/reply`, `/tasks`, `/devices`, and `/replies` when it is set. Native app
+clients should send it as an authorization bearer token or query parameter.
 Secrets live in `.env`, which is ignored by git.
 
 ## Multi-Machine Plan
@@ -222,10 +208,10 @@ Secrets live in `.env`, which is ignored by git.
 The routing layer is ready. To add another computer:
 
 1. Install PhoneDex on that computer.
-2. Point it at the same Home Assistant instance or Pushcut setup.
+2. Point it at the same PhoneDex hub with `PHONEDEX_HUB_URL`.
 3. Set a unique `PHONEDEX_MACHINE_NAME`.
-4. Set `WATCH_BRIDGE_PUBLIC_URL` to a URL the provider can reach for that
-   computer.
+4. Set `WATCH_BRIDGE_PUBLIC_URL` to a URL the hub or phone can reach for that
+   computer's reply callback.
 5. Start the bridge and session watcher.
 
 MacBook Air should follow the same path as this Mac. Windows can send
@@ -242,4 +228,4 @@ Working now:
 - iPhone dictation works through the native custom reply field.
 - Foreground mode pastes the reply into the visible Codex thread.
 - Notifications include machine name and per-task reply URL.
-- Home Assistant routes replies back to the originating machine.
+- PhoneDex routes replies back to the originating machine.

@@ -1,8 +1,8 @@
 # PhoneDex Watch App
 
 This is the legacy native Apple Watch path for PhoneDex. It talks directly to
-the PhoneDex bridge instead of relying on Home Assistant notification text
-input.
+the PhoneDex bridge and can remain a secondary surface while the iPhone app is
+the primary reply path.
 
 ## Current MVP
 

@@ -125,26 +125,14 @@ function config() {
   const publicUrl = trimTrailingSlash(
     env.WATCH_BRIDGE_PUBLIC_URL || `http://${host}:${port}`
   );
-  const homeAssistantUrl = trimTrailingSlash(env.HOME_ASSISTANT_URL || "");
   const machineName = env.PHONEDEX_MACHINE_NAME || env.WATCHDEX_MACHINE_NAME || os.hostname();
   const deviceId = env.PHONEDEX_DEVICE_ID || env.WATCHDEX_DEVICE_ID || os.hostname();
-  const provider =
-    env.WATCH_BRIDGE_PROVIDER ||
-    (homeAssistantUrl && env.HOME_ASSISTANT_TOKEN ? "home-assistant" : "pushcut");
+  const provider = env.WATCH_BRIDGE_PROVIDER || "pushcut";
   const hubUrl = trimTrailingSlash(env.PHONEDEX_HUB_URL || "");
 
   return {
     provider,
     pushcutWebhookUrl: env.PUSHCUT_WEBHOOK_URL || "",
-    homeAssistantUrl,
-    homeAssistantToken: env.HOME_ASSISTANT_TOKEN || "",
-    homeAssistantNotifyService: env.HOME_ASSISTANT_NOTIFY_SERVICE || "",
-    homeAssistantInterruptionLevel:
-      env.HOME_ASSISTANT_INTERRUPTION_LEVEL || "time-sensitive",
-    homeAssistantCustomReplyMode: normalizeCustomReplyMode(
-      env.HOME_ASSISTANT_CUSTOM_REPLY_MODE
-    ),
-    shortcutName: env.PHONEDEX_SHORTCUT_NAME || env.WATCHDEX_SHORTCUT_NAME || "PhoneDex Reply",
     machineName,
     deviceId,
     publicUrl,
@@ -204,7 +192,7 @@ async function setup() {
 
   console.log("");
   console.log("Next:");
-  console.log("1. Choose pushcut or home-assistant in .env");
+  console.log("1. Configure the native iOS app, or set pushcut in .env as a fallback");
   console.log("2. Run: npm run server");
   console.log("3. In Codex, open /hooks and trust the PhoneDex hook");
   console.log("4. Run: npm run test-notify");
@@ -381,16 +369,15 @@ async function sendWatchNotification(cfg, task) {
     type: "notification-attempt",
     taskId: task.id,
     provider: cfg.provider,
-    hasPushcutWebhook: Boolean(cfg.pushcutWebhookUrl),
-    hasHomeAssistant: Boolean(
-      cfg.homeAssistantUrl &&
-      cfg.homeAssistantToken &&
-      cfg.homeAssistantNotifyService
-    )
+    hasPushcutWebhook: Boolean(cfg.pushcutWebhookUrl)
   };
 
-  if (cfg.provider === "home-assistant") {
-    await sendHomeAssistantNotification(cfg, task, event);
+  if (cfg.provider !== "pushcut") {
+    appendJsonl(cfg.dataDir, "events.jsonl", {
+      ...event,
+      skipped: true,
+      reason: `Unsupported notification provider: ${cfg.provider}`
+    });
     return;
   }
 
@@ -420,40 +407,6 @@ async function sendWatchNotification(cfg, task) {
 
   if (!response.ok) {
     throw new Error(`Pushcut returned HTTP ${response.status}: ${responseText}`);
-  }
-}
-
-async function sendHomeAssistantNotification(cfg, task, event) {
-  if (!cfg.homeAssistantUrl || !cfg.homeAssistantToken || !cfg.homeAssistantNotifyService) {
-    appendJsonl(cfg.dataDir, "events.jsonl", {
-      ...event,
-      skipped: true,
-      reason:
-        "HOME_ASSISTANT_URL, HOME_ASSISTANT_TOKEN, and HOME_ASSISTANT_NOTIFY_SERVICE are required"
-    });
-    return;
-  }
-
-  const service = parseHomeAssistantNotifyService(cfg.homeAssistantNotifyService);
-  const response = await fetch(`${cfg.homeAssistantUrl}/api/services/${service.domain}/${service.name}`, {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${cfg.homeAssistantToken}`,
-      "content-type": "application/json"
-    },
-    body: JSON.stringify(buildHomeAssistantBody(cfg, task))
-  });
-
-  const responseText = await response.text();
-  appendJsonl(cfg.dataDir, "events.jsonl", {
-    ...event,
-    status: response.status,
-    ok: response.ok,
-    response: responseText.slice(0, 500)
-  });
-
-  if (!response.ok) {
-    throw new Error(`Home Assistant returned HTTP ${response.status}: ${responseText}`);
   }
 }
 
@@ -506,102 +459,6 @@ function buildPushcutBody(cfg, task) {
   };
 }
 
-function buildHomeAssistantBody(cfg, task) {
-  const safeTaskId = task.id.replace(/[^A-Za-z0-9_]/g, "_").toUpperCase();
-  const message = formatPhoneNotificationMessage(task);
-  const customAction =
-    cfg.homeAssistantCustomReplyMode === "shortcut"
-      ? {
-          action: `WATCHDEX_SHORTCUT_${safeTaskId}`,
-          title: "Custom reply",
-          icon: "sfsymbols:pencil.circle",
-          uri: buildShortcutReplyUrl(cfg, task)
-        }
-      : {
-          action: "REPLY",
-          title: "Custom reply",
-          icon: "sfsymbols:pencil.circle",
-          choice: "custom",
-          behavior: "textInput",
-          textInputButtonTitle: "Send",
-          textInputPlaceholder: "Dictate or type your reply"
-        };
-  const actionPayloads = [
-    {
-      action: `WATCHDEX_OKAY_${safeTaskId}`,
-      title: "Okay, what's next",
-      icon: "sfsymbols:arrow.right.circle",
-      choice: "okay_whats_next"
-    },
-    {
-      action: `WATCHDEX_DO_THAT_${safeTaskId}`,
-      title: "Let's do that",
-      icon: "sfsymbols:checkmark.circle",
-      choice: "lets_do_that"
-    },
-    customAction
-  ];
-
-  return {
-    title: task.title,
-    message,
-    data: {
-      tag: task.id,
-      group: "phonedex",
-      url: "noAction",
-      subtitle: formatPhoneNotificationSubtitle(cfg, task),
-      subject: message,
-      presentation_options: ["alert", "sound"],
-      push: {
-        "interruption-level": cfg.homeAssistantInterruptionLevel,
-        "thread-id": "phonedex"
-      },
-      actions: actionPayloads.map((payload) => ({
-        action: payload.action,
-        title: payload.title,
-        ...(payload.icon ? { icon: payload.icon } : {}),
-        ...(payload.uri ? { uri: payload.uri } : { activationMode: "background" }),
-        ...(payload.behavior ? { behavior: payload.behavior } : {}),
-        ...(payload.textInputButtonTitle ? { textInputButtonTitle: payload.textInputButtonTitle } : {}),
-        ...(payload.textInputPlaceholder ? { textInputPlaceholder: payload.textInputPlaceholder } : {}),
-        ...(payload.uri
-          ? {}
-          : {
-              action_data: {
-                token: cfg.token,
-                taskId: task.id,
-                choice: payload.choice,
-                prompt: RESPONSE_CHOICES[payload.choice],
-                replyUrl: cfg.replyUrl,
-                machineName: task.machineName || cfg.machineName
-              }
-            })
-      }))
-    }
-  };
-}
-
-function buildTaskViewUrl(cfg, task) {
-  const url = new URL(`${cfg.publicUrl}/task`);
-  url.searchParams.set("id", task.id);
-  url.searchParams.set("token", cfg.token);
-  return url.toString();
-}
-
-function buildShortcutReplyUrl(cfg, task) {
-  const replyUrl = new URL(cfg.replyUrl);
-  replyUrl.searchParams.set("token", cfg.token);
-  replyUrl.searchParams.set("taskId", task.id);
-  replyUrl.searchParams.set("choice", "custom");
-  replyUrl.searchParams.set("machineName", cfg.machineName);
-
-  const shortcutUrl = new URL("shortcuts://run-shortcut");
-  shortcutUrl.searchParams.set("name", cfg.shortcutName);
-  shortcutUrl.searchParams.set("input", "text");
-  shortcutUrl.searchParams.set("text", replyUrl.toString());
-  return shortcutUrl.toString();
-}
-
 function isRequestTokenValid(req, requestUrl, cfg) {
   if (!cfg.token) return true;
 
@@ -619,35 +476,10 @@ function formatNotificationTitle(cfg, task) {
   return `${task.title} @ ${machineName}`;
 }
 
-function formatPhoneNotificationSubtitle(cfg, task = {}) {
-  const machineName = task.machineName || cfg.machineName;
-  return machineName ? `PhoneDex • ${machineName}` : "PhoneDex";
-}
-
 function formatPhoneNotificationMessage(task) {
   const text = normalizeNotificationText(task.text || "Task completed");
   if (/^completed[:\s]/i.test(text)) return text;
   return `Completed: ${text}`;
-}
-
-function normalizeCustomReplyMode(value) {
-  const mode = String(value || "reply").trim().toLowerCase();
-  if (mode === "shortcut") return "shortcut";
-  return "reply";
-}
-
-function parseHomeAssistantNotifyService(value) {
-  const cleaned = String(value || "").trim();
-  if (!cleaned) {
-    throw new Error("HOME_ASSISTANT_NOTIFY_SERVICE is required");
-  }
-
-  if (cleaned.includes(".")) {
-    const [domain, name] = cleaned.split(".", 2);
-    return { domain, name };
-  }
-
-  return { domain: "notify", name: cleaned };
 }
 
 async function startServer(providedCfg) {
@@ -681,10 +513,6 @@ async function startServer(providedCfg) {
 
       if (requestUrl.pathname === "/task") {
         return handleTaskPageRequest(req, res, requestUrl, cfg);
-      }
-
-      if (requestUrl.pathname === "/ha-action-event") {
-        return handleHomeAssistantActionEvent(req, res, requestUrl, cfg);
       }
 
       if (requestUrl.pathname === "/replies") {
@@ -721,7 +549,6 @@ async function startServer(providedCfg) {
           "/health",
           "/reply",
           "/task",
-          "/ha-action-event",
           "/replies",
           "/tasks",
           "/devices",
@@ -816,37 +643,6 @@ async function handleTaskPageRequest(req, res, requestUrl, cfg) {
   }
 
   return sendHtml(res, 200, renderTaskPage(task));
-}
-
-async function handleHomeAssistantActionEvent(req, res, requestUrl, cfg) {
-  const body = await readHttpBody(req);
-  const fields = {
-    ...Object.fromEntries(requestUrl.searchParams.entries()),
-    ...parseBodyFields(body, req.headers["content-type"] || "")
-  };
-  const event = fields.event && typeof fields.event === "object" ? fields.event : fields;
-  const token = fields.token || event?.action_data?.token || "";
-
-  if (cfg.token && token !== cfg.token) {
-    return sendJson(res, 401, { ok: false, error: "Invalid token" });
-  }
-
-  appendJsonl(cfg.dataDir, "action-events.jsonl", {
-    at: new Date().toISOString(),
-    source: "home-assistant-action-event",
-    event: redactActionEvent(event),
-    userAgent: req.headers["user-agent"] || ""
-  });
-
-  sendJson(res, 200, { ok: true });
-}
-
-function redactActionEvent(event) {
-  if (!event || typeof event !== "object") return event;
-  const clone = JSON.parse(JSON.stringify(event));
-  if (clone.action_data?.token) clone.action_data.token = "[redacted]";
-  if (clone.token) clone.token = "[redacted]";
-  return clone;
 }
 
 async function handleReplyRequest(req, res, requestUrl, cfg) {
