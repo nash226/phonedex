@@ -95,6 +95,11 @@ async function main() {
     return;
   }
 
+  if (command === "agent-self-test") {
+    await agentSelfTestCommand(args);
+    return;
+  }
+
   if (command === "watch-sessions") {
     await watchSessions(args);
     return;
@@ -273,16 +278,17 @@ async function recordTaskAndDispatch(cfg, task, options = {}) {
 
   appendJsonl(cfg.dataDir, "tasks.jsonl", task);
 
-  if (options.forward !== false) {
-    await maybeForwardTaskToHub(cfg, task);
-  }
+  const forward =
+    options.forward !== false
+      ? await maybeForwardTaskToHub(cfg, task)
+      : { ok: true, skipped: true, reason: "forward disabled" };
 
   const shouldNotify = options.notify !== false && !cfg.agentMode;
   if (shouldNotify) {
     await sendWatchNotification(cfg, task);
   }
 
-  return { task, created: true };
+  return { task, created: true, forward };
 }
 
 function findDuplicateTask(dataDir, task) {
@@ -327,7 +333,13 @@ function findDuplicateTask(dataDir, task) {
 }
 
 async function maybeForwardTaskToHub(cfg, task) {
-  if (!cfg.hubUrl || isSameBaseUrl(cfg.hubUrl, cfg.publicUrl)) return;
+  if (!cfg.hubUrl || isSameBaseUrl(cfg.hubUrl, cfg.publicUrl)) {
+    return {
+      ok: true,
+      skipped: true,
+      reason: !cfg.hubUrl ? "PHONEDEX_HUB_URL is not configured" : "hubUrl matches publicUrl"
+    };
+  }
 
   const event = {
     at: new Date().toISOString(),
@@ -364,12 +376,21 @@ async function maybeForwardTaskToHub(cfg, task) {
       ok: response.ok,
       response: responseText.slice(0, 500)
     });
+    return {
+      ok: response.ok,
+      status: response.status,
+      response: responseText.slice(0, 500)
+    };
   } catch (error) {
     appendJsonl(cfg.dataDir, "events.jsonl", {
       ...event,
       ok: false,
       error: error.message
     });
+    return {
+      ok: false,
+      error: error.message
+    };
   }
 }
 
@@ -1404,6 +1425,23 @@ function enrollAgentCommand(args) {
   printAgentEnrollment(enrollment);
 }
 
+async function agentSelfTestCommand(args) {
+  const cfg = config();
+  ensureDataDir(cfg.dataDir);
+  const flags = parseFlags(args);
+  const report = await runAgentSelfTest(cfg);
+
+  if (flags.json) {
+    console.log(JSON.stringify(report, null, 2));
+  } else {
+    printAgentSelfTestReport(report);
+  }
+
+  if (!report.ok) {
+    process.exitCode = 1;
+  }
+}
+
 function printHelp() {
   console.log(`PhoneDex
 
@@ -1420,6 +1458,7 @@ Usage:
   phonedex verify-devices
   phonedex enroll-agent --device-id macbook-air --name "MacBook Air" --platform macos
   phonedex enroll-agent --device-id windows-desktop --name "Windows Desktop" --platform windows --script
+  phonedex agent-self-test
   phonedex replies
   phonedex run -- <command> [args...]
 
@@ -1436,6 +1475,7 @@ Compatibility aliases:
   watchdex verify-devices
   watchdex enroll-agent --device-id macbook-air --name "MacBook Air" --platform macos
   watchdex enroll-agent --device-id windows-desktop --name "Windows Desktop" --platform windows --script
+  watchdex agent-self-test
   watchdex replies
   watchdex run -- <command> [args...]
 `);
@@ -1579,7 +1619,13 @@ function buildLocalDeviceHeartbeat(cfg) {
 }
 
 async function maybeForwardDeviceHeartbeatToHub(cfg, device) {
-  if (!cfg.hubUrl || isSameBaseUrl(cfg.hubUrl, cfg.publicUrl)) return;
+  if (!cfg.hubUrl || isSameBaseUrl(cfg.hubUrl, cfg.publicUrl)) {
+    return {
+      ok: true,
+      skipped: true,
+      reason: !cfg.hubUrl ? "PHONEDEX_HUB_URL is not configured" : "hubUrl matches publicUrl"
+    };
+  }
 
   try {
     const response = await fetch(`${cfg.hubUrl}/devices/heartbeat`, {
@@ -1605,6 +1651,11 @@ async function maybeForwardDeviceHeartbeatToHub(cfg, device) {
         response: responseText.slice(0, 500)
       });
     }
+    return {
+      ok: response.ok,
+      status: response.status,
+      response: responseText.slice(0, 500)
+    };
   } catch (error) {
     appendJsonl(cfg.dataDir, "events.jsonl", {
       at: new Date().toISOString(),
@@ -1614,6 +1665,10 @@ async function maybeForwardDeviceHeartbeatToHub(cfg, device) {
       ok: false,
       error: error.message
     });
+    return {
+      ok: false,
+      error: error.message
+    };
   }
 }
 
@@ -1766,6 +1821,169 @@ function buildDeviceCoverageReport(cfg, options = {}) {
   };
 }
 
+async function runAgentSelfTest(cfg) {
+  const startedAt = new Date().toISOString();
+  const issues = [];
+  const hubReady = Boolean(cfg.hubUrl) && !isSameBaseUrl(cfg.hubUrl, cfg.publicUrl);
+
+  if (!hubReady) {
+    issues.push({
+      code: "hub-url-missing",
+      message: "PHONEDEX_HUB_URL must point at the hub from an agent device."
+    });
+  }
+
+  const device = buildLocalDeviceHeartbeat(cfg);
+  recordDeviceHeartbeat(cfg.dataDir, device);
+  const heartbeatForward = await maybeForwardDeviceHeartbeatToHub(cfg, device);
+
+  const task = createTask({
+    source: "agent-self-test",
+    title: "PhoneDex agent self-test",
+    text: `Agent self-test from ${cfg.machineName} at ${startedAt}`,
+    cwd: process.cwd(),
+    sessionId: `agent-self-test-${cfg.deviceId}-${Date.now()}`
+  });
+  const taskResult = await recordTaskAndDispatch(cfg, task, { notify: false });
+  const taskForward = taskResult.forward || {
+    ok: false,
+    skipped: true,
+    reason: "task forwarding result was not recorded"
+  };
+
+  const devicesCheck = hubReady
+    ? await fetchHubJson(cfg, "/devices")
+    : { ok: false, skipped: true, reason: "hub unavailable" };
+  const tasksCheck = hubReady
+    ? await fetchHubJson(cfg, "/tasks")
+    : { ok: false, skipped: true, reason: "hub unavailable" };
+
+  const hubDevice = Array.isArray(devicesCheck.json)
+    ? devicesCheck.json.find((candidate) => candidate.deviceId === cfg.deviceId)
+    : null;
+  const hubTask = Array.isArray(tasksCheck.json)
+    ? tasksCheck.json.find(
+        (candidate) =>
+          candidate.originTaskId === task.id ||
+          candidate.id === task.id ||
+          candidate.sessionId === task.sessionId
+      )
+    : null;
+
+  if (!heartbeatForward.ok || heartbeatForward.skipped) {
+    issues.push({
+      code: "heartbeat-forward-failed",
+      message: heartbeatForward.reason || heartbeatForward.error || "Heartbeat did not reach hub."
+    });
+  }
+
+  if (!taskForward.ok || taskForward.skipped) {
+    issues.push({
+      code: "task-forward-failed",
+      message: taskForward.reason || taskForward.error || "Self-test task did not reach hub."
+    });
+  }
+
+  if (!devicesCheck.ok) {
+    issues.push({
+      code: "hub-devices-check-failed",
+      message: devicesCheck.error || devicesCheck.response || "Could not read hub /devices."
+    });
+  } else if (!hubDevice) {
+    issues.push({
+      code: "hub-device-not-visible",
+      message: `${cfg.deviceId} was not visible in hub /devices after heartbeat.`
+    });
+  }
+
+  if (!tasksCheck.ok) {
+    issues.push({
+      code: "hub-tasks-check-failed",
+      message: tasksCheck.error || tasksCheck.response || "Could not read hub /tasks."
+    });
+  } else if (!hubTask) {
+    issues.push({
+      code: "hub-task-not-visible",
+      message: `${task.id} was not visible in hub /tasks after forwarding.`
+    });
+  }
+
+  return {
+    ok: issues.length === 0,
+    checkedAt: new Date().toISOString(),
+    deviceId: cfg.deviceId,
+    machineName: cfg.machineName,
+    hubUrl: cfg.hubUrl || "",
+    publicUrl: cfg.publicUrl,
+    heartbeatForward,
+    taskForward,
+    hubDevice: hubDevice || null,
+    hubTask: hubTask || null,
+    task: publicTask(task),
+    issues
+  };
+}
+
+async function fetchHubJson(cfg, pathname) {
+  try {
+    const response = await fetch(`${cfg.hubUrl}${pathname}`, {
+      headers: {
+        ...(cfg.hubToken ? { authorization: `Bearer ${cfg.hubToken}` } : {})
+      }
+    });
+    const responseText = await response.text();
+    let json = null;
+    try {
+      json = responseText ? JSON.parse(responseText) : null;
+    } catch {
+      // Keep the raw response below for diagnostics.
+    }
+
+    return {
+      ok: response.ok,
+      status: response.status,
+      response: responseText.slice(0, 500),
+      json
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error.message
+    };
+  }
+}
+
+function printAgentSelfTestReport(report) {
+  console.log(`PhoneDex agent self-test: ${report.ok ? "OK" : "NOT OK"}`);
+  console.log(`Device: ${report.machineName} [${report.deviceId}]`);
+  console.log(`Hub: ${report.hubUrl || "(not configured)"}`);
+  console.log(
+    `Heartbeat forward: ${report.heartbeatForward.ok ? "OK" : "FAILED"} ` +
+      statusSuffix(report.heartbeatForward)
+  );
+  console.log(
+    `Task forward: ${report.taskForward.ok ? "OK" : "FAILED"} ${statusSuffix(report.taskForward)}`
+  );
+  console.log(`Hub device visible: ${report.hubDevice ? "yes" : "no"}`);
+  console.log(`Hub task visible: ${report.hubTask ? "yes" : "no"}`);
+
+  if (report.issues.length > 0) {
+    console.log("");
+    console.log("Issues:");
+    for (const issue of report.issues) {
+      console.log(`- ${issue.message}`);
+    }
+  }
+}
+
+function statusSuffix(result) {
+  if (!result) return "";
+  if (result.status) return `(HTTP ${result.status})`;
+  if (result.reason) return `(${result.reason})`;
+  if (result.error) return `(${result.error})`;
+  return "";
+}
+
 function buildAgentEnrollment(cfg, flags) {
   const deviceId = String(flags.deviceId || flags["device-id"] || "").trim();
   if (!deviceId) {
@@ -1843,6 +2061,7 @@ function enrollmentCommands(platform) {
       "node .\\bin\\codex-watch.js setup",
       "npm run install-hook",
       "npm run windows:install",
+      "npm run agent:self-test",
       "npm run windows:status"
     ];
   }
@@ -1853,6 +2072,7 @@ function enrollmentCommands(platform) {
     "node ./bin/codex-watch.js setup",
     "npm run install-hook",
     "npm run services:install",
+    "npm run agent:self-test",
     "npm run services:status"
   ];
 }
@@ -1882,6 +2102,7 @@ EOF
 chmod 600 .env
 npm run install-hook
 npm run services:install
+npm run agent:self-test
 npm run services:status
 
 echo ""
@@ -1910,6 +2131,7 @@ ${enrollment.envLines.join("\n")}
 '@ | Set-Content -NoNewline -Encoding utf8 .env
 npm run install-hook
 npm run windows:install
+npm run agent:self-test
 npm run windows:status
 
 Write-Host ""

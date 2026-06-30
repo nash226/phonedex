@@ -175,6 +175,10 @@ node ./bin/codex-watch.js enroll-agent --device-id macbook-air --name "MacBook A
 node ./bin/codex-watch.js enroll-agent --device-id windows-desktop --name "Windows Desktop" --platform windows --callback-url http://WINDOWS_LAN_IP:8765 --script > phonedex-windows-agent.ps1
 ```
 
+The generated bootstrap script runs `npm run agent:self-test` after installing
+the service, so the target device immediately proves that heartbeat and task
+forwarding work.
+
 On macOS agents, start `npm run service` directly or install the LaunchAgent:
 
 ```sh
@@ -194,6 +198,15 @@ heartbeats at `POST /devices/heartbeat`; check coverage on the hub with:
 npm run devices
 npm run devices:verify
 ```
+
+On an agent device, run a direct forwarding proof with:
+
+```sh
+npm run agent:self-test
+```
+
+That sends a heartbeat and a synthetic task to the hub, then checks the hub's
+`/devices` and `/tasks` endpoints to confirm both are visible.
 
 ## Delivery Rails
 
@@ -314,6 +327,7 @@ callers cannot record replies.
 | `npm run devices` | Print machines that have reported tasks to this hub. |
 | `npm run devices:verify` | Fail unless every configured expected device is online. |
 | `npm run agent:enroll -- --device-id <id> --name <name> --platform macos\|windows` | Print agent `.env` and install commands for another device; add `--script` for a one-shot installer. |
+| `npm run agent:self-test` | From an agent, prove heartbeat and task forwarding to the hub. |
 | `node ./bin/codex-watch.js run -- <command>` | Run a command and notify when it exits. |
 | `npm run services:install` | Install the macOS LaunchAgent for the PhoneDex service. |
 | `npm run services:start` | Start the LaunchAgents. |
@@ -329,6 +343,7 @@ callers cannot record replies.
 | `npm run test:session-watch` | Verify the session watcher captures Codex task-complete and final-answer records. |
 | `npm run test:device-coverage` | Verify the device coverage pass/fail logic with fixtures. |
 | `npm run test:agent-enrollment` | Verify generated agent enrollment output. |
+| `npm run test:agent-self-test` | Verify a temporary agent can heartbeat and forward a task to a temporary hub. |
 | `npm run ios:doctor` | Check whether this Mac can build/run the native PhoneDex iOS app. |
 | `npm run ios:install-xcode` | Install the compatible full Xcode version needed for the native iOS app. |
 | `npm run ios:generate` | Generate the native iOS Xcode project with XcodeGen. |

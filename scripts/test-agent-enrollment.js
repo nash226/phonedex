@@ -105,6 +105,7 @@ function runEnrollScript(args) {
   assert.equal(enrollment.env.WATCH_BRIDGE_TOKEN, "agent-token");
   assert.equal(enrollment.env.WATCH_BRIDGE_PUBLIC_URL, "http://macbook.local:8765");
   assert.equal(enrollment.commands.includes("npm run services:install"), true);
+  assert.equal(enrollment.commands.includes("npm run agent:self-test"), true);
   assert.equal(
     enrollment.hubExpectedDevices,
     "imac:iMac,macbook-air:MacBook Air"
@@ -147,6 +148,7 @@ function runEnrollScript(args) {
   assert.equal(enrollment.platform, "windows");
   assert.equal(enrollment.env.WATCH_BRIDGE_PUBLIC_URL, "http://THIS_AGENT_LAN_IP:8765");
   assert.equal(enrollment.commands.includes("npm run windows:install"), true);
+  assert.equal(enrollment.commands.includes("npm run agent:self-test"), true);
   assert.equal(
     enrollment.hubExpectedDevices,
     "imac:iMac,windows-desktop:Windows Desktop"
