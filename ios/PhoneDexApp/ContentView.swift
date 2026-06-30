@@ -2,7 +2,11 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var model = NotificationPreviewModel()
-    @StateObject private var settings = PhoneDexSettings()
+    @ObservedObject private var settings: PhoneDexSettings
+
+    init(settings: PhoneDexSettings) {
+        self.settings = settings
+    }
 
     var body: some View {
         NavigationStack {

@@ -3,6 +3,8 @@ import UserNotifications
 
 @main
 struct PhoneDexApp: App {
+    @StateObject private var settings = PhoneDexSettings()
+
     private let notificationDelegate = PhoneDexNotificationDelegate()
 
     init() {
@@ -12,7 +14,10 @@ struct PhoneDexApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(settings: settings)
+                .onOpenURL { url in
+                    settings.apply(configurationURL: url)
+                }
         }
     }
 }
