@@ -84,6 +84,22 @@ function listAgentInvites(env) {
   return JSON.parse(result.stdout);
 }
 
+function createInvite(env, ttlMs = 60000) {
+  const result = spawnSync(
+    process.execPath,
+    [bridge, "agent-invite", "--json", "--ttl-ms", String(ttlMs)],
+    {
+      cwd: root,
+      encoding: "utf8",
+      env
+    }
+  );
+
+  assert.equal(result.stderr, "");
+  assert.equal(result.status, 0);
+  return JSON.parse(result.stdout);
+}
+
 async function main() {
   const port = await getFreePort();
   const hubUrl = `http://127.0.0.1:${port}`;
@@ -118,6 +134,7 @@ async function main() {
     WATCH_BRIDGE_PORT: String(port),
     WATCH_BRIDGE_PUBLIC_URL: hubUrl,
     WATCH_BRIDGE_TOKEN: "hub-token",
+    PHONEDEX_AGENT_INVITE_MAX_ACTIVE: "3",
     WATCH_BRIDGE_PROVIDER: "pushcut",
     PUSHCUT_WEBHOOK_URL: ""
   };
@@ -232,6 +249,18 @@ async function main() {
 
     const missing = await fetchText(`${hubUrl}/agent-bootstrap/missing.sh?token=hub-token`);
     assert.equal(missing.status, 404);
+
+    const first = createInvite(env);
+    const second = createInvite(env);
+    const third = createInvite(env);
+    const fourth = createInvite(env);
+    const retained = listAgentInvites(env);
+    assert.equal(retained.length, 3);
+    assert.equal(retained.some((candidate) => candidate.code === invite.code), true);
+    assert.equal(retained.some((candidate) => candidate.code === first.code), false);
+    assert.equal(retained.some((candidate) => candidate.code === second.code), false);
+    assert.equal(retained.some((candidate) => candidate.code === third.code), true);
+    assert.equal(retained.some((candidate) => candidate.code === fourth.code), true);
   } finally {
     hub.kill();
   }
