@@ -39,11 +39,13 @@
     "agent:bundle": "node ./bin/codex-watch.js agent-bundle",
     "agent:invite": "node ./bin/codex-watch.js agent-invite",
     "agent:invites": "node ./bin/codex-watch.js agent-invite --list",
+    "agent:installs": "node ./bin/codex-watch.js agent-installs",
     "test:session-watch": "node ./scripts/test-session-watch.js",
     "test:device-coverage": "node ./scripts/test-device-coverage.js",
     "test:coverage-alert": "node ./scripts/test-coverage-alert.js",
     "test:agent-enrollment": "node ./scripts/test-agent-enrollment.js",
     "test:agent-bootstrap-server": "node ./scripts/test-agent-bootstrap-server.js",
+    "test:agent-installs": "node ./scripts/test-agent-installs.js",
     "test:agent-self-test": "node ./scripts/test-agent-self-test.js",
     "check": "node --check ./bin/codex-watch.js"
   },

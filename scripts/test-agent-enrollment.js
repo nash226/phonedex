@@ -160,6 +160,8 @@ function runBundle(args) {
   assert.equal(script.startsWith("#!/usr/bin/env bash"), true);
   assert.equal(script.includes('INSTALL_DIR="$HOME/phonedex"'), true);
   assert.equal(script.includes("PHONEDEX_HUB_URL=http://hub.local:8765"), true);
+  assert.equal(script.includes('REPORT_URL="http://hub.local:8765/agent-installs"'), true);
+  assert.equal(script.includes("report_stage self-test-passed true"), true);
   assert.equal(script.includes("npm run services:install"), true);
   assert.equal(script.includes("npm run windows:install"), false);
 }
@@ -200,6 +202,8 @@ function runBundle(args) {
 
   assert.equal(script.includes('$InstallDir = "$env:USERPROFILE\\phonedex"'), true);
   assert.equal(script.includes("PHONEDEX_HUB_TOKEN=hub-token"), true);
+  assert.equal(script.includes('$ReportUrl = "http://hub.local:8765/agent-installs"'), true);
+  assert.equal(script.includes('Report-Stage "self-test-passed"'), true);
   assert.equal(script.includes("npm run windows:install"), true);
   assert.equal(script.includes("npm run services:install"), false);
 }
