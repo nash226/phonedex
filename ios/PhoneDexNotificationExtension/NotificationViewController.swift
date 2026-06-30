@@ -3,8 +3,6 @@ import UserNotifications
 import UserNotificationsUI
 
 final class NotificationViewController: UIViewController, UNNotificationContentExtension {
-    private let contentView = UIView()
-    private let stackView = UIStackView()
     private let appLabel = UILabel()
     private let titleLabel = UILabel()
     private let scrollView = UIScrollView()
@@ -31,18 +29,9 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
     }
 
     private func configureView() {
-        preferredContentSize = CGSize(width: 0, height: 520)
-        view.backgroundColor = .clear
-
-        contentView.translatesAutoresizingMaskIntoConstraints = false
-        contentView.backgroundColor = UIColor(red: 0.10, green: 0.11, blue: 0.13, alpha: 0.98)
-        contentView.layer.cornerRadius = 24
-        contentView.layer.cornerCurve = .continuous
-
-        stackView.translatesAutoresizingMaskIntoConstraints = false
-        stackView.axis = .vertical
-        stackView.alignment = .fill
-        stackView.spacing = 14
+        preferredContentSize = CGSize(width: UIScreen.main.bounds.width, height: 520)
+        view.backgroundColor = UIColor(red: 0.08, green: 0.09, blue: 0.11, alpha: 1)
+        view.isOpaque = true
 
         appLabel.translatesAutoresizingMaskIntoConstraints = false
         appLabel.textColor = UIColor(white: 0.82, alpha: 1)
@@ -55,6 +44,7 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
         titleLabel.numberOfLines = 3
 
         scrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.backgroundColor = .clear
         scrollView.alwaysBounceVertical = true
         scrollView.showsVerticalScrollIndicator = true
         scrollView.indicatorStyle = .white
@@ -67,25 +57,24 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
     }
 
     private func configureHierarchy() {
-        view.addSubview(contentView)
-        contentView.addSubview(stackView)
-        stackView.addArrangedSubview(appLabel)
-        stackView.addArrangedSubview(titleLabel)
-        stackView.addArrangedSubview(scrollView)
+        view.addSubview(appLabel)
+        view.addSubview(titleLabel)
+        view.addSubview(scrollView)
         scrollView.addSubview(bodyLabel)
 
         NSLayoutConstraint.activate([
-            contentView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
-            contentView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
-            contentView.topAnchor.constraint(equalTo: view.topAnchor, constant: 8),
-            contentView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -8),
+            appLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 22),
+            appLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -22),
+            appLabel.topAnchor.constraint(equalTo: view.topAnchor, constant: 20),
 
-            stackView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 22),
-            stackView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -22),
-            stackView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 20),
-            stackView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -20),
+            titleLabel.leadingAnchor.constraint(equalTo: appLabel.leadingAnchor),
+            titleLabel.trailingAnchor.constraint(equalTo: appLabel.trailingAnchor),
+            titleLabel.topAnchor.constraint(equalTo: appLabel.bottomAnchor, constant: 14),
 
-            scrollView.heightAnchor.constraint(greaterThanOrEqualToConstant: 220),
+            scrollView.leadingAnchor.constraint(equalTo: appLabel.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: appLabel.trailingAnchor),
+            scrollView.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 14),
+            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20),
 
             bodyLabel.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor),
             bodyLabel.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor),
@@ -99,7 +88,7 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
         appLabel.text = app
         titleLabel.text = title.isEmpty ? "Codex update" : title
         bodyLabel.text = body.isEmpty ? "No notification body was provided." : body
-        preferredContentSize = CGSize(width: 0, height: 520)
+        preferredContentSize = CGSize(width: UIScreen.main.bounds.width, height: 520)
         view.setNeedsLayout()
         view.layoutIfNeeded()
     }
