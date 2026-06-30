@@ -49,6 +49,10 @@ Apple's latest App Store Xcode may require macOS Tahoe. The install command can
 prompt for your Apple ID and macOS admin password because Apple gates older
 Xcode downloads and `/Applications` installs.
 
+`xcodes` may install the app as `/Applications/Xcode-26.3.0.app` instead of
+`/Applications/Xcode.app`. The helper detects either path. If you install Xcode
+somewhere else, set `PHONEDEX_XCODE_APP=/path/to/Xcode.app`.
+
 If you already downloaded the compatible Xcode `.xip` from Apple, install from
 that local file instead:
 
