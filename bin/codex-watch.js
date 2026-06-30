@@ -62,6 +62,11 @@ async function main() {
     return;
   }
 
+  if (command === "service") {
+    await startService(args);
+    return;
+  }
+
   if (command === "replies") {
     printRecent("replies.jsonl");
     return;
@@ -636,8 +641,8 @@ function parseHomeAssistantNotifyService(value) {
   return { domain: "notify", name: cleaned };
 }
 
-async function startServer() {
-  const cfg = config();
+async function startServer(providedCfg) {
+  const cfg = providedCfg || config();
   ensureDataDir(cfg.dataDir);
 
   if (!cfg.token) {
@@ -713,6 +718,16 @@ async function startServer() {
   if (cfg.hubUrl) {
     console.log(`Forwarding local Codex completions to PhoneDex hub: ${cfg.hubUrl}`);
   }
+
+  return server;
+}
+
+async function startService(args) {
+  const cfg = config();
+  ensureDataDir(cfg.dataDir);
+  await startServer(cfg);
+  await startSessionWatcher(cfg, args);
+  console.log(`PhoneDex service running as ${cfg.agentMode ? "agent" : "hub"}.`);
 }
 
 async function handleTaskIngestRequest(req, res, requestUrl, cfg) {
@@ -1508,6 +1523,7 @@ function printHelp() {
 Usage:
   phonedex setup
   phonedex server
+  phonedex service
   phonedex hook
   phonedex notify --title "Codex done" --text "Task completed"
   phonedex watch-sessions
@@ -1520,6 +1536,7 @@ Usage:
 Compatibility aliases:
   watchdex setup
   watchdex server
+  watchdex service
   watchdex hook
   watchdex notify --title "Codex done" --text "Task completed"
   watchdex watch-sessions
@@ -1687,6 +1704,10 @@ function effectivePort(url) {
 async function watchSessions(args) {
   const cfg = config();
   ensureDataDir(cfg.dataDir);
+  await startSessionWatcher(cfg, args);
+}
+
+async function startSessionWatcher(cfg, args = []) {
   const flags = parseFlags(args);
   const notifyExisting = Boolean(flags.notifyExisting || flags["notify-existing"]);
 

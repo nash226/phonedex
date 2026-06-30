@@ -10,6 +10,7 @@
   },
   "scripts": {
     "server": "node ./bin/codex-watch.js server",
+    "service": "node ./bin/codex-watch.js service",
     "hook": "node ./bin/codex-watch.js hook",
     "install-hook": "node ./scripts/install-codex-hook.js",
     "ha:install": "bash ./scripts/home-assistant-local.sh install",

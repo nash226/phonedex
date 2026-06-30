@@ -25,8 +25,8 @@ Usage:
 
 The installer writes user LaunchAgents for:
   - local Home Assistant Core on port 8123
-  - PhoneDex on port 8765
-  - PhoneDex session watcher for missed Codex Stop hooks
+  - PhoneDex service on port 8765, including the session watcher for missed
+    Codex Stop hooks
 EOF
 }
 
@@ -84,7 +84,7 @@ EOF
     <string>/usr/bin/env</string>
     <string>node</string>
     <string>$(xml_escape "$ROOT/bin/codex-watch.js")</string>
-    <string>server</string>
+    <string>service</string>
   </array>
   <key>WorkingDirectory</key>
   <string>$(xml_escape "$ROOT")</string>
@@ -105,43 +105,12 @@ EOF
 </plist>
 EOF
 
-  cat > "$SESSION_WATCH_PLIST" <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key>
-  <string>$SESSION_WATCH_LABEL</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>/usr/bin/env</string>
-    <string>node</string>
-    <string>$(xml_escape "$ROOT/bin/codex-watch.js")</string>
-    <string>watch-sessions</string>
-  </array>
-  <key>WorkingDirectory</key>
-  <string>$(xml_escape "$ROOT")</string>
-  <key>EnvironmentVariables</key>
-  <dict>
-    <key>PATH</key>
-    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
-  </dict>
-  <key>RunAtLoad</key>
-  <true/>
-  <key>KeepAlive</key>
-  <true/>
-  <key>StandardOutPath</key>
-  <string>$(xml_escape "$ROOT/.local/launchd-session-watch.out.log")</string>
-  <key>StandardErrorPath</key>
-  <string>$(xml_escape "$ROOT/.local/launchd-session-watch.err.log")</string>
-</dict>
-</plist>
-EOF
+  rm -f "$SESSION_WATCH_PLIST"
 
-  plutil -lint "$HA_PLIST" "$BRIDGE_PLIST" "$SESSION_WATCH_PLIST"
+  plutil -lint "$HA_PLIST" "$BRIDGE_PLIST"
   echo "Wrote $HA_PLIST"
   echo "Wrote $BRIDGE_PLIST"
-  echo "Wrote $SESSION_WATCH_PLIST"
+  echo "Removed legacy $SESSION_WATCH_PLIST"
 }
 
 bootout_if_loaded() {
@@ -152,13 +121,11 @@ bootout_if_loaded() {
 bootstrap() {
   launchctl bootstrap "$GUI_DOMAIN" "$HA_PLIST" 2>/dev/null || true
   launchctl bootstrap "$GUI_DOMAIN" "$BRIDGE_PLIST" 2>/dev/null || true
-  launchctl bootstrap "$GUI_DOMAIN" "$SESSION_WATCH_PLIST" 2>/dev/null || true
 }
 
 kickstart() {
   launchctl kickstart -k "$GUI_DOMAIN/$HA_LABEL" 2>/dev/null || true
   launchctl kickstart -k "$GUI_DOMAIN/$BRIDGE_LABEL" 2>/dev/null || true
-  launchctl kickstart -k "$GUI_DOMAIN/$SESSION_WATCH_LABEL" 2>/dev/null || true
 }
 
 case "${1:-}" in
@@ -187,7 +154,6 @@ case "${1:-}" in
   status)
     launchctl print "$GUI_DOMAIN/$HA_LABEL" 2>/dev/null || true
     launchctl print "$GUI_DOMAIN/$BRIDGE_LABEL" 2>/dev/null || true
-    launchctl print "$GUI_DOMAIN/$SESSION_WATCH_LABEL" 2>/dev/null || true
     ;;
 
   ""|help|-h|--help)

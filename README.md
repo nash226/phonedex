@@ -119,10 +119,10 @@ PHONEDEX_MACHINE_NAME=MacBook Air
 PHONEDEX_DEVICE_ID=macbook-air
 ```
 
-Start the reply server:
+Start the PhoneDex service:
 
 ```sh
-npm run server
+npm run service
 ```
 
 In Codex, open `/hooks`, review the `PhoneDex` hook, and trust it. Codex
@@ -153,9 +153,8 @@ PHONEDEX_MACHINE_NAME=Windows Desktop
 PHONEDEX_DEVICE_ID=windows-desktop
 ```
 
-Start `npm run server` and `npm run watch:sessions` on each machine. The hub
-will receive forwarded completions at `POST /tasks`; check the connected
-machines with:
+Start `npm run service` on each machine. The hub will receive forwarded
+completions at `POST /tasks`; check the connected machines with:
 
 ```sh
 npm run devices
@@ -298,6 +297,7 @@ callers cannot record replies.
 | `node ./bin/codex-watch.js setup` | Create `.env` with a generated reply token. |
 | `npm run install-hook` | Install the Codex `Stop` hook. |
 | `npm run server` | Start the local PhoneDex reply server. |
+| `npm run service` | Start the reply server and Codex session watcher together. |
 | `npm run test-notify` | Send a manual provider notification. |
 | `npm run replies` | Print recent phone replies. |
 | `npm run tasks` | Print recent recorded tasks. |
