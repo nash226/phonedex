@@ -15,6 +15,14 @@ latter to explain supported and unavailable actions rather than assuming Mac
 and Windows adapters have the same controls. Unsupported protocol versions
 return a visible compatibility error instead of being guessed or downgraded.
 
+Every agent also exposes a small supported Codex adapter boundary. The adapter
+descriptor reports the platform, selected continuation mode, version, bounded
+limitations, and only the capabilities that are actually available. CLI and
+app-server continuation use documented command contracts; foreground paste is
+macOS-only and experimental. The agent never claims private Codex Desktop UI
+parity, and the iPhone can hide or explain an unavailable reply capability from
+the heartbeat rather than guessing from the device platform.
+
 Task and device state is persisted through the versioned transactional store
 in [`lib/phonedex-store.js`](../lib/phonedex-store.js). It atomically replaces
 `phonedex-store.json`, retains the previous snapshot as
@@ -55,6 +63,7 @@ flowchart LR
   end
 
   Hub["PhoneDex hub\n/tasks + /devices"]
+  Adapter["Supported Codex adapter\nMac or Windows"]
   Pushcut["Pushcut\noptional provider"]
   Phone["iPhone\nnative notification + dictation"]
   Watch["Apple Watch\noptional mirror/fallback"]
@@ -67,6 +76,10 @@ flowchart LR
   Pushcut --> Phone
   Phone -. optional mirror .-> Watch
   Phone -- selected action/custom text --> Hub
+  IMac -. task reply .-> Adapter
+  Air -. task reply .-> Adapter
+  Win -. task reply .-> Adapter
+  Adapter -. bounded capabilities .-> Hub
   Hub -- per-task replyUrl --> IMac
   Hub -- per-task replyUrl --> Air
   Hub -- per-task replyUrl --> Win

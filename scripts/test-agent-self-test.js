@@ -106,6 +106,11 @@ async function main() {
     assert.equal(report.task.schema, "phonedex.task.v1");
     assert.equal(report.hubDevice.deviceId, "agent-one");
     assert.equal(report.hubDevice.schema, "phonedex.device.v1");
+    assert.equal(report.hubDevice.adapterId, "codex.cli");
+    assert.equal(report.hubDevice.adapterVersion, "1");
+    assert.equal(typeof report.hubDevice.adapterState, "string");
+    assert.equal(Array.isArray(report.hubDevice.adapterLimitations), true);
+    assert.equal(report.hubDevice.adapter.schema, "phonedex.adapter.v1");
     assert.equal(report.hubTask.originTaskId, report.task.id);
     assert.equal(report.hubTask.schema, "phonedex.task.v1");
     assert.equal(report.hubSessionTask.originTaskId, report.sessionWatch.taskId);
