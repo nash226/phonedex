@@ -14,6 +14,7 @@ final class PhoneDexLocalCacheTests: XCTestCase {
             cursor: "cursor.v1",
             tasks: [task(id: "task_123")],
             devices: [],
+            events: [event(taskID: "task_123")],
             lastSyncAt: Date(timeIntervalSince1970: 1_750_000_000),
             drafts: ["task_123": "Keep the next reply focused"],
             readingPositions: ["task_123": "activity"],
@@ -38,6 +39,7 @@ final class PhoneDexLocalCacheTests: XCTestCase {
         XCTAssertEqual(try cache.load(), state)
         XCTAssertEqual(try cache.load()?.pendingReplies.first?.questionId, "next-step")
         XCTAssertEqual(try cache.load()?.pendingReplies.first?.questionResponse, .choice("tests"))
+        XCTAssertEqual(try cache.load()?.events.first?.type, "progress")
         XCTAssertEqual(keyStore.key?.count, 32)
 
         try cache.remove()
@@ -96,6 +98,17 @@ final class PhoneDexLocalCacheTests: XCTestCase {
             status: "completed",
             branch: nil,
             repository: nil
+        )
+    }
+
+    private func event(taskID: String) -> PhoneDexEvent {
+        PhoneDexEvent(
+            id: "event_123",
+            taskId: taskID,
+            createdAt: "2026-07-15T12:00:01.000Z",
+            sequence: 1,
+            type: "progress",
+            data: ["summary": "Running checks"]
         )
     }
 }

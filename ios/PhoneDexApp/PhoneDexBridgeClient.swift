@@ -3,6 +3,7 @@ import Foundation
 struct PhoneDexSyncResult {
     let tasks: [PhoneDexTask]?
     let devices: [PhoneDexDevice]?
+    let events: [PhoneDexEvent]?
     let cursor: String?
     let restartedFromSnapshot: Bool
     let usedCompatibilityFallback: Bool
@@ -158,12 +159,14 @@ struct PhoneDexBridgeClient {
         cursor: String? = nil,
         tasks: [PhoneDexTask] = [],
         devices: [PhoneDexDevice] = [],
+        events: [PhoneDexEvent] = [],
         limit: Int = 50
     ) async throws -> PhoneDexSyncResult {
         var currentCursor = cursor?.isEmpty == true ? nil : cursor
         var restartedFromSnapshot = false
         var tasksByID = Dictionary(uniqueKeysWithValues: currentCursor == nil ? [] : tasks.map { ($0.id, $0) })
         var devicesByID = Dictionary(uniqueKeysWithValues: currentCursor == nil ? [] : devices.map { ($0.id, $0) })
+        var eventsByID = Dictionary(uniqueKeysWithValues: currentCursor == nil ? [] : events.map { ($0.id, $0) })
 
         while true {
             let page: PhoneDexSyncPage
@@ -173,6 +176,7 @@ struct PhoneDexBridgeClient {
                 currentCursor = nil
                 tasksByID.removeAll()
                 devicesByID.removeAll()
+                eventsByID.removeAll()
                 restartedFromSnapshot = true
                 continue
             }
@@ -181,9 +185,11 @@ struct PhoneDexBridgeClient {
                 if currentCursor == nil {
                     tasksByID.removeAll()
                     devicesByID.removeAll()
+                    eventsByID.removeAll()
                 }
                 for task in snapshot.tasks { tasksByID[task.id] = task }
                 for device in snapshot.devices { devicesByID[device.id] = device }
+                for event in snapshot.events { eventsByID[event.id] = event }
             }
             for change in page.changes {
                 switch change.kind {
@@ -201,6 +207,13 @@ struct PhoneDexBridgeClient {
                     } else if let device = change.device {
                         devicesByID[device.id] = device
                     }
+                case "event":
+                    if change.deleted {
+                        if let event = change.event { eventsByID.removeValue(forKey: event.id) }
+                        else { eventsByID.removeValue(forKey: change.id) }
+                    } else if let event = change.event {
+                        eventsByID[event.id] = event
+                    }
                 default:
                     continue
                 }
@@ -210,6 +223,7 @@ struct PhoneDexBridgeClient {
                 return PhoneDexSyncResult(
                     tasks: Array(tasksByID.values),
                     devices: Array(devicesByID.values),
+                    events: Array(eventsByID.values),
                     cursor: currentCursor,
                     restartedFromSnapshot: restartedFromSnapshot,
                     usedCompatibilityFallback: false,
@@ -223,10 +237,11 @@ struct PhoneDexBridgeClient {
         cursor: String? = nil,
         tasks: [PhoneDexTask] = [],
         devices: [PhoneDexDevice] = [],
+        events: [PhoneDexEvent] = [],
         limit: Int = 50
     ) async throws -> PhoneDexSyncResult {
         do {
-            return try await fetchSyncState(cursor: cursor, tasks: tasks, devices: devices, limit: limit)
+            return try await fetchSyncState(cursor: cursor, tasks: tasks, devices: devices, events: events, limit: limit)
         } catch let syncError {
             guard syncError.isCompatibilityFailure else { throw syncError }
 
@@ -238,6 +253,7 @@ struct PhoneDexBridgeClient {
             return PhoneDexSyncResult(
                 tasks: tasks,
                 devices: devices,
+                events: nil,
                 cursor: nil,
                 restartedFromSnapshot: false,
                 usedCompatibilityFallback: true,

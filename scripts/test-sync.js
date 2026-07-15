@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { addTaskProtocolFields } = require("../lib/phonedex-protocol");
+const { addTaskProtocolFields, protocolRecord } = require("../lib/phonedex-protocol");
 const { createPhoneDexStore } = require("../lib/phonedex-store");
 
 const now = "2026-07-15T12:00:00.000Z";
@@ -60,6 +60,19 @@ try {
   const tombstone = store.readSync({ cursor: stream.cursor, limit: 10 });
   assert.deepEqual(tombstone.changes.map(({ id, kind, deleted }) => ({ id, kind, deleted })), [
     { id: "task_4", kind: "task", deleted: true }
+  ]);
+
+  store.appendEvent(protocolRecord("event", {
+    id: "event_1",
+    taskId: "task_1",
+    createdAt: now,
+    sequence: 1,
+    type: "progress",
+    data: { summary: "Running focused checks" }
+  }));
+  const eventStream = store.readSync({ cursor: tombstone.cursor, limit: 10 });
+  assert.deepEqual(eventStream.changes.map(({ id, kind }) => ({ id, kind })), [
+    { id: "event_1", kind: "event" }
   ]);
 
   assert.throws(
