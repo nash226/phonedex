@@ -692,10 +692,33 @@ struct PhoneDexTaskDetailView: View {
             Label("Sent: \(prompt)", systemImage: "checkmark.circle.fill")
                 .foregroundStyle(.green)
                 .font(.subheadline)
+        case .queued(let prompt):
+            HStack(spacing: 10) {
+                Label("Queued offline: \(prompt)", systemImage: "clock.arrow.circlepath")
+                    .foregroundStyle(.orange)
+                    .font(.subheadline)
+                Spacer(minLength: 0)
+                Button("Retry") {
+                    Task { _ = await model.retryPendingReply(for: task) }
+                }
+                .buttonStyle(.bordered)
+                .disabled(model.replyState == .sending)
+            }
+            .accessibilityElement(children: .contain)
         case .failed(let error):
-            Label(error, systemImage: "exclamationmark.triangle.fill")
-                .foregroundStyle(.red)
-                .font(.subheadline)
+            HStack(spacing: 10) {
+                Label(error, systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.red)
+                    .font(.subheadline)
+                Spacer(minLength: 0)
+                if model.pendingReply(for: task.id) != nil {
+                    Button("Retry") {
+                        Task { _ = await model.retryPendingReply(for: task) }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(model.replyState == .sending)
+                }
+            }
         case .sending:
             HStack(spacing: 8) {
                 ProgressView().controlSize(.small)

@@ -51,19 +51,67 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
         }
 
         let client = PhoneDexBridgeClient(bridgeURL: bridgeURL, token: token)
+        let notificationID = response.notification.request.identifier
+        let commandID = "notification-" + notificationID + "-" + response.actionIdentifier
+        let idempotencyKey = "ios-" + commandID
+        let expectedTaskVersion = userInfo["taskVersion"] as? Int ?? 1
+        let pending = PhoneDexPendingReply(
+            commandId: commandID,
+            idempotencyKey: idempotencyKey,
+            taskId: userInfo["taskId"] as? String ?? "",
+            choice: choice.rawValue,
+            prompt: prompt,
+            expectedTaskVersion: expectedTaskVersion,
+            sessionId: userInfo["sessionId"] as? String,
+            machineName: userInfo["machineName"] as? String,
+            createdAt: Date()
+        )
+        updatePendingReply(pending, remove: false)
 
         do {
-            try await client.sendReply(
+            let receipt = try await client.sendReply(
                 choice: choice,
                 prompt: prompt,
                 taskId: userInfo["taskId"] as? String ?? "",
                 sessionId: userInfo["sessionId"] as? String,
-                machineName: userInfo["machineName"] as? String
+                machineName: userInfo["machineName"] as? String,
+                commandId: commandID,
+                idempotencyKey: idempotencyKey,
+                expectedTaskVersion: expectedTaskVersion
             )
-            NotificationReplyResult.record(.sent(prompt))
+            if receipt.isSuccessful {
+                updatePendingReply(pending, remove: true)
+                NotificationReplyResult.record(.sent(receipt.message ?? prompt))
+            } else {
+                NotificationReplyResult.record(.failed(receipt.message ?? "The reply remains queued for retry."))
+            }
         } catch {
             NotificationReplyResult.record(.failed(error.localizedDescription))
         }
+    }
+
+    private func updatePendingReply(_ pending: PhoneDexPendingReply, remove: Bool) {
+        let cache = PhoneDexEncryptedCache()
+        let existing = try? cache.load()
+        var pendingReplies = existing?.pendingReplies ?? []
+        pendingReplies.removeAll { $0.id == pending.id }
+        if !remove { pendingReplies.append(pending) }
+
+        let state = existing ?? PhoneDexCachedState(
+            cursor: nil,
+            tasks: [],
+            devices: [],
+            lastSyncAt: nil
+        )
+        try? cache.save(PhoneDexCachedState(
+            cursor: state.cursor,
+            tasks: state.tasks,
+            devices: state.devices,
+            lastSyncAt: state.lastSyncAt,
+            drafts: state.drafts,
+            readingPositions: state.readingPositions,
+            pendingReplies: pendingReplies
+        ))
     }
 
     private func bridgeURL(from userInfo: [AnyHashable: Any]) -> URL? {
