@@ -434,6 +434,7 @@ callers cannot record replies.
 | `npm run scan:sessions` | Scan recent Codex session logs once without notifying old history. |
 | `npm run test:session-watch` | Verify the session watcher captures Codex task-complete and final-answer records. |
 | `npm run test:reply-delivery` | Verify idempotent reply receipts, stale-task rejection, and retry delivery. |
+| `npm run test:lifecycle` | Verify allowlisted task creation, cancellation, retry, receipts, and stale protection. |
 | `npm run test:device-coverage` | Verify the device coverage pass/fail logic with fixtures. |
 | `npm run test:coverage-alert` | Verify missing-device coverage alerts without leaking the hub token. |
 | `npm run test:agent-enrollment` | Verify generated agent enrollment output. |
@@ -453,6 +454,7 @@ PhoneDex reads `.env` from the repo root.
 | `WATCH_BRIDGE_PUBLIC_URL` | Yes | URL your phone app, hub, or Pushcut fallback can call back to, ending before `/reply`. |
 | `PHONEDEX_MACHINE_NAME` | No | Human-readable machine name shown in notifications, for example `MacBook Air`. Defaults to `WATCHDEX_MACHINE_NAME` or the OS hostname. |
 | `PHONEDEX_DEVICE_ID` | No | Stable unique id for this machine, for example `macbook-air` or `windows-desktop`. Defaults to `WATCHDEX_DEVICE_ID` or the OS hostname. |
+| `PHONEDEX_WORKSPACE_ROOTS` | Managed tasks | OS path-delimited allowlist of workspaces this agent may run from iPhone. Only workspace names are advertised; lifecycle controls remain unavailable when empty. |
 | `PHONEDEX_HUB_URL` | Agent machines | Hub base URL that receives forwarded local Codex completions at `POST /tasks`. Leave empty on the hub. |
 | `PHONEDEX_HUB_TOKEN` | Agent machines | The hub's `WATCH_BRIDGE_TOKEN`. Defaults to this machine's `WATCH_BRIDGE_TOKEN`. |
 | `PHONEDEX_AGENT_MODE` | No | When `true`, this machine forwards completions to the hub without sending its own phone notification. |
@@ -480,6 +482,13 @@ PhoneDex reads `.env` from the repo root.
 | `WATCHDEX_SESSION_WATCH_FILE_LIMIT` | No | Maximum recent session files scanned per pass. Defaults to `500`. |
 | `CODEX_BIN` | No | Path to the Codex CLI used by `cli` auto-resume. |
 | `CODEX_APP_SERVER_BIN` | No | Path to the Codex CLI used by `app-server` auto-resume. Defaults to `~/.local/bin/codex` when installed. |
+
+When `PHONEDEX_WORKSPACE_ROOTS` is configured on a ready Mac or Windows agent,
+the agent advertises `task.create.v1`, `task.cancel.v1`, and `task.retry.v1`.
+PhoneDex starts only allowlisted workspaces with the public `codex exec`
+contract. Cancellation and retry apply only to runs started and tracked by
+PhoneDex; captured desktop work remains read-only. The agent never exposes
+workspace paths or private Codex Desktop UI state to iPhone.
 
 To make phone replies start a Codex turn, install the standalone Codex CLI and
 enable app-server mode:
