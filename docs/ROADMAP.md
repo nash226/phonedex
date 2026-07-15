@@ -739,6 +739,13 @@ the fixed-size composer icon, and allow long branch labels to wrap instead of
 clipping. This is evidence for the accessibility portion of the combined M8
 gate; performance, battery, localization, and crash validation remain open.
 
+The in-progress battery/reliability portion also coalesces overlapping
+foreground refreshes in `PhoneDexAppModel`. This prevents the launch `.task`
+and the active-scene callback from issuing duplicate sync requests when they
+arrive together, while preserving the existing durable-cache and foreground
+reconciliation behavior. A real-device battery profile and crash-free session
+measurement remain release-owner validation gates.
+
 Verification evidence for the completed migration and recovery slice:
 `scripts/test-recovery.js` exercises legacy JSONL import, current-schema
 upgrade, transactional-backup rollback after a failed migration, rejection of

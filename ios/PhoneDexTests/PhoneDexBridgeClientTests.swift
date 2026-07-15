@@ -8,6 +8,56 @@ final class PhoneDexBridgeClientTests: XCTestCase {
         super.tearDown()
     }
 
+    private func makeDefaults() throws -> UserDefaults {
+        let suiteName = "PhoneDexRefreshTests-\(UUID().uuidString)"
+        let suite = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        addTeardownBlock { suite.removePersistentDomain(forName: suiteName) }
+        return suite
+    }
+
+    @MainActor
+    func testConcurrentModelRefreshesShareOneInFlightRequest() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [URLProtocolStub.self]
+        let session = URLSession(configuration: configuration)
+        var requestCount = 0
+
+        URLProtocolStub.handler = { request in
+            requestCount += 1
+            Thread.sleep(forTimeInterval: 0.15)
+            return (
+                HTTPURLResponse(
+                    url: try XCTUnwrap(request.url),
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: ["content-type": "application/json"]
+                )!,
+                Data("""
+                {"schema":"phonedex.sync.v1","protocolVersion":1,"revision":1,"position":1,"snapshot":{"complete":true,"revision":1,"position":1,"tasks":[],"devices":[]},"changes":[],"cursor":"v1.done","hasMore":false,"updatedAt":"2026-07-15T12:00:00.000Z"}
+                """.utf8)
+            )
+        }
+
+        let settings = PhoneDexSettings(defaults: try makeDefaults(), tokenStore: RefreshTestTokenStore())
+        settings.bridgeURL = "http://bridge.test"
+        let model = PhoneDexAppModel(
+            settings: settings,
+            cache: RefreshTestCache(),
+            bridgeClient: PhoneDexBridgeClient(
+                bridgeURL: URL(string: "http://bridge.test")!,
+                token: "credential",
+                session: session
+            )
+        )
+
+        async let firstRefresh: Void = model.refresh()
+        try await Task.sleep(for: .milliseconds(20))
+        async let secondRefresh: Void = model.refresh()
+        _ = await (firstRefresh, secondRefresh)
+
+        XCTAssertEqual(requestCount, 1)
+    }
+
     func testSendReplyUsesAuthenticatedJSONContract() async throws {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [URLProtocolStub.self]
@@ -633,6 +683,18 @@ final class PhoneDexBridgeClientTests: XCTestCase {
             }
         }
     }
+}
+
+private final class RefreshTestCache: PhoneDexCacheStoring {
+    func load() throws -> PhoneDexCachedState? { nil }
+    func save(_ state: PhoneDexCachedState) throws {}
+    func remove() throws {}
+}
+
+private final class RefreshTestTokenStore: PhoneDexTokenStoring {
+    func readToken() throws -> String? { nil }
+    func writeToken(_ token: String) throws {}
+    func removeToken() throws {}
 }
 
 private extension InputStream {

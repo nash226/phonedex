@@ -76,6 +76,7 @@ final class PhoneDexAppModel: ObservableObject {
     private let injectedBridgeClient: PhoneDexBridgeClient?
     private var syncTasks: [PhoneDexTask] = []
     private var syncCursor: String?
+    private var refreshInFlight = false
 
     init(
         settings: PhoneDexSettings,
@@ -111,6 +112,9 @@ final class PhoneDexAppModel: ObservableObject {
             connectionState = .failed(settings.bridgeURLValidationMessage, lastSync: lastSuccessfulSync)
             return
         }
+        guard !refreshInFlight else { return }
+        refreshInFlight = true
+        defer { refreshInFlight = false }
 
         connectionState = .syncing
         do {
