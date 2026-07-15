@@ -829,7 +829,10 @@ Codex API access.
 Paired identities now enforce least-privilege read, reply, ingest, heartbeat,
 privacy, and administration scopes at the hub boundary. Administrative access
 is opt-in through an allowlisted pairing grant; a phone's default read/reply
-credential cannot inspect or mutate privacy controls.
+credential cannot inspect or mutate privacy controls. Paired clients can rotate
+their own credential through the bearer-authenticated `/pair/rotate` contract;
+the old credential is invalid immediately, replies reject command-ID payload
+replays, and bounded content-free security audits record lifecycle decisions.
 
 ### Current security blockers
 
@@ -837,9 +840,10 @@ Before external beta, legacy shared-token setup must be retired in favor of
 scoped pairing and revocable identities. The token must move out of
 notification payloads; the iOS settings token is no longer stored in
 `UserDefaults`. Pairing grants are now short-lived, single-use, rate-limited,
-and hash-only at rest; credential revocation, hub/agent TLS deployment, and
-query-token removal for legacy compatibility remain release work. The iOS
-release build disables arbitrary ATS loads. Plain JSONL content needs
+and hash-only at rest; credential rotation, revocation, replay defense, and
+content-free security audits are covered by the shared bridge contract.
+Hub/agent TLS deployment and query-token removal for legacy compatibility
+remain release work. The iOS release build disables arbitrary ATS loads. Plain JSONL content needs
 documented host protection, retention, and migration, and reply failures must
 become auditable command outcomes.
 

@@ -105,9 +105,30 @@ versioned approval command when that M5 capability exists and is never inferred
 from a phone or agent role.
 
 This slice establishes the pairing grant, device-bound credential path, and
-least-privilege authorization boundary. Credential rotation, hub/agent TLS
-deployment, and removal of legacy query-token compatibility remain separate
-security work.
+least-privilege authorization boundary. Hub/agent TLS deployment and removal
+of legacy query-token compatibility remain separate security work.
+
+### Credential lifecycle and replay protection
+
+An authenticated paired client can rotate its own credential with
+`POST /pair/rotate` and an `Authorization: Bearer` header. An explicitly
+scoped administrative identity, or the local hub-owner compatibility token,
+may name another identity or device. The response returns the replacement
+credential once with `Cache-Control: no-store`; the previous credential fails
+closed immediately. The local equivalent is:
+
+```sh
+phonedex pair:rotate --identity ID
+```
+
+Rotation is limited to five attempts per principal or source address in fifteen
+minutes. Reply delivery is limited to 60 attempts per principal or source
+address per minute. A previously used `commandId` must retain the same task
+and reply payload; changing either returns `409 command_replay`. Replaying an
+identical command is acknowledged from the existing receipt without forwarding
+it twice. Pairing, rotation, revocation, replay, and throttling decisions are
+written to a content-free `phonedex.security-audit.v1` JSONL stream with no
+bearer credential or task text.
 
 ### Completion capture convergence
 
