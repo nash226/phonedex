@@ -131,6 +131,44 @@ async function main() {
     });
     assert.equal(phoneIngest.response.status, 401);
 
+    const listed = spawnSync(
+      process.execPath,
+      [bridge, "pair:list", "--json"],
+      { cwd: root, env, encoding: "utf8" }
+    );
+    assert.equal(listed.status, 0, listed.stderr);
+    const identities = JSON.parse(listed.stdout);
+    assert.equal(identities.length, 1);
+    assert.equal(identities[0].id, paired.json.identity.id);
+    assert.equal(listed.stdout.includes(paired.json.credential), false);
+
+    const revoked = spawnSync(
+      process.execPath,
+      [bridge, "pair:revoke", "--identity", paired.json.identity.id, "--json"],
+      { cwd: root, env, encoding: "utf8" }
+    );
+    assert.equal(revoked.status, 0, revoked.stderr);
+    assert.equal(JSON.parse(revoked.stdout).identity.status, "revoked");
+
+    const repeatedRevoke = spawnSync(
+      process.execPath,
+      [bridge, "pair:revoke", "--device-id", paired.json.identity.deviceId, "--json"],
+      { cwd: root, env, encoding: "utf8" }
+    );
+    assert.equal(repeatedRevoke.status, 0, repeatedRevoke.stderr);
+    assert.equal(JSON.parse(repeatedRevoke.stdout).changed, false);
+
+    const revokedSync = await request(`${hubUrl}/sync`, {
+      headers: { authorization: `Bearer ${paired.json.credential}` }
+    });
+    assert.equal(revokedSync.response.status, 401);
+
+    const revokedDevices = await request(`${hubUrl}/devices`, {
+      headers: { authorization: `Bearer ${env.WATCH_BRIDGE_TOKEN}` }
+    });
+    assert.equal(revokedDevices.response.status, 200);
+    assert.equal(revokedDevices.json[0].status, "revoked");
+
     const reused = await request(`${hubUrl}/pair`, {
       method: "POST",
       headers: { "content-type": "application/json" },
