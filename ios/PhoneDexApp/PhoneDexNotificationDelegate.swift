@@ -25,8 +25,8 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
         }
 
         let userInfo = response.notification.request.content.userInfo
-        guard let bridgeURL = bridgeURL(from: userInfo) else {
-            NotificationReplyResult.record(.failed("The notification did not include a valid bridge URL."))
+        guard let bridgeURL = await bridgeURLFromCurrentSettings() else {
+            NotificationReplyResult.record(.failed("PhoneDex is not configured with a valid bridge URL."))
             return
         }
 
@@ -114,18 +114,10 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
         ))
     }
 
-    private func bridgeURL(from userInfo: [AnyHashable: Any]) -> URL? {
-        if let raw = userInfo["bridgeUrl"] as? String,
-           let url = URL(string: raw) {
-            return url
+    private func bridgeURLFromCurrentSettings() async -> URL? {
+        await MainActor.run {
+            PhoneDexSettings().normalizedBridgeURL
         }
-
-        guard let raw = userInfo["replyUrl"] as? String,
-              let url = URL(string: raw)
-        else {
-            return nil
-        }
-        return url.lastPathComponent == "reply" ? url.deletingLastPathComponent() : url
     }
 
     private func choice(for actionIdentifier: String) -> PhoneDexReplyChoice? {
