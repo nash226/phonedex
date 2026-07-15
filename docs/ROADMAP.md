@@ -719,6 +719,14 @@ Outcome: turn the complete system into an operable public product.
 Exit gate: the release owner records a go decision with known limitations,
 metrics, rollback plan, and verification evidence.
 
+Accessibility verification for the in-progress release-readiness slice:
+`PhoneDexShellUITests.testShellPassesSystemAccessibilityAudit` runs Xcode's
+system audit at the largest Dynamic Type size with Reduce Motion and dark
+appearance enabled. The shell fixes keep validation guidance readable, remove
+the fixed-size composer icon, and allow long branch labels to wrap instead of
+clipping. This is evidence for the accessibility portion of the combined M8
+gate; performance, battery, localization, and crash validation remain open.
+
 Verification evidence for the completed migration and recovery slice:
 `scripts/test-recovery.js` exercises legacy JSONL import, current-schema
 upgrade, transactional-backup rollback after a failed migration, rejection of

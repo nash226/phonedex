@@ -725,7 +725,6 @@ struct PhoneDexTaskDetailView: View {
                 Label(branch, systemImage: "arrow.triangle.branch")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
             }
         }
     }
@@ -1378,7 +1377,7 @@ struct PhoneDexTaskDetailView: View {
 
                         Button(action: sendDraft) {
                             Image(systemName: "arrow.up.circle.fill")
-                                .font(.system(size: 32))
+                                .font(.title)
                         }
                         .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.replyState == .sending)
                         .accessibilityLabel(task.question == nil ? "Send reply" : "Send answer")
@@ -1710,9 +1709,12 @@ private struct PhoneDexSettingsView: View {
                     }
 
                     if !settings.bridgeURLValidationMessage.isEmpty {
-                        Label(settings.bridgeURLValidationMessage, systemImage: "lock.shield")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "lock.shield")
+                            Text(settings.bridgeURLValidationMessage)
+                        }
+                        .font(.footnote)
+                        .foregroundStyle(Color(uiColor: .label))
                     }
 
                     Button("Test Connection", systemImage: "bolt.horizontal.circle") {

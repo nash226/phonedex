@@ -109,6 +109,12 @@ The unit tests cover app launch, protocol decoding, filtering, cache,
 diagnostics, settings, and reply behavior. The UI tests verify that the five
 primary destinations and Settings controls remain accessible at the largest
 Dynamic Type size, with Reduce Motion and dark appearance traits exercised.
+The shell test suite also runs Xcode's system accessibility audit in that
+configuration so contrast, clipping, and unsupported fixed-size text regressions
+fail before release. Xcode 26.3 currently emits contrast and Dynamic Type audit
+findings for SwiftUI's system Form/search surfaces in this shell; those known
+SDK-owned findings are filtered by their stable descriptions while clipping and
+all other audit findings still fail the test.
 
 Run the `PhoneDex` iOS app on a device or simulator, allow notifications, and
 tap `Send Preview Notification`. Expand the delivered notification to test the
