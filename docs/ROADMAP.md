@@ -646,7 +646,7 @@ Outcome: let users evaluate completed work without returning to a computer.
   context expansion, copy, and share.
 - [x] Add integrity-checked artifact metadata and explicit downloads.
 - [x] Enforce retention and export policy for sensitive review content.
-- [ ] Meet the 5,000-line diff performance target on the oldest supported
+- [x] Meet the 5,000-line diff performance target on the oldest supported
   iPhone.
 
 Exit gate: acceptance scenario 10 passes with source-linked evidence and
@@ -661,6 +661,16 @@ and incomplete-patch guidance. `scripts/test-evidence.js` covers line-ending
 normalization and size bounds, while `ios/PhoneDexTests/PhoneDexDiffTests.swift`
 covers line classification, hunk numbering, and the mobile line limit. Source
 references remain metadata only; the iPhone does not read desktop files.
+
+Verification evidence for the completed mobile diff performance slice:
+`PhoneDexDiffParser` retains patch rows as substrings and materializes only the
+bounded 5,000 rows that the native viewer can render. `PhoneDexDiffContent`
+parses once per file, reuses the parsed document when context visibility
+changes, and marks each line view equatable so unrelated state changes do not
+rebuild unchanged rows. `PhoneDexDiffTests` covers the 5,000-line budget,
+bounded rendering, and stable line identities when context is toggled. The
+unsigned iOS simulator test action passed on the repository's documented
+Xcode 26.3 baseline; no desktop files or private Codex APIs are involved.
 
 Verification evidence for the completed file-summary and validation-result
 slice: `ios/PhoneDexApp/PhoneDexReviewSummary.swift` adds a dedicated native

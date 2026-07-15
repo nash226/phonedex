@@ -31,13 +31,25 @@ struct PhoneDexDiffDocument: Equatable {
     let lines: [PhoneDexDiffLine]
     let totalLineCount: Int
     let isTruncated: Bool
+
+    func document(showingContext: Bool) -> PhoneDexDiffDocument {
+        guard !showingContext else { return self }
+        return PhoneDexDiffDocument(
+            lines: lines.filter { $0.kind != .context },
+            totalLineCount: totalLineCount,
+            isTruncated: isTruncated
+        )
+    }
 }
 
 enum PhoneDexDiffParser {
     static let defaultLineLimit = 5_000
 
     static func parse(_ patch: String, lineLimit: Int = defaultLineLimit) -> PhoneDexDiffDocument {
-        let rawLines = patch.components(separatedBy: "\n")
+        // Keep source rows as substrings and materialize only rows that can be
+        // rendered. This avoids an extra copy when a large export is received
+        // on an older phone.
+        let rawLines = patch.split(separator: "\n", omittingEmptySubsequences: false)
         let boundedLimit = max(1, lineLimit)
         var oldLineNumber: Int?
         var newLineNumber: Int?
@@ -45,7 +57,7 @@ enum PhoneDexDiffParser {
 
         for (index, rawLine) in rawLines.enumerated() {
             guard parsed.count < boundedLimit else { break }
-            let line = parseLine(rawLine, id: index, oldLineNumber: &oldLineNumber, newLineNumber: &newLineNumber)
+            let line = parseLine(String(rawLine), id: index, oldLineNumber: &oldLineNumber, newLineNumber: &newLineNumber)
             parsed.append(line)
         }
 
@@ -178,17 +190,14 @@ private struct PhoneDexDiffContent: View {
     let file: PhoneDexChangedFile
     @State private var showingContext = false
 
-    private var parsedDocument: PhoneDexDiffDocument {
-        PhoneDexDiffParser.parse(file.patch ?? "")
-    }
+    @State private var parsedDocument: PhoneDexDiffDocument
+    @State private var document: PhoneDexDiffDocument
 
-    private var document: PhoneDexDiffDocument {
-        guard !showingContext else { return parsedDocument }
-        return PhoneDexDiffDocument(
-            lines: parsedDocument.lines.filter { $0.kind != .context },
-            totalLineCount: parsedDocument.totalLineCount,
-            isTruncated: parsedDocument.isTruncated
-        )
+    init(file: PhoneDexChangedFile) {
+        self.file = file
+        let parsed = PhoneDexDiffParser.parse(file.patch ?? "")
+        _parsedDocument = State(initialValue: parsed)
+        _document = State(initialValue: parsed.document(showingContext: false))
     }
 
     var body: some View {
@@ -218,7 +227,9 @@ private struct PhoneDexDiffContent: View {
             }
 
             Button {
-                showingContext.toggle()
+                let nextValue = !showingContext
+                showingContext = nextValue
+                document = parsedDocument.document(showingContext: nextValue)
             } label: {
                 Label(
                     showingContext ? "Hide unchanged context" : "Show unchanged context",
@@ -235,6 +246,7 @@ private struct PhoneDexDiffContent: View {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     ForEach(document.lines) { line in
                         PhoneDexDiffLineView(line: line)
+                            .equatable()
                     }
                 }
                 .padding(.vertical, 8)
@@ -245,7 +257,7 @@ private struct PhoneDexDiffContent: View {
     }
 }
 
-private struct PhoneDexDiffLineView: View {
+private struct PhoneDexDiffLineView: View, Equatable {
     let line: PhoneDexDiffLine
 
     private var background: Color {

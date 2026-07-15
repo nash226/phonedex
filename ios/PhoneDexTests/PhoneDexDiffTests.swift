@@ -30,4 +30,24 @@ final class PhoneDexDiffTests: XCTestCase {
         XCTAssertEqual(document.totalLineCount, 20)
         XCTAssertTrue(document.isTruncated)
     }
+
+    func testParserHandlesTheMobilePerformanceBudgetWithoutExtraRenderedRows() {
+        let patch = (0..<PhoneDexDiffParser.defaultLineLimit)
+            .map { index in index.isMultiple(of: 2) ? "+added \(index)" : " context \(index)" }
+            .joined(separator: "\n")
+
+        let document = PhoneDexDiffParser.parse(patch)
+
+        XCTAssertEqual(document.lines.count, PhoneDexDiffParser.defaultLineLimit)
+        XCTAssertEqual(document.totalLineCount, PhoneDexDiffParser.defaultLineLimit)
+        XCTAssertFalse(document.isTruncated)
+        XCTAssertEqual(document.document(showingContext: false).lines.count, PhoneDexDiffParser.defaultLineLimit / 2)
+    }
+
+    func testChangingContextVisibilityReusesParsedLineIdentities() {
+        let document = PhoneDexDiffParser.parse("@@ -1,2 +1,2 @@\n keep\n+new")
+
+        XCTAssertEqual(document.document(showingContext: false).lines.map(\.id), [0, 2])
+        XCTAssertEqual(document.document(showingContext: true).lines.map(\.id), [0, 1, 2])
+    }
 }
