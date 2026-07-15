@@ -196,7 +196,7 @@ Status: **Queued**
 Outcome: remove shared bearer-token setup from the production path.
 
 - [ ] Create revocable identities for phone, hub, and computer agents.
-- [ ] Implement short-lived, single-use pairing grants with verification codes.
+- [x] Implement short-lived, single-use pairing grants with verification codes.
 - [ ] Add scoped permissions for read, reply, approve, and administration.
 - [x] Move iOS credentials from `UserDefaults` to Keychain.
 - [ ] Remove credentials from URLs, notification metadata, logs, and support
@@ -219,7 +219,7 @@ clearing, failure redaction, and Keychain round trips; the concrete Keychain
 round trip is skipped only when an unsigned simulator reports its expected
 missing entitlement. Notification payload credential removal is now covered by
 the native notification metadata builder and bridge reply integration fixture;
-scoped pairing remains a separate M2 slice. The native app reads the Keychain
+the pairing flow below builds on the same Keychain credential path. The native app reads the Keychain
 credential when handling a notification action and the bridge accepts the
 authenticated header while retaining legacy body-token compatibility.
 
@@ -234,6 +234,19 @@ paths are absent from `/tasks`, `/sync`, and privacy responses, and query-token
 authentication is rejected by the privacy surface. Existing Swift settings
 tests cover native Keychain migration, credential-bearing URL rejection, and
 notification metadata.
+
+Verification evidence for the completed pairing-grant slice: `pair:create`
+creates a ten-minute grant and separate six-digit verification code; `POST
+/pair` rate-limits attempts, rejects invalid/expired/reused grants, stores only
+hashes, and atomically creates a scoped `phonedex.identity.v1` record. Paired
+phone credentials authorize `/sync`, `/tasks`, `/devices`, and `/reply` only
+through the bearer header and cannot be placed in a query token. The native
+iPhone Settings flow redeems the grant and stores the returned credential in
+Keychain. `scripts/test-pairing.js` and
+`PhoneDexBridgeClientTests.testRedeemPairingUsesOneTimeGrantWithoutCredentialInRequest`
+cover the end-to-end contract, failed verification, one-time use, scoped
+authorization, and secret redaction. Revocation, rotation, and TLS remain
+separate M2 slices.
 
 Verification evidence for the completed Chats scope slice: the native SwiftUI
 Chats surface in `ios/PhoneDexApp/ContentView.swift` provides Needs You,
