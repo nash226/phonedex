@@ -471,7 +471,7 @@ async function maybeForwardTaskToHub(cfg, task) {
     at: new Date().toISOString(),
     type: "hub-forward-attempt",
     taskId: task.id,
-    hubUrl: cfg.hubUrl,
+    hubUrl: redactSensitiveText(cfg.hubUrl),
     machineName: task.machineName || cfg.machineName
   };
 
@@ -500,22 +500,22 @@ async function maybeForwardTaskToHub(cfg, task) {
       ...event,
       status: response.status,
       ok: response.ok,
-      response: responseText.slice(0, 500)
+      response: redactSensitiveText(responseText).slice(0, 500)
     });
     return {
       ok: response.ok,
       status: response.status,
-      response: responseText.slice(0, 500)
+      response: redactSensitiveText(responseText).slice(0, 500)
     };
   } catch (error) {
     appendJsonl(cfg.dataDir, "events.jsonl", {
       ...event,
       ok: false,
-      error: error.message
+      error: redactSensitiveText(error.message)
     });
     return {
       ok: false,
-      error: error.message
+      error: redactSensitiveText(error.message)
     };
   }
 }
@@ -559,11 +559,11 @@ async function sendWatchNotification(cfg, task) {
     ...event,
     status: response.status,
     ok: response.ok,
-    response: responseText.slice(0, 500)
+    response: redactSensitiveText(responseText).slice(0, 500)
   });
 
   if (!response.ok) {
-    throw new Error(`Pushcut returned HTTP ${response.status}: ${responseText}`);
+    throw new Error(`Pushcut returned HTTP ${response.status}: ${redactSensitiveText(responseText)}`);
   }
 }
 
@@ -1836,7 +1836,7 @@ async function maybeForwardReplyToOrigin(cfg, task, reply) {
     type: "origin-reply-forward-attempt",
     taskId: reply.taskId,
     originTaskId: task.originTaskId || "",
-    originReplyUrl,
+    originReplyUrl: redactSensitiveText(originReplyUrl),
     machineName: task.machineName || ""
   };
 
@@ -1862,14 +1862,14 @@ async function maybeForwardReplyToOrigin(cfg, task, reply) {
       ...event,
       status: response.status,
       ok: response.ok,
-      response: responseText.slice(0, 500)
+      response: redactSensitiveText(responseText).slice(0, 500)
     });
     return { attempted: true, ok: response.ok };
   } catch (error) {
     appendJsonl(cfg.dataDir, "events.jsonl", {
       ...event,
       ok: false,
-      error: error.message
+      error: redactSensitiveText(error.message)
     });
     return { attempted: true, ok: false };
   }
@@ -2808,12 +2808,23 @@ function findTask(dataDir, taskId) {
 function publicTask(task) {
   if (!task || typeof task !== "object") return task;
   const {
+    cwd,
+    hookPayload,
+    rawHookInputBytes,
+    receivedFrom,
+    originReplyUrl,
+    originPublicUrl,
     originToken,
     replyToken,
     token,
+    replyUrl,
+    publicUrl,
     ...safeTask
   } = task;
-  return safeTask;
+  const workspaceName = safeTask.workspaceName || workspaceNameFromPath(cwd);
+  return workspaceName
+    ? redactPublicStrings({ ...safeTask, workspaceName })
+    : redactPublicStrings(safeTask);
 }
 
 function publicSyncTask(task) {
@@ -2828,11 +2839,24 @@ function publicSyncTask(task) {
     originToken,
     replyToken,
     token,
+    replyUrl,
+    publicUrl,
     ...safeTask
   } = task;
   const workspaceName =
     task.workspaceName || workspaceNameFromPath(cwd);
-  return workspaceName ? { ...safeTask, workspaceName } : safeTask;
+  return workspaceName
+    ? redactPublicStrings({ ...safeTask, workspaceName })
+    : redactPublicStrings(safeTask);
+}
+
+function redactPublicStrings(value) {
+  return Object.fromEntries(
+    Object.entries(value).map(([key, childValue]) => [
+      key,
+      typeof childValue === "string" ? redactSensitiveText(childValue) : childValue
+    ])
+  );
 }
 
 function workspaceNameFromPath(value) {
@@ -2924,30 +2948,30 @@ async function maybeForwardDeviceHeartbeatToHub(cfg, device) {
       appendJsonl(cfg.dataDir, "events.jsonl", {
         at: new Date().toISOString(),
         type: "hub-heartbeat-attempt",
-        hubUrl: cfg.hubUrl,
+        hubUrl: redactSensitiveText(cfg.hubUrl),
         deviceId: device.deviceId,
         status: response.status,
         ok: false,
-        response: responseText.slice(0, 500)
+        response: redactSensitiveText(responseText).slice(0, 500)
       });
     }
     return {
       ok: response.ok,
       status: response.status,
-      response: responseText.slice(0, 500)
+      response: redactSensitiveText(responseText).slice(0, 500)
     };
   } catch (error) {
     appendJsonl(cfg.dataDir, "events.jsonl", {
       at: new Date().toISOString(),
       type: "hub-heartbeat-attempt",
-      hubUrl: cfg.hubUrl,
+      hubUrl: redactSensitiveText(cfg.hubUrl),
       deviceId: device.deviceId,
       ok: false,
-      error: error.message
+      error: redactSensitiveText(error.message)
     });
     return {
       ok: false,
-      error: error.message
+      error: redactSensitiveText(error.message)
     };
   }
 }
@@ -3472,13 +3496,13 @@ async function fetchHubJson(cfg, pathname) {
     return {
       ok: response.ok,
       status: response.status,
-      response: responseText.slice(0, 500),
+      response: redactSensitiveText(responseText).slice(0, 500),
       json
     };
   } catch (error) {
     return {
       ok: false,
-      error: error.message
+      error: redactSensitiveText(error.message)
     };
   }
 }
@@ -4398,10 +4422,13 @@ function findFirstKey(value, keys) {
 }
 
 function redactSensitiveText(value) {
-  return String(value).replace(
-    /\b(password|token|secret|api[_ -]?key)\b\s*:?\s*([^\s`"'<>]{8,})/gi,
-    "$1: [redacted]"
-  );
+  return String(value)
+    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [redacted]")
+    .replace(
+      /\b(password|token|secret|api[_ -]?key)\b(?:\s*:\s*|\s+)([^\s`"'<>]{8,})/gi,
+      "$1: [redacted]"
+    )
+    .replace(/([?&](?:token|secret|password|api[_-]?key)=)[^&#\s]+/gi, "$1[redacted]");
 }
 
 function normalizeNotificationText(value, maxLength = PHONE_NOTIFICATION_TEXT_MAX) {
@@ -4699,14 +4726,16 @@ function trimTrailingSlash(value) {
 
 function logError(error) {
   const cfg = config();
+  const message = redactSensitiveText(error.message || "Unknown error");
+  const stack = redactSensitiveText(error.stack || message);
   try {
     appendJsonl(cfg.dataDir, "errors.jsonl", {
       at: new Date().toISOString(),
-      message: error.message,
-      stack: error.stack
+      message,
+      stack
     });
   } catch {
     // Ignore logging failures; hooks should not break Codex turns.
   }
-  console.error(error.stack || error.message);
+  console.error(stack);
 }
