@@ -3,6 +3,11 @@
 PhoneDex turns completed Codex replies into iPhone notifications, then routes a
 phone reply back to the right Codex machine.
 
+The versioned hub record contract is documented in
+[`docs/protocol.md`](protocol.md). New task and device records carry their
+schema identity while the current JSONL endpoints continue to accept legacy
+records during migration.
+
 ## Product Flow
 
 The experience is intentionally simple:

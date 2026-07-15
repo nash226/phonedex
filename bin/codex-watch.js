@@ -6,6 +6,10 @@ const os = require("node:os");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const { spawn } = require("node:child_process");
+const {
+  addDeviceProtocolFields,
+  addTaskProtocolFields
+} = require("../lib/phonedex-protocol");
 
 const ROOT = path.resolve(__dirname, "..");
 const DATA_DIR_DEFAULT = path.join(ROOT, "data");
@@ -1845,7 +1849,7 @@ function runChild(command, args, options = {}) {
 }
 
 function createTask(fields) {
-  return {
+  return addTaskProtocolFields({
     id: makeId("task"),
     at: new Date().toISOString(),
     source: fields.source || "unknown",
@@ -1866,7 +1870,7 @@ function createTask(fields) {
     messageId: fields.messageId || "",
     hookPayload: fields.hookPayload,
     rawHookInputBytes: fields.rawHookInputBytes
-  };
+  });
 }
 
 function createIngestedTask(fields, cfg, req) {
@@ -1879,7 +1883,7 @@ function createIngestedTask(fields, cfg, req) {
     req.headers["x-phonedex-device-id"] ||
     machineName;
 
-  return {
+  return addTaskProtocolFields({
     id: makeId("task"),
     at: fields.at || new Date().toISOString(),
     source: fields.source ? `remote-${fields.source}` : "remote-agent",
@@ -1898,7 +1902,7 @@ function createIngestedTask(fields, cfg, req) {
     receivedFrom: req.socket.remoteAddress || "",
     hookPayload: fields.hookPayload,
     rawHookInputBytes: fields.rawHookInputBytes
-  };
+  });
 }
 
 function buildTaskMessage(payload) {
@@ -2294,7 +2298,7 @@ async function startDeviceHeartbeat(cfg) {
 }
 
 function buildLocalDeviceHeartbeat(cfg) {
-  return {
+  return addDeviceProtocolFields({
     deviceId: cfg.deviceId,
     machineName: cfg.machineName,
     role: cfg.agentMode ? "agent" : "hub",
@@ -2307,7 +2311,7 @@ function buildLocalDeviceHeartbeat(cfg) {
     pid: process.pid,
     version: "0.1.0",
     lastSeenAt: new Date().toISOString()
-  };
+  });
 }
 
 async function maybeForwardDeviceHeartbeatToHub(cfg, device) {
@@ -2367,7 +2371,7 @@ async function maybeForwardDeviceHeartbeatToHub(cfg, device) {
 function normalizeDeviceHeartbeat(fields, req) {
   const now = new Date().toISOString();
   const machineName = fields.machineName || fields.machine || fields.hostname || "Unknown device";
-  return {
+  return addDeviceProtocolFields({
     deviceId: fields.deviceId || fields.id || fields.machineId || machineName,
     machineName,
     role: fields.role || "agent",
@@ -2382,7 +2386,7 @@ function normalizeDeviceHeartbeat(fields, req) {
     lastSeenAt: fields.lastSeenAt || fields.at || now,
     receivedAt: now,
     receivedFrom: req?.socket?.remoteAddress || ""
-  };
+  });
 }
 
 function recordDeviceHeartbeat(dataDir, device) {
