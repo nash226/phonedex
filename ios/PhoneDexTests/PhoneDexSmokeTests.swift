@@ -218,6 +218,53 @@ final class PhoneDexSmokeTests: XCTestCase {
         XCTAssertEqual(response.receipt.state, "completed")
     }
 
+    func testTaskEvidenceDecodesReviewMetadataWithoutWorkspacePaths() throws {
+        let task = try JSONDecoder().decode(
+            PhoneDexTask.self,
+            from: Data("""
+            {
+              "id": "task_evidence",
+              "createdAt": "2026-07-15T12:00:00.000Z",
+              "title": "Review evidence",
+              "text": "The change is ready.",
+              "evidence": {
+                "changedFiles": [
+                  {
+                    "path": "ios/PhoneDexApp/ContentView.swift",
+                    "status": "modified",
+                    "sourceRef": "ios/PhoneDexApp/ContentView.swift#L10-L30",
+                    "additions": 12,
+                    "deletions": 3
+                  }
+                ],
+                "artifacts": [
+                  {
+                    "id": "build-log",
+                    "name": "iOS build log",
+                    "kind": "log",
+                    "sourceRef": "artifacts/ios-build.log",
+                    "sizeBytes": 1024
+                  }
+                ],
+                "validations": [
+                  {
+                    "id": "ios-build",
+                    "name": "Unsigned iOS build",
+                    "status": "passed",
+                    "summary": "Build completed"
+                  }
+                ]
+              }
+            }
+            """.utf8)
+        )
+
+        XCTAssertEqual(task.evidence?.changedFiles.first?.path, "ios/PhoneDexApp/ContentView.swift")
+        XCTAssertEqual(task.evidence?.changedFiles.first?.additions, 12)
+        XCTAssertEqual(task.evidence?.artifacts.first?.displaySize, "1 KB")
+        XCTAssertEqual(task.evidence?.validations.first?.displayStatus, "Passed")
+    }
+
     private func decodeTask(id: String, cwd: String, machineName: String) throws -> PhoneDexTask {
         let payload: [String: Any] = [
             "id": id,
