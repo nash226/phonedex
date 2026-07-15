@@ -614,6 +614,20 @@ function mergeTaskCaptures(existing, incoming) {
     if (incoming.title) merged.title = incoming.title;
     if (incoming.version) merged.version = incoming.version;
   }
+  // Evidence enrichment can legitimately advance a task version before the
+  // session watcher delivers its terminal answer. Preserve that answer even
+  // when the enrichment update had the newer version.
+  if (
+    incoming.text &&
+    incoming.text !== existing.text &&
+    incoming.status !== undefined &&
+    incoming.status !== existing.status &&
+    ["completed", "failed", "cancelled"].includes(incoming.status)
+  ) {
+    merged.text = incoming.text;
+    merged.version = Math.max((existing.version || 1) + 1, merged.version || 1);
+    merged.updatedAt = incoming.updatedAt || incoming.at || new Date().toISOString();
+  }
   const evidence = mergeTaskEvidence(existing.evidence, incoming.evidence);
   if (JSON.stringify(evidence || null) !== JSON.stringify(existing.evidence || null)) {
     if (evidence) merged.evidence = evidence;
