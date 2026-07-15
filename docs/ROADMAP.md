@@ -175,6 +175,18 @@ Chats, Projects, Devices, and Settings. `PhoneDexBridgeClientTests.swift`
 covers compatibility fallback, partial data, and transport classification;
 the iOS test target also retains its smoke and diagnostics coverage.
 
+Verification evidence for the completed encrypted cache slice:
+`ios/PhoneDexApp/PhoneDexLocalCache.swift` encrypts the cached task/device
+snapshot and opaque cursor with AES-GCM, stores its 256-bit key in a device-only
+Keychain item, and writes the file with iOS data protection and atomic replacement.
+`PhoneDexAppModel` restores cached conversations before foreground sync, applies
+incremental replacements and tombstones, persists the resulting cursor, and
+restarts from a fresh snapshot after an invalid or changed cursor. Legacy hubs
+continue to use the explicit compatibility path without persisting a misleading
+cursor. `PhoneDexLocalCacheTests.swift` covers encryption, deletion, and
+tamper-fail-closed behavior; bridge client tests cover incremental changes and
+stale-cursor recovery.
+
 Verification evidence for the completed device/workspace details slice:
 `ios/PhoneDexApp/PhoneDexDeviceDetailView.swift` provides read-only device
 identity, heartbeat health, visible-work counts, copyable device identity, and
@@ -196,7 +208,7 @@ Outcome: replace the utility screen with a polished, offline-aware native app.
 - [x] Add an embedded WebKit browser with native navigation and sharing controls.
 - [x] Build Chats scopes for Needs You, Running, and Recent with search and
   filters.
-- [ ] Add a durable encrypted local cache, cursor sync, and freshness state.
+- [x] Add a durable encrypted local cache, cursor sync, and freshness state.
 - [ ] Build task detail with transcript, structured events, evidence, and a
   keyboard-safe composer.
 - [x] Add completion detail, quick replies, a dictation-ready composer, and
