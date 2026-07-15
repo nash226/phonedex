@@ -63,7 +63,13 @@ struct PhoneDexBridgeClient {
         let request = authorizedRequest(url: url)
         let (data, response) = try await session.data(for: request)
         try validate(response: response, data: data)
-        return try JSONDecoder().decode(PhoneDexSyncPage.self, from: data)
+        let page = try JSONDecoder().decode(PhoneDexSyncPage.self, from: data)
+        if let protocolNegotiation = page.protocolNegotiation, !protocolNegotiation.isCurrent {
+            throw PhoneDexBridgeClientError.protocolIncompatible(
+                "The hub negotiated an unsupported PhoneDex protocol version. Update the hub and try again."
+            )
+        }
+        return page
     }
 
     func fetchSync(limit: Int = 50) async throws -> (tasks: [PhoneDexTask], devices: [PhoneDexDevice]) {
@@ -194,6 +200,11 @@ struct PhoneDexBridgeClient {
     private func authorizedRequest(url: URL) -> URLRequest {
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
+        request.setValue("1", forHTTPHeaderField: "x-phonedex-protocol-version")
+        request.setValue(
+            "sync.snapshot.v1,device.health.v1",
+            forHTTPHeaderField: "x-phonedex-capabilities"
+        )
         if !token.isEmpty {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
         }
@@ -215,6 +226,13 @@ struct PhoneDexBridgeClient {
 
         guard (200..<300).contains(httpResponse.statusCode) else {
             let body = String(data: data, encoding: .utf8) ?? ""
+            if httpResponse.statusCode == 426,
+               let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               ["protocol_incompatible", "capability_unsupported"].contains(payload["code"] as? String) {
+                throw PhoneDexBridgeClientError.protocolIncompatible(
+                    payload["error"] as? String ?? "The hub does not support this PhoneDex protocol version."
+                )
+            }
             throw PhoneDexBridgeClientError.httpStatus(httpResponse.statusCode, body)
         }
     }
@@ -224,10 +242,16 @@ enum PhoneDexBridgeClientError: LocalizedError {
     case invalidURL
     case invalidResponse
     case httpStatus(Int, String)
+    case protocolIncompatible(String)
 
     var isCompatibilityFailure: Bool {
         guard case .httpStatus(let status, _) = self else { return false }
         return status == 404 || status == 405
+    }
+
+    var isProtocolIncompatible: Bool {
+        if case .protocolIncompatible = self { return true }
+        return false
     }
 
     var isRestartableSyncCursor: Bool {
@@ -248,6 +272,8 @@ enum PhoneDexBridgeClientError: LocalizedError {
             return "Bridge returned an invalid response."
         case .httpStatus(let status, _):
             return "Bridge returned HTTP \(status)."
+        case .protocolIncompatible(let message):
+            return message
         }
     }
 }
@@ -259,6 +285,10 @@ extension Error {
 
     var isCompatibilityFailure: Bool {
         (self as? PhoneDexBridgeClientError)?.isCompatibilityFailure ?? false
+    }
+
+    var isProtocolIncompatible: Bool {
+        (self as? PhoneDexBridgeClientError)?.isProtocolIncompatible ?? false
     }
 
     var isRestartableSyncCursor: Bool {

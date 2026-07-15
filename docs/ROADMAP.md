@@ -98,7 +98,7 @@ device, and command control plane while retaining migration from current data.
   ordering.
 - [x] Converge hook and session-watcher captures into one logical task event.
 - [x] Separate device reachability, agent health, and Codex adapter health.
-- [ ] Add capability negotiation and protocol compatibility errors.
+- [x] Add capability negotiation and protocol compatibility errors.
 - [ ] Add retention, redaction, export, and deletion controls.
 - [ ] Preserve a compatibility adapter for current `/tasks` and `/reply`
   clients during migration.
@@ -153,6 +153,18 @@ health as `unknown`, and the hub forwards explicit component health through
 accessible reachability, PhoneDex agent, and Codex adapter states. Node
 protocol/sync fixtures and `PhoneDexDiagnosticsTests` cover normalization,
 public sync filtering, degraded agent health, and honest unknown adapter state.
+
+Verification evidence for the completed capability-negotiation slice:
+`lib/phonedex-protocol.js` validates versioned capability records while keeping
+legacy device flags readable, and `/sync` negotiates protocol version 1 through
+`X-PhoneDex-Protocol-Version`, returning HTTP 426 with a bounded compatibility
+error for unsupported versions. Sync responses expose the hub capability set;
+the iOS client sends its required contract, preserves explicit incompatibility
+states, and `PhoneDexDeviceDetailView` renders each agent's declared action
+capability with accessible available/unavailable status. `scripts/test-protocol.js`,
+`scripts/test-sync-server.js`, `PhoneDexBridgeClientTests`, and
+`PhoneDexDiagnosticsTests` cover normalization, negotiation, fail-closed errors,
+legacy compatibility, and device presentation.
 
 ## M2: Secure Identity and Pairing
 

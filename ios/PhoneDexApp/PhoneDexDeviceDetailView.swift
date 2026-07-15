@@ -10,6 +10,7 @@ struct PhoneDexDeviceDetailView: View {
                 overview
                 diagnosticCard
                 healthOverview
+                capabilityOverview
                 details
                 visibleWork
                 refreshAction
@@ -103,6 +104,44 @@ struct PhoneDexDeviceDetailView: View {
             }
         }
         .font(.subheadline)
+    }
+
+    private var capabilityOverview: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Supported actions")
+                .font(.headline)
+
+            if device.capabilityDetails.isEmpty {
+                Text("This agent has not declared versioned capabilities yet.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(device.capabilityDetails) { capability in
+                    HStack(spacing: 10) {
+                        Image(systemName: capability.symbol)
+                            .foregroundStyle(capability.isActionable ? .orange : .green)
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(capability.displayName)
+                                .font(.subheadline.weight(.medium))
+                            Text("v\(capability.version) · \(capability.scopeTitle)")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 0)
+                        Text(capability.supported ? "Available" : "Unavailable")
+                            .font(.footnote.weight(.medium))
+                            .foregroundStyle(capability.isActionable ? .orange : .secondary)
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityValue(capability.supported ? "Available" : "Unavailable")
+                }
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .accessibilityElement(children: .contain)
     }
 
     private var healthOverview: some View {
