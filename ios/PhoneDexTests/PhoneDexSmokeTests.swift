@@ -80,6 +80,36 @@ final class PhoneDexSmokeTests: XCTestCase {
         XCTAssertEqual(task.activity[1].detail, "Message message_1")
     }
 
+    func testStructuredQuestionDecodesChoicesAndFreeTextPolicy() throws {
+        let task = try JSONDecoder().decode(
+            PhoneDexTask.self,
+            from: Data(
+                """
+                {
+                  "id": "task_question",
+                  "createdAt": "2026-07-15T12:00:00.000Z",
+                  "title": "Choose a target",
+                  "text": "The release is ready.",
+                  "status": "needs_input",
+                  "question": {
+                    "id": "deploy-target",
+                    "prompt": "Where should it go?",
+                    "choices": [
+                      {"id": "staging", "label": "Deploy to staging"},
+                      {"id": "production", "label": "Deploy to production"}
+                    ],
+                    "allowsFreeText": true
+                  }
+                }
+                """.utf8
+            )
+        )
+
+        XCTAssertEqual(task.question?.id, "deploy-target")
+        XCTAssertEqual(task.question?.choices.map(\.label), ["Deploy to staging", "Deploy to production"])
+        XCTAssertTrue(task.question?.allowsFreeText == true)
+    }
+
     private func decodeTask(id: String, cwd: String, machineName: String) throws -> PhoneDexTask {
         let payload: [String: Any] = [
             "id": id,

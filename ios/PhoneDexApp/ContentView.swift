@@ -404,6 +404,9 @@ struct PhoneDexTaskDetailView: View {
                 LazyVStack(alignment: .leading, spacing: 20) {
                     detailSection(.header) { taskHeader }
                     detailSection(.status) { statusSummary }
+                    if task.question != nil {
+                        detailSection(.question) { questionPrompt }
+                    }
                     detailSection(.transcript) { transcript }
                     detailSection(.activity) { activity }
                     detailSection(.evidence) { evidence }
@@ -559,6 +562,50 @@ struct PhoneDexTaskDetailView: View {
         .background(Color(uiColor: .secondarySystemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .accessibilityElement(children: .combine)
+    }
+
+    private var questionPrompt: some View {
+        guard let question = task.question else { return AnyView(EmptyView()) }
+        return AnyView(
+            VStack(alignment: .leading, spacing: 12) {
+                Label("Question", systemImage: "questionmark.circle.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.orange)
+
+                Text(question.prompt)
+                    .font(.body.weight(.medium))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(question.choices) { choice in
+                        Button {
+                            Task {
+                                _ = await model.sendQuestionResponse(
+                                    task: task,
+                                    questionId: question.id,
+                                    response: .choice(choice.id)
+                                )
+                            }
+                        } label: {
+                            HStack {
+                                Text(choice.label)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                Image(systemName: "arrow.up.right")
+                                    .font(.caption.weight(.semibold))
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(model.replyState == .sending)
+                        .accessibilityHint("Sends this choice to the originating Codex task")
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .background(Color(uiColor: .secondarySystemBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .accessibilityElement(children: .contain)
+        )
     }
 
     private var transcript: some View {
@@ -732,44 +779,50 @@ struct PhoneDexTaskDetailView: View {
     }
 
     private var composer: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 8) {
-                quickReply("What's next", icon: "arrow.right.circle", choice: .okayWhatsNext)
-                quickReply("Do that", icon: "checkmark.circle", choice: .letsDoThat)
-                Spacer(minLength: 0)
-            }
-
-            HStack(alignment: .bottom, spacing: 10) {
-                TextField("Message Codex", text: $draft, axis: .vertical)
-                    .lineLimit(1...5)
-                    .focused($composerFocused)
-                    .submitLabel(.send)
-                    .onSubmit { sendDraft() }
-                    .onChange(of: draft) { _, newValue in
-                        draftSaveTask?.cancel()
-                        draftSaveTask = Task { @MainActor in
-                            try? await Task.sleep(for: .milliseconds(350))
-                            guard !Task.isCancelled else { return }
-                            model.updateDraft(newValue, for: task.id)
+        Group {
+            if task.question == nil || task.question?.allowsFreeText == true {
+                VStack(spacing: 10) {
+                    if task.question == nil {
+                        HStack(spacing: 8) {
+                            quickReply("What's next", icon: "arrow.right.circle", choice: .okayWhatsNext)
+                            quickReply("Do that", icon: "checkmark.circle", choice: .letsDoThat)
+                            Spacer(minLength: 0)
                         }
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .background(Color(uiColor: .secondarySystemBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
 
-                Button(action: sendDraft) {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 32))
+                    HStack(alignment: .bottom, spacing: 10) {
+                        TextField(task.question == nil ? "Message Codex" : "Your answer", text: $draft, axis: .vertical)
+                            .lineLimit(1...5)
+                            .focused($composerFocused)
+                            .submitLabel(.send)
+                            .onSubmit { sendDraft() }
+                            .onChange(of: draft) { _, newValue in
+                                draftSaveTask?.cancel()
+                                draftSaveTask = Task { @MainActor in
+                                    try? await Task.sleep(for: .milliseconds(350))
+                                    guard !Task.isCancelled else { return }
+                                    model.updateDraft(newValue, for: task.id)
+                                }
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                            .background(Color(uiColor: .secondarySystemBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+
+                        Button(action: sendDraft) {
+                            Image(systemName: "arrow.up.circle.fill")
+                                .font(.system(size: 32))
+                        }
+                        .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.replyState == .sending)
+                        .accessibilityLabel(task.question == nil ? "Send reply" : "Send answer")
+                    }
                 }
-                .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.replyState == .sending)
-                .accessibilityLabel("Send reply")
+                .padding(.horizontal, 12)
+                .padding(.top, 10)
+                .padding(.bottom, 6)
+                .background(.bar)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.top, 10)
-        .padding(.bottom, 6)
-        .background(.bar)
     }
 
     private func quickReply(_ title: String, icon: String, choice: PhoneDexReplyChoice) -> some View {
@@ -787,7 +840,17 @@ struct PhoneDexTaskDetailView: View {
     private func sendDraft() {
         let prompt = draft
         Task {
-            if await model.send(.custom, prompt: prompt, to: task) {
+            let sent: Bool
+            if let question = task.question {
+                sent = await model.sendQuestionResponse(
+                    task: task,
+                    questionId: question.id,
+                    response: .text(prompt)
+                )
+            } else {
+                sent = await model.send(.custom, prompt: prompt, to: task)
+            }
+            if sent {
                 draft = ""
                 composerFocused = false
             }
@@ -819,6 +882,7 @@ struct PhoneDexTaskDetailView: View {
 private enum PhoneDexTaskDetailAnchor: String {
     case header
     case status
+    case question
     case transcript
     case activity
     case evidence
