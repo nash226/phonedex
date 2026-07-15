@@ -85,6 +85,7 @@ else console.log("completed: " + prompt);
     WATCH_BRIDGE_PUBLIC_URL: `http://127.0.0.1:${port}`,
     WATCH_BRIDGE_TOKEN: "phone-token",
     PHONEDEX_ADAPTER_PLATFORM: "macos",
+    PHONEDEX_ADAPTER_MODE: "cli",
     PHONEDEX_WORKSPACE_ROOTS: workspace,
     CODEX_BIN: fakeCodex,
     PUSHCUT_WEBHOOK_URL: ""
