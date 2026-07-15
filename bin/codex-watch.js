@@ -26,6 +26,12 @@ const {
   createPhoneDexPrivacy,
   normalizeRetentionDays
 } = require("../lib/phonedex-privacy");
+const {
+  buildLegacyReplyForwardBody,
+  legacyTaskList,
+  normalizeLegacyReplyInput,
+  normalizeLegacyTaskInput
+} = require("../lib/phonedex-compat");
 
 const ROOT = path.resolve(__dirname, "..");
 const DATA_DIR_DEFAULT = path.join(ROOT, "data");
@@ -680,10 +686,7 @@ async function startServer(providedCfg) {
         }
         const tasks = readJsonl(cfg.dataDir, "tasks.jsonl");
         const requestedLimit = requestUrl.searchParams.get("limit");
-        const visibleTasks = requestedLimit === "all"
-          ? tasks
-          : tasks.slice(-parseTaskListLimit(requestedLimit));
-        return sendJson(res, 200, visibleTasks.map(publicTask));
+        return sendJson(res, 200, legacyTaskList(tasks, requestedLimit, publicTask));
       }
 
       if (requestUrl.pathname === "/sync") {
@@ -843,13 +846,6 @@ async function handlePrivacyRequest(req, res, requestUrl, cfg) {
 function normalizeConfiguredRetentionDays(value) {
   if (value === undefined || value === "") return 0;
   return normalizeRetentionDays(value);
-}
-
-function parseTaskListLimit(value) {
-  if (value === null || value === "") return 25;
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isFinite(parsed) || parsed < 1) return 25;
-  return Math.min(parsed, 500);
 }
 
 function publicSyncPage(page) {
@@ -1454,9 +1450,10 @@ async function handleReplyRequest(req, res, requestUrl, cfg) {
     return sendJson(res, 401, { ok: false, error: "Invalid token" });
   }
 
+  const legacyReply = normalizeLegacyReplyInput(fields);
   const latestTask = latestJsonl(cfg.dataDir, "tasks.jsonl");
-  const requestedTaskId = fields.taskId || fields.task_id || "";
-  const requestedSessionId = fields.sessionId || fields.session_id || "";
+  const requestedTaskId = legacyReply.requestedTaskId;
+  const requestedSessionId = legacyReply.requestedSessionId;
   const task = requestedTaskId ? findTask(cfg.dataDir, requestedTaskId) : latestTask;
   if (!task) {
     return sendJson(res, 404, { ok: false, error: "The selected PhoneDex task no longer exists." });
@@ -1470,9 +1467,7 @@ async function handleReplyRequest(req, res, requestUrl, cfg) {
 
   const taskId = task.id;
   const taskVersion = Number.isInteger(task.version) && task.version >= 1 ? task.version : 1;
-  const expectedTaskVersion = parseExpectedTaskVersion(
-    fields.expectedTaskVersion || fields.expected_task_version
-  );
+  const expectedTaskVersion = parseExpectedTaskVersion(legacyReply.expectedTaskVersion);
   if (expectedTaskVersion.error) {
     return sendJson(res, 400, { ok: false, code: "invalid_task_version", error: expectedTaskVersion.error });
   }
@@ -1486,18 +1481,16 @@ async function handleReplyRequest(req, res, requestUrl, cfg) {
     });
   }
 
-  const idempotencyKeyValue = fields.idempotencyKey || fields.idempotency_key || "";
+  const idempotencyKeyValue = legacyReply.idempotencyKey;
   if (idempotencyKeyValue && String(idempotencyKeyValue).length > 240) {
     return sendJson(res, 400, { ok: false, code: "invalid_idempotency_key", error: "The idempotency key is too long." });
   }
   const idempotencyKey = String(idempotencyKeyValue || makeId("reply-key"));
-  const commandId = String(fields.commandId || fields.command_id || makeId("reply-command")).slice(0, 160);
-  const actor = String(fields.actor || fields.requestedBy || "iphone").slice(0, 160);
-  const choice = normalizeChoice(fields.choice || "okay_whats_next");
+  const commandId = String(legacyReply.commandId || makeId("reply-command")).slice(0, 160);
+  const actor = String(legacyReply.actor).slice(0, 160);
+  const choice = normalizeChoice(legacyReply.choice);
   const prompt =
-    fields.prompt ||
-    fields.reply_text ||
-    fields.replyText ||
+    legacyReply.prompt ||
     RESPONSE_CHOICES[choice] ||
     choice;
   const existing = findReplyByIdempotencyKey(cfg.dataDir, idempotencyKey);
@@ -1542,12 +1535,12 @@ async function handleReplyRequest(req, res, requestUrl, cfg) {
     taskId,
     choice,
     prompt,
-    action: fields.action || "",
-    replyText: fields.reply_text || fields.replyText || "",
+    action: legacyReply.action,
+    replyText: legacyReply.replyText,
     taskTitle: task?.title || "",
     sessionId: task?.sessionId || "",
     cwd: task?.cwd || "",
-    machineName: fields.machineName || fields.machine || task?.machineName || "",
+    machineName: legacyReply.machineName || task?.machineName || "",
     userAgent: req.headers["user-agent"] || ""
   };
 
@@ -1667,18 +1660,7 @@ async function maybeForwardReplyToOrigin(cfg, task, reply) {
     const response = await fetch(originReplyUrl, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        token: task.originToken || task.replyToken || "",
-        commandId: reply.commandId,
-        idempotencyKey: reply.idempotencyKey,
-        expectedTaskVersion: reply.expectedTaskVersion,
-        actor: "phonedex-hub",
-        taskId: task.originTaskId || task.id,
-        choice: reply.choice,
-        prompt: reply.prompt,
-        reply_text: reply.replyText || "",
-        machineName: task.machineName || ""
-      })
+      body: JSON.stringify(buildLegacyReplyForwardBody(task, reply))
     });
     const responseText = await response.text();
     appendJsonl(cfg.dataDir, "events.jsonl", {
@@ -2224,36 +2206,31 @@ function createTask(fields) {
 }
 
 function createIngestedTask(fields, cfg, req) {
-  const originTaskId = fields.id || fields.taskId || fields.task_id || "";
-  const machineName = fields.machineName || fields.machine || fields.host || "Unknown device";
-  const deviceId =
-    fields.deviceId ||
-    fields.machineId ||
-    fields.host ||
-    req.headers["x-phonedex-device-id"] ||
-    machineName;
+  const legacy = normalizeLegacyTaskInput(fields, {
+    deviceId: req.headers["x-phonedex-device-id"] || ""
+  });
 
   return addTaskProtocolFields({
     id: makeId("task"),
-    at: fields.at || new Date().toISOString(),
-    source: fields.source ? `remote-${fields.source}` : "remote-agent",
-    title: fields.title || "Codex done",
-    text: normalizeNotificationText(fields.text || fields.body || fields.message || "Task completed"),
-    cwd: fields.cwd || "",
-    machineName,
-    deviceId,
-    sessionId: fields.sessionId || fields.session_id || "",
-    messageId: fields.messageId || fields.message_id || "",
-    logicalEventId: fields.logicalEventId || fields.logical_event_id || "",
-    captureSources: fields.captureSources,
-    originTaskId,
-    originReplyUrl: fields.replyUrl || fields.reply_url || "",
-    originPublicUrl: fields.publicUrl || fields.public_url || "",
-    originToken: fields.replyToken || fields.reply_token || "",
+    at: legacy.at,
+    source: legacy.source ? `remote-${legacy.source}` : "remote-agent",
+    title: legacy.title,
+    text: normalizeNotificationText(legacy.text),
+    cwd: legacy.cwd,
+    machineName: legacy.machineName,
+    deviceId: legacy.deviceId,
+    sessionId: legacy.sessionId,
+    messageId: legacy.messageId,
+    logicalEventId: legacy.logicalEventId,
+    captureSources: legacy.captureSources,
+    originTaskId: legacy.originTaskId,
+    originReplyUrl: legacy.replyUrl,
+    originPublicUrl: legacy.publicUrl,
+    originToken: legacy.replyToken,
     receivedAt: new Date().toISOString(),
     receivedFrom: req.socket.remoteAddress || "",
-    hookPayload: fields.hookPayload,
-    rawHookInputBytes: fields.rawHookInputBytes
+    hookPayload: legacy.hookPayload,
+    rawHookInputBytes: legacy.rawHookInputBytes
   });
 }
 

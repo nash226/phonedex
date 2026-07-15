@@ -134,6 +134,21 @@ corrupt current snapshot is recovered from the backup only when the backup
 validates; future store versions fail closed instead of being silently
 downgraded.
 
+The compatibility boundary is implemented in
+[`lib/phonedex-compat.js`](../lib/phonedex-compat.js) and is intentionally
+narrower than the v1 contract. It accepts legacy task aliases (`id`, `taskId`,
+`task_id`, `machine`, `machineId`, `session_id`, `reply_url`, and
+`reply_token`), nested `task` JSON, and existing JSON or form-encoded `/tasks`
+requests. Legacy `GET /tasks` keeps its bounded recent-list behavior and
+returns the sanitized task shape older clients expect. Legacy `/reply`
+requests likewise accept camelCase and snake_case task/session/version,
+command, idempotency, and `reply_text` fields; the bridge translates them into
+a versioned reply command while preserving the legacy `replies.jsonl` mirror.
+Replies forwarded to Mac or Windows agents retain the original callback body
+aliases and origin token only on that private agent hop. The adapter fixture
+in `scripts/test-compatibility.js` locks these translations and list limits
+without exposing those credentials in public task responses.
+
 The native iPhone client stores the last complete task/device projection and
 the opaque cursor in an AES-GCM encrypted cache. Its 256-bit cache key is a
 device-only Keychain item and the cache file uses iOS data protection. A

@@ -100,7 +100,7 @@ device, and command control plane while retaining migration from current data.
 - [x] Separate device reachability, agent health, and Codex adapter health.
 - [x] Add capability negotiation and protocol compatibility errors.
 - [x] Add retention, redaction, export, and deletion controls.
-- [ ] Preserve a compatibility adapter for current `/tasks` and `/reply`
+- [x] Preserve a compatibility adapter for current `/tasks` and `/reply`
   clients during migration.
 
 Exit gate: restart, duplicate delivery, pagination, migration, and rollback
@@ -176,6 +176,15 @@ endpoints work for the shared Mac/Windows-compatible hub;
 `PHONEDEX_RETENTION_DAYS` can enforce a configured startup policy.
 `scripts/test-privacy.js` covers export redaction, retention, authentication,
 confirmation failures, history deletion, and device inventory preservation.
+
+Verification evidence for the completed compatibility-adapter slice:
+`lib/phonedex-compat.js` centralizes the legacy `/tasks` and `/reply` field
+aliases, bounded task-list behavior, and private origin-forward body used by
+older Mac/Windows agents and notification clients. The bridge routes those
+inputs through the adapter while keeping the versioned store, command receipts,
+and sanitized public responses authoritative. `scripts/test-compatibility.js`
+covers nested and snake_case task ingestion, legacy reply fields, origin
+forwarding, list limits, and credential-preserving public mapping.
 
 ## M2: Secure Identity and Pairing
 
