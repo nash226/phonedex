@@ -209,6 +209,65 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
         lifecycleCapabilities.contains(capability)
     }
 
+    func controlAvailability(desktopHandoffAvailable: Bool) -> [PhoneDexTaskControlAvailability] {
+        var controls = [PhoneDexTaskControlAvailability]()
+
+        if ["queued", "running", "needs_input"].contains(status ?? "") {
+            controls.append(PhoneDexTaskControlAvailability(
+                id: "cancel",
+                title: "Cancel task",
+                symbol: "xmark.circle",
+                capability: "task.cancel.v1",
+                isAvailable: supportsLifecycle("task.cancel.v1"),
+                reason: supportsLifecycle("task.cancel.v1")
+                    ? "The originating agent can stop this managed run."
+                    : "The originating agent did not advertise task.cancel.v1 for this task."
+            ))
+        }
+
+        if ["failed", "cancelled"].contains(status ?? "") {
+            controls.append(PhoneDexTaskControlAvailability(
+                id: "retry",
+                title: "Retry task",
+                symbol: "arrow.clockwise",
+                capability: "task.retry.v1",
+                isAvailable: supportsLifecycle("task.retry.v1"),
+                reason: supportsLifecycle("task.retry.v1")
+                    ? "The originating agent can start a managed retry."
+                    : "The originating agent did not advertise task.retry.v1 for this task."
+            ))
+        }
+
+        if let approvalRequest, approvalRequest.state == "pending", !approvalRequest.isExpired {
+            controls.append(PhoneDexTaskControlAvailability(
+                id: "approval",
+                title: "Respond to approval",
+                symbol: "checkmark.shield",
+                capability: "approval.respond.v1",
+                isAvailable: supportsLifecycle("approval.respond.v1"),
+                reason: supportsLifecycle("approval.respond.v1")
+                    ? "The originating agent can receive this task-version-bound decision."
+                    : "The originating agent did not advertise approval.respond.v1 for this request."
+            ))
+        }
+
+        let hasSession = !(sessionId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "").isEmpty
+        controls.append(PhoneDexTaskControlAvailability(
+            id: "handoff",
+            title: "Desktop handoff",
+            symbol: "desktopcomputer.and.arrow.down",
+            capability: "desktop.handoff.v1",
+            isAvailable: desktopHandoffAvailable,
+            reason: desktopHandoffAvailable
+                ? "A supported adapter can prepare this task's exact desktop context."
+                : hasSession
+                    ? "The originating agent did not advertise desktop.handoff.v1 for this task."
+                    : "This task has no stable Codex session identity to hand off."
+        ))
+
+        return controls
+    }
+
     static func latestPerConversation(_ tasks: [PhoneDexTask]) -> [PhoneDexTask] {
         var latest: [String: PhoneDexTask] = [:]
         for task in tasks {
@@ -222,6 +281,15 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
         }
         return Array(latest.values)
     }
+}
+
+struct PhoneDexTaskControlAvailability: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let symbol: String
+    let capability: String
+    let isAvailable: Bool
+    let reason: String
 }
 
 struct PhoneDexTaskQuestion: Codable, Equatable {

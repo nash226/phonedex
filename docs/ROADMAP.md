@@ -434,7 +434,7 @@ across Mac and Windows.
 - [x] Build and validate the macOS adapter matrix.
 - [x] Build and validate the Windows adapter matrix.
 - [ ] Keep foreground macOS paste as an explicitly experimental fallback.
-- [ ] Hide or explain every unsupported action based on negotiated capability.
+- [x] Hide or explain every unsupported action based on negotiated capability.
 
 Exit gate: acceptance scenarios 3, 4, 5, 9, and 10 pass on one Mac and one
 Windows machine, including sleep, reconnect, update, and revoke.
@@ -469,6 +469,15 @@ ScheduledTasks contract without changing user task state. The `windows-adapter`
 job in `.github/workflows/node-ci.yml` runs this fixture on `windows-latest`
 with Node 18.x and 22.x. Full install, update, sleep/reconnect, session-file,
 and revoke validation remain real Windows release-matrix work.
+
+Verification evidence for the completed capability-aware action presentation
+slice: `PhoneDexTask.controlAvailability` derives task controls from the
+originating task's advertised capabilities and stable session identity, while
+`PhoneDexTaskDetailView` keeps unsupported toolbar actions hidden and explains
+their unavailable state in an accessible Remote controls section. Focused
+diagnostics tests cover missing cancel support, supported handoff, and handoff
+without a stable session identity. Replies remain on the existing compatibility
+path; no private Codex Desktop API or new command is introduced.
 
 Verification evidence for the completed structured question-response slice:
 `lib/phonedex-protocol.js` validates bounded task questions with unique choice
