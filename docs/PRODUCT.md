@@ -129,9 +129,9 @@ The repository already proves the core loop, but not the final product.
   durable cursor, and distinguishes loading, stale, offline, revoked,
   incompatible, and partial refresh states; reply commands are now persisted
   in the same encrypted cache for offline retry.
-- The iOS app has no complete live-progress model, approval UI, artifact
-  viewer, or general lifecycle command queue; task detail only renders the
-  response and metadata currently exported by the bridge, with the bounded
+- The iOS app has no complete live-progress model, approval response controls,
+  artifact viewer, or general lifecycle command queue; task detail renders
+  bounded approval review metadata when exported by the bridge, with the
   managed-task controls described above.
 - The shared token remains part of legacy setup and can be accepted in URLs by
   the current bridge; notification payloads no longer contain it. The iOS
@@ -142,8 +142,10 @@ The repository already proves the core loop, but not the final product.
   local development. Hub and agent TLS deployment is still release work.
 - Reply and managed lifecycle commands carry a client idempotency key and
   expected task version; the bridge persists command receipts and the iPhone
-  exposes accepted, duplicate, stale, and failed delivery states. General
-  lifecycle queuing and approval commands remain future work.
+  exposes accepted, duplicate, stale, and failed delivery states. Approval
+  requests now carry bounded operation, scope, origin, reason, risk, expiry,
+  and task-version metadata; response controls and agent execution remain
+  future work.
 - Paired credentials can be rotated without changing task history, protected
   requests are rate-limited per principal, and reply idempotency keys reject
   mutated replays. Content-free security lifecycle outcomes are written to the
@@ -174,7 +176,7 @@ supported command path on the originating machine.
 | See live progress | Running state, concise activity, and latest meaningful event | **Target.** Requires structured agent events; iOS cannot infer this from desktop UI. |
 | Start a task | Choose a machine/workspace, enter a prompt, and create a tracked run | **Current, bounded.** Allowlisted agents expose a versioned create command; arbitrary desktop task creation is not promised. |
 | Answer a question | Render explicit choices or text input and resume the same task | **Current, partial.** Bounded task questions and reply envelopes exist; richer event streams and adapter-native continuation remain future work. |
-| Review an approval | Show exact operation, scope, risk, and origin before approve/reject | **Target.** Only available when the adapter exposes a valid, expiring approval. |
+| Review an approval | Show exact operation, scope, risk, and origin before approve/reject | **Current, partial.** Expiring task-version-bound review metadata is rendered read-only; approve/reject controls require the future `approval.respond.v1` contract. |
 | Review changes | Mobile diff summary, file list, patch detail, and validation results | **Current, partial.** Structured file, artifact, source-reference, and validation metadata can be exported; full patch detail and downloads remain target work. |
 | Cancel, retry, or queue | Issue idempotent lifecycle commands with visible receipts | **Target.** Requires adapter capability negotiation. |
 | Cancel, retry, or queue | Issue idempotent lifecycle commands with visible receipts | **Current, bounded.** Cancel/retry apply to PhoneDex-owned runs when advertised; general queueing remains Target. |

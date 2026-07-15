@@ -130,6 +130,41 @@ final class PhoneDexSmokeTests: XCTestCase {
         XCTAssertTrue(task.question?.allowsFreeText == true)
     }
 
+    func testApprovalRequestDecodesBoundedReviewMetadataAndExpiry() throws {
+        let task = try JSONDecoder().decode(
+            PhoneDexTask.self,
+            from: Data(
+                """
+                {
+                  "id": "task_approval",
+                  "createdAt": "2026-07-15T12:00:00.000Z",
+                  "version": 4,
+                  "status": "awaiting_approval",
+                  "title": "Review a file operation",
+                  "approvalRequest": {
+                    "id": "approval_1",
+                    "taskVersion": 4,
+                    "operation": "Write generated files",
+                    "scope": "PhoneDex workspace",
+                    "origin": {"deviceId": "mac_1", "machineName": "Build Mac", "workspaceName": "PhoneDex"},
+                    "reason": "The task is ready to update the generated project.",
+                    "risk": "Changes files in the selected workspace.",
+                    "requestedAt": "2026-07-15T12:00:00.000Z",
+                    "expiresAt": "2099-07-15T12:15:00.000Z",
+                    "state": "pending"
+                  }
+                }
+                """.utf8
+            )
+        )
+
+        XCTAssertEqual(task.approvalRequest?.id, "approval_1")
+        XCTAssertEqual(task.approvalRequest?.taskVersion, 4)
+        XCTAssertEqual(task.approvalRequest?.origin.workspaceName, "PhoneDex")
+        XCTAssertEqual(task.approvalRequest?.displayState, "Awaiting your review")
+        XCTAssertFalse(task.approvalRequest?.isExpired == true)
+    }
+
     func testLifecycleEventDecodesBoundedSummary() throws {
         let event = try JSONDecoder().decode(
             PhoneDexEvent.self,
