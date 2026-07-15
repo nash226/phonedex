@@ -9,7 +9,8 @@ const { spawn } = require("node:child_process");
 const { createPhoneDexStore } = require("../lib/phonedex-store");
 const {
   addDeviceProtocolFields,
-  addTaskProtocolFields
+  addTaskProtocolFields,
+  normalizeCaptureSources
 } = require("../lib/phonedex-protocol");
 const {
   SYNC_SCHEMA,
@@ -280,6 +281,14 @@ async function handleHook() {
     "conversationId",
     "conversation_id"
   ]);
+  const messageId = findFirstKey(payload, [
+    "messageId",
+    "message_id",
+    "turnId",
+    "turn_id",
+    "eventId",
+    "event_id"
+  ]);
 
   const title = `Codex done: ${projectName}`;
   const text = buildTaskMessage(payload);
@@ -289,6 +298,7 @@ async function handleHook() {
     text,
     cwd,
     sessionId,
+    messageId,
     hookPayload: summarizePayload(payload),
     rawHookInputBytes: Buffer.byteLength(rawInput || "")
   });
@@ -313,11 +323,12 @@ async function handleNotify(args) {
 
 async function recordTaskAndDispatch(cfg, task, options = {}) {
   const result = durableStore(cfg.dataDir).appendTask(task, (candidate) =>
-    isDuplicateTask(candidate, task)
+    isDuplicateTask(candidate, task),
+    mergeTaskCaptures
   );
   if (!result.created) {
     const duplicate = result.task;
-    return { task: duplicate, created: false };
+    return { task: duplicate, created: false, merged: Boolean(result.merged) };
   }
 
   // Keep the legacy file for existing local tooling while the transactional
@@ -335,6 +346,25 @@ async function recordTaskAndDispatch(cfg, task, options = {}) {
   }
 
   return { task, created: true, forward };
+}
+
+function mergeTaskCaptures(existing, incoming) {
+  const merged = {
+    ...existing,
+    captureSources: normalizeCaptureSources([
+      ...(Array.isArray(existing.captureSources) ? existing.captureSources : []),
+      ...(Array.isArray(incoming.captureSources) ? incoming.captureSources : [])
+    ])
+  };
+
+  for (const field of ["logicalEventId", "messageId", "sessionId", "cwd"]) {
+    if (!merged[field] && incoming[field]) merged[field] = incoming[field];
+  }
+  if ((!merged.text || merged.text === "Task completed") && incoming.text) {
+    merged.text = incoming.text;
+  }
+  if (!merged.hookPayload && incoming.hookPayload) merged.hookPayload = incoming.hookPayload;
+  return merged;
 }
 
 function isDuplicateTask(candidate, task) {
@@ -355,6 +385,13 @@ function isDuplicateTask(candidate, task) {
   };
 
   if (!candidate || candidate.parseError) return false;
+  if (
+    task.logicalEventId &&
+    candidate.logicalEventId === task.logicalEventId &&
+    sameDevice(candidate)
+  ) {
+    return true;
+  }
   if (sameOrigin(candidate) && sameDevice(candidate)) return true;
   if (
     task.messageId &&
@@ -1989,6 +2026,8 @@ function createIngestedTask(fields, cfg, req) {
     deviceId,
     sessionId: fields.sessionId || fields.session_id || "",
     messageId: fields.messageId || fields.message_id || "",
+    logicalEventId: fields.logicalEventId || fields.logical_event_id || "",
+    captureSources: fields.captureSources,
     originTaskId,
     originReplyUrl: fields.replyUrl || fields.reply_url || "",
     originPublicUrl: fields.publicUrl || fields.public_url || "",
