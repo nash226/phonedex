@@ -279,6 +279,16 @@ covers old-credential rejection, rate limiting, replay conflicts, rotation, and
 secret-free audit output. Hub/agent TLS deployment and removal of legacy
 query-token compatibility remain separate release work.
 
+Verification evidence for the completed credential-exposure hardening slice:
+native notification metadata now carries task identity only; notification
+actions resolve the current validated bridge URL from app configuration and
+reload the Keychain credential at action time. The bridge redacts URL userinfo,
+query credentials, and credential-shaped support text, and its health,
+self-test, invite, and bootstrap-manifest surfaces expose sanitized URLs.
+Legacy bootstrap download links and older query-token authentication remain
+explicit migration compatibility paths and are not treated as production
+identity.
+
 Verification evidence for the completed iOS transport-policy slice:
 `ios/PhoneDexApp/Info.plist` disables arbitrary ATS loads and permits insecure
 HTTP only for loopback development hosts. `PhoneDexSettings` rejects plaintext

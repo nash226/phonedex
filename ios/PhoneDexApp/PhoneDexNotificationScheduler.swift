@@ -39,8 +39,7 @@ enum PhoneDexNotificationScheduler {
         content.sound = .default
         content.userInfo = [
             "taskId": "preview",
-            "machineName": "MacBook Air",
-            "replyUrl": "http://127.0.0.1:8765/reply"
+            "machineName": "MacBook Air"
         ]
 
         let request = UNNotificationRequest(
@@ -74,7 +73,7 @@ enum PhoneDexNotificationScheduler {
         content.categoryIdentifier = categoryIdentifier
         content.threadIdentifier = "phonedex"
         content.sound = .default
-        content.userInfo = taskNotificationUserInfo(task, bridgeURL: bridgeURL)
+        content.userInfo = taskNotificationUserInfo(task)
 
         let request = UNNotificationRequest(
             identifier: identifier,
@@ -85,14 +84,12 @@ enum PhoneDexNotificationScheduler {
         try await center.add(request)
     }
 
-    static func taskNotificationUserInfo(_ task: PhoneDexTask, bridgeURL: URL) -> [AnyHashable: Any] {
+    static func taskNotificationUserInfo(_ task: PhoneDexTask) -> [AnyHashable: Any] {
         [
             "taskId": task.id,
             "taskVersion": task.version ?? 1,
             "sessionId": task.sessionId ?? "",
-            "machineName": task.machineName ?? "",
-            "replyUrl": bridgeURL.appending(path: "reply").absoluteString,
-            "bridgeUrl": bridgeURL.absoluteString
+            "machineName": task.machineName ?? ""
         ]
     }
 
