@@ -2228,7 +2228,11 @@ async function handleLifecycleCommandRequest(req, res, requestUrl, cfg, lifecycl
     ...Object.fromEntries(requestUrl.searchParams.entries()),
     ...parseBodyFields(body, req.headers["content-type"] || "")
   };
-  if (cfg.token && !isRequestAuthorized(req, requestUrl, cfg, "tasks.reply")) {
+  const requestedKind = String(
+    (fields.command && typeof fields.command === "object" ? fields.command.kind : fields.kind) || ""
+  ).trim();
+  const requiredScope = APPROVAL_KINDS.includes(requestedKind) ? "tasks.approve" : "tasks.reply";
+  if (cfg.token && !isRequestAuthorized(req, requestUrl, cfg, requiredScope)) {
     return sendJson(res, 401, { ok: false, error: "Invalid token" });
   }
 
@@ -2288,6 +2292,7 @@ async function handleLifecycleCommandRequest(req, res, requestUrl, cfg, lifecycl
       }
       approvalDecision = validateApprovalCommand(approvalTask, command);
     } catch (error) {
+      appendApprovalAudit(cfg, command, "blocked", error.code || "approval_rejected");
       const receipt = appendLifecycleReceipt(cfg, command, "rejected", error.message, undefined, error.task);
       return sendJson(res, error.statusCode || 409, {
         ok: false,
@@ -2336,6 +2341,9 @@ async function handleLifecycleCommandRequest(req, res, requestUrl, cfg, lifecycl
       commandTask,
       approvalDecision
     );
+    if (approvalDecision) {
+      appendApprovalAudit(cfg, command, approvalDecision.approvalState, "origin_receipt_accepted");
+    }
     appendJsonl(cfg.dataDir, "commands.jsonl", protocolRecord("command", {
       ...commandRecord,
       state: "acknowledged",
@@ -2375,6 +2383,9 @@ async function handleLifecycleCommandRequest(req, res, requestUrl, cfg, lifecycl
       error.task,
       approvalDecision
     );
+    if (approvalDecision) {
+      appendApprovalAudit(cfg, command, "blocked", error.code || "approval_failed");
+    }
     appendJsonl(cfg.dataDir, "commands.jsonl", protocolRecord("command", {
       ...commandRecord,
       state: receiptState === "rejected" ? "rejected" : "failed"
@@ -2520,6 +2531,16 @@ function findLifecycleCommand(dataDir, idempotencyKey) {
     .slice()
     .reverse()
     .find((command) => command?.kind !== "reply" && command?.idempotencyKey === idempotencyKey);
+}
+
+function appendApprovalAudit(cfg, command, outcome, reason) {
+  if (!APPROVAL_KINDS.includes(command?.kind)) return;
+  appendSecurityAudit(cfg.dataDir, {
+    action: "approval.decision",
+    outcome,
+    route: "/command",
+    reason
+  });
 }
 
 function appendLifecycleReceipt(cfg, command, state, message, duplicateOf, task, approvalDecision) {
