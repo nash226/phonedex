@@ -40,6 +40,17 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.nash226.PhoneDexTests
         GENERATE_INFOPLIST_FILE: YES
+  PhoneDexUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - PhoneDexUITests
+    dependencies:
+      - target: PhoneDex
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.nash226.PhoneDexUITests
+        GENERATE_INFOPLIST_FILE: YES
 schemes:
   PhoneDex:
     build:
@@ -50,3 +61,4 @@ schemes:
     test:
       targets:
         - PhoneDexTests
+        - PhoneDexUITests

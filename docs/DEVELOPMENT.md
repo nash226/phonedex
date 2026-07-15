@@ -51,10 +51,10 @@ xcodebuild \
   build
 ```
 
-For local unit tests, select an installed iPhone simulator destination from
-`xcodebuild -showdestinations`, then run the `PhoneDex` scheme's test action.
-The project includes the `PhoneDexTests` target and requires no Apple signing
-credentials for simulator tests.
+For local unit and UI tests, select an installed iPhone simulator destination
+from `xcodebuild -showdestinations`, then run the `PhoneDex` scheme's test
+action. The project includes the `PhoneDexTests` and `PhoneDexUITests` targets
+and requires no Apple signing credentials for simulator tests.
 
 ## Platform notes
 

@@ -78,6 +78,17 @@
                ReferencedContainer = "container:PhoneDex.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "44D2E530EAF0084ED30F1137"
+               BuildableName = "PhoneDexUITests.xctest"
+               BlueprintName = "PhoneDexUITests"
+               ReferencedContainer = "container:PhoneDex.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
       <CommandLineArguments>
       </CommandLineArguments>
