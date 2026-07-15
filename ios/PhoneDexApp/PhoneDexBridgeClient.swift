@@ -6,7 +6,15 @@ struct PhoneDexBridgeClient {
     var session: URLSession = .shared
 
     func fetchTasks() async throws -> [PhoneDexTask] {
-        let request = authorizedRequest(url: bridgeURL.appending(path: "tasks"))
+        let tasksURL = bridgeURL.appending(path: "tasks")
+        guard var components = URLComponents(url: tasksURL, resolvingAgainstBaseURL: false) else {
+            throw PhoneDexBridgeClientError.invalidURL
+        }
+        components.queryItems = [URLQueryItem(name: "limit", value: "all")]
+        guard let url = components.url else {
+            throw PhoneDexBridgeClientError.invalidURL
+        }
+        let request = authorizedRequest(url: url)
 
         let (data, response) = try await session.data(for: request)
         try validate(response: response, data: data)
