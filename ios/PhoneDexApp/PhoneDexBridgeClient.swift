@@ -51,6 +51,12 @@ struct PhoneDexReplyReceipt: Codable, Equatable {
     }
 }
 
+struct PhoneDexLifecycleResponse: Decodable {
+    let state: String?
+    let task: PhoneDexTask?
+    let receipt: PhoneDexReplyReceipt
+}
+
 struct PhoneDexPairingResponse: Decodable, Equatable {
     let credential: String
     let identity: PhoneDexPairedIdentity
@@ -312,6 +318,44 @@ struct PhoneDexBridgeClient {
             return receipt
         }
         return .legacy(commandId: commandId, idempotencyKey: idempotencyKey, taskId: taskId)
+    }
+
+    func sendLifecycleCommand(
+        kind: String,
+        taskId: String? = nil,
+        deviceId: String? = nil,
+        workspaceName: String? = nil,
+        prompt: String? = nil,
+        commandId: String = UUID().uuidString,
+        idempotencyKey: String = UUID().uuidString,
+        expectedTaskVersion: Int? = nil
+    ) async throws -> PhoneDexLifecycleResponse {
+        let url = bridgeURL.appending(path: "command")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 15
+        request.setValue("application/json", forHTTPHeaderField: "content-type")
+        if !token.isEmpty {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
+        }
+
+        var payload: [String: Any] = [
+            "kind": kind,
+            "commandId": commandId,
+            "idempotencyKey": idempotencyKey,
+            "actor": "iphone",
+            "requestedCapability": "task.\(kind == "create_task" ? "create" : kind).v1"
+        ]
+        if let taskId { payload["taskId"] = taskId }
+        if let deviceId { payload["deviceId"] = deviceId }
+        if let expectedTaskVersion { payload["expectedTaskVersion"] = expectedTaskVersion }
+        if let workspaceName { payload["workspaceName"] = workspaceName }
+        if let prompt { payload["prompt"] = prompt }
+        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+
+        let (data, response) = try await session.data(for: request)
+        try validate(response: response, data: data)
+        return try JSONDecoder().decode(PhoneDexLifecycleResponse.self, from: data)
     }
 
     private func authorizedRequest(url: URL) -> URLRequest {

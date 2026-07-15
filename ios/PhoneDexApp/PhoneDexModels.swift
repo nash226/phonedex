@@ -19,11 +19,12 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
     let question: PhoneDexTaskQuestion?
     let captureSources: [PhoneDexCaptureSource]
     let evidence: PhoneDexTaskEvidence?
+    let lifecycleCapabilities: [String]
 
     private enum CodingKeys: String, CodingKey {
         case id, at, createdAt, updatedAt, version, source, title, text, cwd, workspaceName
         case machineName, sessionId, status, branch, repository, captureSources
-        case question, evidence
+        case question, evidence, lifecycleCapabilities
     }
 
     init(from decoder: Decoder) throws {
@@ -46,6 +47,7 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
         question = try container.decodeIfPresent(PhoneDexTaskQuestion.self, forKey: .question)
         captureSources = try container.decodeIfPresent([PhoneDexCaptureSource].self, forKey: .captureSources) ?? []
         evidence = try container.decodeIfPresent(PhoneDexTaskEvidence.self, forKey: .evidence)
+        lifecycleCapabilities = try container.decodeIfPresent([String].self, forKey: .lifecycleCapabilities) ?? []
     }
 
     init(
@@ -66,7 +68,8 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
         version: Int? = nil,
         question: PhoneDexTaskQuestion? = nil,
         captureSources: [PhoneDexCaptureSource] = [],
-        evidence: PhoneDexTaskEvidence? = nil
+        evidence: PhoneDexTaskEvidence? = nil,
+        lifecycleCapabilities: [String] = []
     ) {
         self.id = id
         self.at = at
@@ -86,6 +89,7 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
         self.question = question
         self.captureSources = captureSources
         self.evidence = evidence
+        self.lifecycleCapabilities = lifecycleCapabilities
     }
 
     var displayWorkspace: String {
@@ -107,6 +111,7 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
         case "queued": return "Queued"
         case "running": return "Running"
         case "failed": return "Failed"
+        case "canceling": return "Cancelling"
         case "cancelled": return "Cancelled"
         case "completed": return "Completed"
         default: return "Recent"
@@ -121,6 +126,7 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
         case "queued": return "clock.fill"
         case "running": return "arrow.triangle.2.circlepath"
         case "failed": return "exclamationmark.triangle.fill"
+        case "canceling": return "arrow.triangle.2.circlepath"
         case "cancelled": return "xmark.circle.fill"
         case "completed": return "checkmark.circle.fill"
         default: return "bubble.left.fill"
@@ -189,6 +195,10 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
     var conversationID: String {
         let thread = sessionId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return "\(machineName ?? "")\u{1F}\(thread.isEmpty ? id : thread)"
+    }
+
+    func supportsLifecycle(_ capability: String) -> Bool {
+        lifecycleCapabilities.contains(capability)
     }
 
     static func latestPerConversation(_ tasks: [PhoneDexTask]) -> [PhoneDexTask] {
@@ -498,7 +508,7 @@ struct PhoneDexTaskFilter: Equatable {
         case .needsYou:
             return ["needs_input", "awaiting_approval", "needs_review", "failed"].contains(task.status ?? "")
         case .running:
-            return ["queued", "running"].contains(task.status ?? "")
+            return ["queued", "running", "canceling"].contains(task.status ?? "")
         case .recent:
             return !["needs_input", "awaiting_approval", "needs_review", "failed", "queued", "running"].contains(task.status ?? "")
         }
@@ -543,11 +553,12 @@ struct PhoneDexDevice: Codable, Identifiable, Equatable {
     let capabilities: [String]
     let componentHealth: PhoneDexDeviceHealthSummary?
     let capabilityDetails: [PhoneDexCapability]
+    let workspaces: [String]
 
     private enum CodingKeys: String, CodingKey {
         case deviceId, machineName, platform, role, status, lastSeenAt, version, agentVersion, publicUrl, expected, capabilities
         case componentHealth = "health"
-        case capabilityDetails
+        case capabilityDetails, workspaces
     }
 
     init(from decoder: Decoder) throws {
@@ -568,6 +579,7 @@ struct PhoneDexDevice: Codable, Identifiable, Equatable {
         capabilityDetails = details.isEmpty
             ? capabilities.compactMap(PhoneDexCapability.init(legacyFlag:))
             : details
+        workspaces = try container.decodeIfPresent([String].self, forKey: .workspaces) ?? []
     }
 
     init(
@@ -582,7 +594,8 @@ struct PhoneDexDevice: Codable, Identifiable, Equatable {
         expected: Bool?,
         capabilities: [String] = [],
         componentHealth: PhoneDexDeviceHealthSummary? = nil,
-        capabilityDetails: [PhoneDexCapability] = []
+        capabilityDetails: [PhoneDexCapability] = [],
+        workspaces: [String] = []
     ) {
         self.deviceId = deviceId
         self.machineName = machineName
@@ -596,6 +609,7 @@ struct PhoneDexDevice: Codable, Identifiable, Equatable {
         self.capabilities = capabilities
         self.componentHealth = componentHealth
         self.capabilityDetails = capabilityDetails
+        self.workspaces = workspaces
     }
 
     func encode(to encoder: Encoder) throws {
@@ -612,6 +626,7 @@ struct PhoneDexDevice: Codable, Identifiable, Equatable {
         try container.encode(capabilities, forKey: .capabilities)
         try container.encodeIfPresent(componentHealth, forKey: .componentHealth)
         try container.encode(capabilityDetails, forKey: .capabilityDetails)
+        try container.encode(workspaces, forKey: .workspaces)
     }
 
     var id: String { deviceId }
@@ -622,6 +637,10 @@ struct PhoneDexDevice: Codable, Identifiable, Equatable {
     }
 
     var isOnline: Bool { status == "online" }
+
+    func supportsCapability(_ capability: String) -> Bool {
+        capabilityDetails.contains { $0.identity == capability && $0.supported }
+    }
 }
 
 struct PhoneDexDeviceHealthSummary: Codable, Equatable {

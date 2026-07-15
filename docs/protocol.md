@@ -56,7 +56,7 @@ descriptor identifies the selected supported continuation mode (`cli` or
 `app-server`, with macOS-only foreground paste explicitly experimental), its
 ready/unavailable state, versioned capability records, and bounded limitations.
 It never reports private Codex Desktop UI state, credentials, executable paths,
-or unsupported lifecycle controls. An unavailable or unsupported adapter marks
+or unsupported lifecycle controls. An unavailable adapter marks
 `task.reply.v1` unavailable so the iPhone can explain why a continuation
 cannot be sent instead of presenting a false control. Mac and Windows share
 the same adapter contract; platform-specific behavior is selected by the
@@ -290,6 +290,29 @@ identities, writes the legacy `replies.jsonl` mirror, and returns the same
 versioned delivery receipt used by native clients. New clients should use the
 bearer-authenticated `/sync` and `/reply` contracts and must not put tokens in
 URLs.
+
+### Managed task lifecycle commands
+
+`POST /command` accepts the same versioned command envelope for the supported
+managed-run subset. An agent advertises `task.create.v1`, `task.cancel.v1`, and
+`task.retry.v1` only when it has a configured workspace allowlist and a ready
+CLI/app-server adapter. PhoneDex resolves a create request to the advertised
+workspace name; it never accepts an arbitrary phone-supplied local path.
+Cancel and retry are limited to tasks whose execution was started and tracked
+by PhoneDex. Existing desktop tasks remain read-only, and unsupported commands
+fail closed with a bounded error and durable receipt. Command retries reuse
+the idempotency key; payload changes are rejected as replay conflicts.
+
+```json
+{
+  "kind": "create_task",
+  "deviceId": "macbook-air",
+  "workspaceName": "PhoneDex",
+  "prompt": "Run the focused test suite",
+  "commandId": "phone-command-1",
+  "idempotencyKey": "phone-command-key-1"
+}
+```
 
 ### Reply commands and delivery receipts
 
