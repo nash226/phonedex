@@ -101,8 +101,9 @@ The repository already proves the core loop, but not the final product.
 - A native SwiftUI shell provides Chats, Workspaces, Browser, Devices, and
   Settings, with read-only workspace and device detail surfaces for machine
   context, task counts, heartbeat health, and actionable diagnostics.
-- The app stores one bridge URL and token, restores an encrypted local task/device
-  cache, and reconciles from the hub's opaque cursor while foregrounded.
+- The app stores one bridge URL and a paired device credential in Keychain,
+  restores an encrypted local task/device cache, and reconciles from the hub's
+  opaque cursor while foregrounded. Legacy token entry remains for migration.
 - The app schedules a local notification and registers three reply actions.
 - A notification content extension renders a long, scrollable result.
 - Notification actions post canned or typed/dictated replies to the bridge.
@@ -818,16 +819,19 @@ confirmed retention window, and `POST /privacy/delete` removes task history
 and activity only after the exact `DELETE_PHONEDEX_HISTORY` confirmation.
 Device inventory is retained so a user can still diagnose and recover the hub
 after history deletion. These controls are shared by Mac and Windows agents
-through the user-owned hub and do not claim scoped pairing or account-wide
+through the user-owned hub. The hub now also supports short-lived, single-use
+pairing grants that mint a scoped phone or agent credential without putting
+the durable credential in the pairing request; this does not claim account-wide
 Codex API access.
 
 ### Current security blockers
 
-Before external beta, the current shared token and custom configuration URL
-must be replaced by scoped pairing. The token must move out of notification
-payloads; the iOS settings token is no longer stored in `UserDefaults`.
-Query-token authentication and arbitrary ATS loads must be removed from
-production configuration. Plain JSONL content needs
+Before external beta, legacy shared-token setup must be retired in favor of
+scoped pairing and revocable identities. The token must move out of
+notification payloads; the iOS settings token is no longer stored in
+`UserDefaults`. Pairing grants are now short-lived, single-use, rate-limited,
+and hash-only at rest; credential revocation, TLS enforcement, query-token
+removal, and arbitrary ATS loads remain release work. Plain JSONL content needs
 documented host protection, retention, and migration, and reply failures must
 become auditable command outcomes.
 

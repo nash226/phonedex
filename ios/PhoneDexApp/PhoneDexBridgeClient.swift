@@ -50,6 +50,21 @@ struct PhoneDexReplyReceipt: Codable, Equatable {
     }
 }
 
+struct PhoneDexPairingResponse: Decodable, Equatable {
+    let credential: String
+    let identity: PhoneDexPairedIdentity
+}
+
+struct PhoneDexPairedIdentity: Decodable, Equatable {
+    let id: String
+    let deviceId: String
+    let name: String
+    let role: String
+    let platform: String
+    let scopes: [String]
+    let status: String
+}
+
 struct PhoneDexBridgeClient {
     var bridgeURL: URL
     var token: String
@@ -76,6 +91,36 @@ struct PhoneDexBridgeClient {
         let (data, response) = try await session.data(for: request)
         try validate(response: response, data: data)
         return try JSONDecoder().decode([PhoneDexDevice].self, from: data)
+    }
+
+    func redeemPairing(
+        grant: String,
+        verificationCode: String,
+        deviceName: String = "iPhone"
+    ) async throws -> PhoneDexPairingResponse {
+        let url = bridgeURL.appending(path: "pair")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 15
+        request.setValue("application/json", forHTTPHeaderField: "content-type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "grant": grant,
+            "verificationCode": verificationCode,
+            "deviceName": deviceName,
+            "platform": "ios"
+        ])
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw PhoneDexBridgeClientError.invalidResponse
+        }
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            let message = (try? JSONDecoder().decode(PhoneDexErrorEnvelope.self, from: data))?.error
+            throw PhoneDexBridgeClientError.pairingFailed(
+                message ?? "Pairing could not be completed. Generate a new grant and try again."
+            )
+        }
+        return try JSONDecoder().decode(PhoneDexPairingResponse.self, from: data)
     }
 
     func fetchSyncPage(cursor: String? = nil, limit: Int = 50) async throws -> PhoneDexSyncPage {
@@ -295,6 +340,7 @@ enum PhoneDexBridgeClientError: LocalizedError {
     case httpStatus(Int, String)
     case protocolIncompatible(String)
     case staleTask(String)
+    case pairingFailed(String)
 
     var isCompatibilityFailure: Bool {
         guard case .httpStatus(let status, _) = self else { return false }
@@ -333,12 +379,18 @@ enum PhoneDexBridgeClientError: LocalizedError {
             return message
         case .staleTask(let message):
             return message
+        case .pairingFailed(let message):
+            return message
         }
     }
 }
 
 private struct PhoneDexReplyEnvelope: Decodable {
     let receipt: PhoneDexReplyReceipt?
+}
+
+private struct PhoneDexErrorEnvelope: Decodable {
+    let error: String?
 }
 
 extension Error {
