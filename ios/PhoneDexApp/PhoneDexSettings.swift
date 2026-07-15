@@ -7,15 +7,50 @@ final class PhoneDexSettings: ObservableObject {
     }
 
     @Published var token: String {
-        didSet { defaults.set(token, forKey: Keys.token) }
+        didSet { persistToken() }
     }
 
     private let defaults: UserDefaults
+    private let tokenStore: any PhoneDexTokenStoring
 
-    init(defaults: UserDefaults = .standard) {
+    @Published private(set) var credentialStorageError: String?
+
+    init(
+        defaults: UserDefaults = .standard,
+        tokenStore: any PhoneDexTokenStoring = PhoneDexKeychainTokenStore()
+    ) {
         self.defaults = defaults
-        self.bridgeURL = defaults.string(forKey: Keys.bridgeURL) ?? "http://127.0.0.1:8765"
-        self.token = defaults.string(forKey: Keys.token) ?? ""
+        self.tokenStore = tokenStore
+
+        let storedBridgeURL = defaults.string(forKey: Keys.bridgeURL) ?? "http://127.0.0.1:8765"
+        var storedToken = ""
+        var storageError: String?
+
+        do {
+            storedToken = try tokenStore.readToken() ?? ""
+        } catch {
+            storageError = Self.credentialStorageErrorMessage
+        }
+
+        if storedToken.isEmpty,
+           let legacyToken = defaults.string(forKey: Keys.token),
+           !legacyToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            do {
+                try tokenStore.writeToken(legacyToken)
+                storedToken = legacyToken
+                storageError = nil
+                defaults.removeObject(forKey: Keys.token)
+            } catch {
+                storageError = Self.credentialStorageErrorMessage
+            }
+        } else {
+            // Do not leave a legacy secret behind when a Keychain value already exists.
+            defaults.removeObject(forKey: Keys.token)
+        }
+
+        self.bridgeURL = storedBridgeURL
+        self.token = storedToken
+        self.credentialStorageError = storageError
     }
 
     var normalizedBridgeURL: URL? {
@@ -56,6 +91,22 @@ final class PhoneDexSettings: ObservableObject {
     private enum Keys {
         static let bridgeURL = "phonedex.bridgeURL"
         static let token = "phonedex.token"
+    }
+
+    private static let credentialStorageErrorMessage =
+        "Secure credential storage is unavailable. Try again."
+
+    private func persistToken() {
+        do {
+            if token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                try tokenStore.removeToken()
+            } else {
+                try tokenStore.writeToken(token)
+            }
+            credentialStorageError = nil
+        } catch {
+            credentialStorageError = Self.credentialStorageErrorMessage
+        }
     }
 }
 
