@@ -64,6 +64,21 @@ Generate and open the project:
 npm run ios:open
 ```
 
+The generated `PhoneDex` scheme includes the `PhoneDexTests` simulator unit
+test target. With full Xcode selected, list available simulator destinations
+and run the smoke test with:
+
+```sh
+xcodebuild -project ios/PhoneDex.xcodeproj -scheme PhoneDex -showdestinations
+xcodebuild -project ios/PhoneDex.xcodeproj -scheme PhoneDex \
+  -destination 'platform=iOS Simulator,name=<available iPhone>,OS=<available version>' \
+  test
+```
+
+The smoke test initializes the app entry point and decodes a representative
+bridge task payload so project wiring and the app's current task contract are
+checked before UI tests are added.
+
 Run the `PhoneDex` iOS app on a device or simulator, allow notifications, and
 tap `Send Preview Notification`. Expand the delivered notification to test the
 scrollable PhoneDex UI.

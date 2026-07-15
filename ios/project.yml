@@ -29,3 +29,24 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.nash226.PhoneDex.NotificationExtension
         INFOPLIST_FILE: PhoneDexNotificationExtension/Info.plist
         APPLICATION_EXTENSION_API_ONLY: YES
+  PhoneDexTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - PhoneDexTests
+    dependencies:
+      - target: PhoneDex
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.nash226.PhoneDexTests
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  PhoneDex:
+    build:
+      targets:
+        PhoneDex: all
+        PhoneDexNotificationExtension: all
+        PhoneDexTests: [test]
+    test:
+      targets:
+        - PhoneDexTests
