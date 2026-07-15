@@ -39,6 +39,8 @@ obvious prompt: "Okay, what's next?", "Let's do that", or a custom reply.
 - Can paste phone replies into the visible Codex desktop thread.
 - Records replies in `data/replies.jsonl` so you have a local decision log.
 - Can wrap any shell command and notify you when it finishes.
+- Keeps automated Codex git-worktree workers visible in PhoneDex without
+  sending completion notifications for them.
 - Includes auto-resume modes for sending replies back to Codex.
 
 PhoneDex is Mac-first and local-first. The new primary shape is one PhoneDex
