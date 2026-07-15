@@ -59,6 +59,25 @@ struct PhoneDexTask: Decodable, Identifiable, Equatable {
     var projectID: String {
         "\(machineName ?? "")\u{1F}\(cwd ?? "")"
     }
+
+    var conversationID: String {
+        let thread = sessionId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return "\(machineName ?? "")\u{1F}\(thread.isEmpty ? id : thread)"
+    }
+
+    static func latestPerConversation(_ tasks: [PhoneDexTask]) -> [PhoneDexTask] {
+        var latest: [String: PhoneDexTask] = [:]
+        for task in tasks {
+            guard let current = latest[task.conversationID] else {
+                latest[task.conversationID] = task
+                continue
+            }
+            if (task.displayDate ?? .distantPast) > (current.displayDate ?? .distantPast) {
+                latest[task.conversationID] = task
+            }
+        }
+        return Array(latest.values)
+    }
 }
 
 struct PhoneDexProject: Identifiable, Equatable {
@@ -133,15 +152,16 @@ struct PhoneDexTaskFilter: Equatable {
     }
 
     func machineOptions(from tasks: [PhoneDexTask]) -> [String] {
-        Set(tasks.map(\.displayMachine)).sorted {
-            $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
-        }
+        Set(tasks.map(\.displayMachine)).sorted(by: stableLocalizedOrder)
     }
 
     func workspaceOptions(from tasks: [PhoneDexTask]) -> [String] {
-        Set(tasks.map(\.displayWorkspace)).sorted {
-            $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
-        }
+        Set(tasks.map(\.displayWorkspace)).sorted(by: stableLocalizedOrder)
+    }
+
+    private func stableLocalizedOrder(_ lhs: String, _ rhs: String) -> Bool {
+        let order = lhs.localizedCaseInsensitiveCompare(rhs)
+        return order == .orderedSame ? lhs < rhs : order == .orderedAscending
     }
 
     private func scopeMatches(_ task: PhoneDexTask) -> Bool {
