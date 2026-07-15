@@ -503,6 +503,7 @@ struct PhoneDexTaskDetailView: View {
     @State private var selectedApprovalDecision: PhoneDexApprovalDecision?
     @State private var showDesktopHandoff = false
     @State private var desktopHandoff: PhoneDexDesktopHandoff?
+    @State private var selectedDiffFile: PhoneDexChangedFile?
     @FocusState private var composerFocused: Bool
 
     init(task: PhoneDexTask, model: PhoneDexAppModel) {
@@ -663,6 +664,9 @@ struct PhoneDexTaskDetailView: View {
             if let desktopHandoff {
                 PhoneDexDesktopHandoffView(handoff: desktopHandoff)
             }
+        }
+        .sheet(item: $selectedDiffFile) { file in
+            PhoneDexDiffViewer(files: diffFiles, initialFileID: file.id)
         }
     }
 
@@ -1048,6 +1052,10 @@ struct PhoneDexTaskDetailView: View {
         }
     }
 
+    private var diffFiles: [PhoneDexChangedFile] {
+        task.evidence?.changedFiles.filter { $0.hasPatch } ?? []
+    }
+
     private func evidenceSubheading(_ title: String, count: Int, symbol: String) -> some View {
         Label("\(title) · \(count)", systemImage: symbol)
             .font(.caption.weight(.semibold))
@@ -1055,10 +1063,11 @@ struct PhoneDexTaskDetailView: View {
             .padding(.top, 4)
     }
 
+    @ViewBuilder
     private func changedFileRow(_ file: PhoneDexChangedFile) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        let content = VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Image(systemName: file.status == "deleted" ? "minus.circle" : "doc.text")
+                Image(systemName: file.status == "deleted" ? "minus.circle" : file.hasPatch ? "doc.text.magnifyingglass" : "doc.text")
                     .foregroundStyle(file.status == "deleted" ? .red : .secondary)
                 Text(file.path)
                     .font(.subheadline.weight(.medium))
@@ -1084,12 +1093,33 @@ struct PhoneDexTaskDetailView: View {
                     .font(.caption2.monospacedDigit())
                     .foregroundStyle(.tertiary)
             }
+            if file.hasPatch {
+                Label("View diff", systemImage: "arrow.up.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tint)
+            } else {
+                Text("Patch not exported by this agent")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
         .background(Color(uiColor: .secondarySystemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .accessibilityElement(children: .combine)
+
+        if file.hasPatch {
+            Button {
+                selectedDiffFile = file
+            } label: {
+                content
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens the exported patch for this file")
+        } else {
+            content
+        }
     }
 
     private func validationRow(_ validation: PhoneDexValidationReceipt) -> some View {
