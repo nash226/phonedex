@@ -203,7 +203,7 @@ Outcome: remove shared bearer-token setup from the production path.
   output.
 - [x] Require TLS in the iOS release configuration and remove arbitrary ATS
   loads.
-- [ ] Implement rotation, revoke, replay defense, rate limits, and audit events.
+- [x] Implement rotation, revoke, replay defense, rate limits, and audit events.
 - [x] Add a threat model and automated security regression tests.
 
 Exit gate: acceptance scenarios 1, 7, 12, and 13 pass, and a fresh install can
@@ -266,7 +266,18 @@ only public identity metadata, while `pair:revoke --identity ID` or
 `--device-id DEVICE_ID` immediately makes the credential fail closed on the
 next request. `scripts/test-pairing.js` covers listing without credential
 disclosure, revocation, rejected post-revoke sync, and revoked device state.
-Credential rotation and TLS remain separate M2 slices.
+Verification evidence for the completed credential-lifecycle slice:
+`pair:rotate --identity ID` or `--device-id DEVICE_ID` atomically replaces the
+stored credential hash, increments the public credential version, and invalidates
+the old credential without changing task history or command receipts. Protected
+requests use a bounded per-principal rate limiter with `429` and `Retry-After`
+responses. Reply idempotency keys are bound to the original payload fingerprint;
+mutated or command-id-reused replays fail closed. Pairing, rotation, revocation,
+rate-limit, accepted-reply, and replay-block events are written to the
+content-free `security-audit.jsonl` file. `scripts/test-identity-lifecycle.js`
+covers old-credential rejection, rate limiting, replay conflicts, rotation, and
+secret-free audit output. Hub/agent TLS deployment and removal of legacy
+query-token compatibility remain separate release work.
 
 Verification evidence for the completed iOS transport-policy slice:
 `ios/PhoneDexApp/Info.plist` disables arbitrary ATS loads and permits insecure

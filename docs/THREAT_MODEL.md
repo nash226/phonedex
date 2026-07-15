@@ -38,10 +38,10 @@ implementation.
 | Credential-shaped output is returned by a task or provider | Secret disclosure through `/tasks`, `/sync`, logs, or support output | Structured secret fields are omitted; public strings, provider responses, app-server summaries, and errors use bounded redaction. `npm run test:security` exercises the API projections and redaction forms. |
 | Notification actions expose a durable token | Anyone with notification metadata could reply as the user | Native notification metadata contains routing context only; the token is loaded from Keychain when the action is handled. Existing `PhoneDexSettingsTests` cover URL and metadata rejection. Legacy Pushcut query/body-token actions remain a known migration risk. |
 | Query-string credentials are copied into history or analytics | Credential replay or accidental support disclosure | Native bridge and configuration URLs reject credential-bearing endpoint URLs; privacy administration requires the `Authorization` header. Legacy `/reply` and bootstrap query-token compatibility remains explicit and is not the production identity model. |
-| A compromised or stale agent receives a command | Wrong-machine action or silent loss | Device health is separate from adapter health; reply commands carry task version and idempotency identity with receipts. Revocable agent identity and scoped permissions remain M2 work. |
+| A compromised or stale agent receives a command | Wrong-machine action or silent loss | Device health is separate from adapter health; reply commands carry task version, payload-bound idempotency identity, and receipts. Paired identities can be rotated or revoked, and protected requests are rate-limited. |
 | Hub data is copied from a device or backup | Source and conversation disclosure | iPhone cache uses device-only Keychain-backed AES-GCM; hub retention, redacted export, and confirmed deletion are available. Hub filesystem encryption and backup policy remain operator responsibilities. |
 | TLS is absent on a reachable network | Credential and task interception | HTTPS is accepted and documented for production intent, but arbitrary HTTP is still supported for local development. Release TLS enforcement remains a release-blocking M2 item. |
-| Replay, brute force, or token sharing | Unauthorized reads or duplicate commands | Current shared-token compatibility has bounded request parsing and idempotent reply receipts, but rotation, rate limiting, replay defense, and per-principal scopes remain unimplemented. |
+| Replay, brute force, or token sharing | Unauthorized reads or duplicate commands | Pairing grants are single-use, credentials rotate or revoke immediately, protected requests are rate-limited, reply payloads are bound to idempotency keys, and content-free security audits record lifecycle and blocked-replay outcomes. Legacy shared-token compatibility remains a migration risk. |
 
 ## Security invariants
 
@@ -66,7 +66,7 @@ The following are not silently waived by this document:
 
 - revocable phone, hub, and agent identities with scoped permissions;
 - single-use pairing and verification-code recovery;
-- rotation, replay defense, rate limiting, and audit events for principals;
+- hub/agent TLS deployment and removal of legacy query-token compatibility;
 - TLS enforcement and App Transport Security policy for release builds;
 - the APNs provider, hosted relay, residency, and cost/privacy operating model;
 - signing, App Store Connect, and real-device release configuration.
