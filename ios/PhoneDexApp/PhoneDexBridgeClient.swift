@@ -30,6 +30,9 @@ struct PhoneDexReplyReceipt: Codable, Equatable {
     let idempotencyKey: String?
     let message: String?
     let duplicateOf: String?
+    let approvalId: String?
+    let approvalState: String?
+    let approvalExpiresAt: String?
 
     var isSuccessful: Bool {
         ["accepted", "completed", "duplicate"].contains(state)
@@ -46,7 +49,10 @@ struct PhoneDexReplyReceipt: Codable, Equatable {
             taskVersion: nil,
             idempotencyKey: idempotencyKey,
             message: "Reply accepted by the legacy bridge.",
-            duplicateOf: nil
+            duplicateOf: nil,
+            approvalId: nil,
+            approvalState: nil,
+            approvalExpiresAt: nil
         )
     }
 }
@@ -326,6 +332,8 @@ struct PhoneDexBridgeClient {
         deviceId: String? = nil,
         workspaceName: String? = nil,
         prompt: String? = nil,
+        approvalId: String? = nil,
+        approvalTaskVersion: Int? = nil,
         commandId: String = UUID().uuidString,
         idempotencyKey: String = UUID().uuidString,
         expectedTaskVersion: Int? = nil
@@ -344,13 +352,17 @@ struct PhoneDexBridgeClient {
             "commandId": commandId,
             "idempotencyKey": idempotencyKey,
             "actor": "iphone",
-            "requestedCapability": "task.\(kind == "create_task" ? "create" : kind).v1"
+            "requestedCapability": ["approve", "reject"].contains(kind)
+                ? "approval.respond.v1"
+                : "task.\(kind == "create_task" ? "create" : kind).v1"
         ]
         if let taskId { payload["taskId"] = taskId }
         if let deviceId { payload["deviceId"] = deviceId }
         if let expectedTaskVersion { payload["expectedTaskVersion"] = expectedTaskVersion }
         if let workspaceName { payload["workspaceName"] = workspaceName }
         if let prompt { payload["prompt"] = prompt }
+        if let approvalId { payload["approvalId"] = approvalId }
+        if let approvalTaskVersion { payload["approvalTaskVersion"] = approvalTaskVersion }
         request.httpBody = try JSONSerialization.data(withJSONObject: payload)
 
         let (data, response) = try await session.data(for: request)

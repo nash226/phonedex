@@ -24,6 +24,13 @@ const {
   normalizeTaskEvidence
 } = require("../lib/phonedex-evidence");
 const {
+  APPROVAL_CAPABILITY,
+  APPROVAL_KINDS,
+  projectApprovalDecision,
+  validateApprovalCommand,
+  validateApprovalReceipt
+} = require("../lib/phonedex-approvals");
+const {
   SYNC_SCHEMA,
   normalizeSyncLimit
 } = require("../lib/phonedex-sync");
@@ -2185,6 +2192,10 @@ async function handleLifecycleCommandRequest(req, res, requestUrl, cfg, lifecycl
       error: error.message
     });
   }
+  const approvalTask = APPROVAL_KINDS.includes(command.kind)
+    ? findTask(cfg.dataDir, command.target.taskId)
+    : null;
+  let approvalDecision;
   const existing = findLifecycleCommand(cfg.dataDir, command.idempotencyKey);
   if (existing) {
     if (existing.commandFingerprint !== command.commandFingerprint) {
@@ -2200,13 +2211,40 @@ async function handleLifecycleCommandRequest(req, res, requestUrl, cfg, lifecycl
         error: "The idempotency key was already used for a different lifecycle command."
       });
     }
-    const receipt = appendLifecycleReceipt(cfg, command, "duplicate", "Command was already accepted.", existing.commandId);
+    const receipt = appendLifecycleReceipt(
+      cfg,
+      command,
+      "duplicate",
+      "Command was already accepted.",
+      existing.commandId,
+      approvalTask
+    );
     return sendJson(res, 200, {
       ok: true,
       duplicate: true,
       recorded: existing,
       receipt
     });
+  }
+  if (APPROVAL_KINDS.includes(command.kind)) {
+    try {
+      if (!approvalTask) {
+        const error = new Error("The selected approval task no longer exists.");
+        error.code = "approval_not_available";
+        error.statusCode = 409;
+        throw error;
+      }
+      approvalDecision = validateApprovalCommand(approvalTask, command);
+    } catch (error) {
+      const receipt = appendLifecycleReceipt(cfg, command, "rejected", error.message, undefined, error.task);
+      return sendJson(res, error.statusCode || 409, {
+        ok: false,
+        code: error.code || "approval_rejected",
+        error: error.message,
+        ...(error.currentTaskVersion ? { currentTaskVersion: error.currentTaskVersion } : {}),
+        receipt
+      });
+    }
   }
 
   const commandRecord = protocolRecord("command", {
@@ -2230,8 +2268,22 @@ async function handleLifecycleCommandRequest(req, res, requestUrl, cfg, lifecycl
     const result = shouldForwardLifecycleCommand(cfg, command)
       ? await forwardLifecycleCommand(cfg, command)
       : await lifecycle.execute(command);
+    let commandTask = result.task;
+    if (approvalDecision) {
+      validateApprovalReceipt(result, approvalDecision, approvalTask);
+      commandTask = result.task || projectApprovalDecision(approvalTask, approvalDecision);
+      await updateTaskAndDispatch(cfg, approvalTask.id, commandTask);
+    }
     const state = result.state === "accepted" ? "accepted" : "completed";
-    const receipt = appendLifecycleReceipt(cfg, command, state, result.message, undefined, result.task);
+    const receipt = appendLifecycleReceipt(
+      cfg,
+      command,
+      state,
+      result.message,
+      undefined,
+      commandTask,
+      approvalDecision
+    );
     appendJsonl(cfg.dataDir, "commands.jsonl", protocolRecord("command", {
       ...commandRecord,
       state: "acknowledged"
@@ -2240,15 +2292,34 @@ async function handleLifecycleCommandRequest(req, res, requestUrl, cfg, lifecycl
       ok: true,
       commandId: command.commandId,
       state: result.state,
-      task: result.task ? publicTask(result.task) : undefined,
+      task: commandTask ? publicTask(commandTask) : undefined,
       receipt
     });
   } catch (error) {
     const status = error.statusCode || 500;
-    const receiptState = ["task_stale", "capability_unsupported", "task_not_managed", "task_running"].includes(error.code)
+    const receiptState = [
+      "task_stale",
+      "capability_unsupported",
+      "task_not_managed",
+      "task_running",
+      "approval_not_available",
+      "approval_command_invalid",
+      "approval_mismatch",
+      "approval_already_handled",
+      "approval_expired",
+      "approval_stale"
+    ].includes(error.code)
       ? "rejected"
       : "failed";
-    const receipt = appendLifecycleReceipt(cfg, command, receiptState, error.message, undefined, error.task);
+    const receipt = appendLifecycleReceipt(
+      cfg,
+      command,
+      receiptState,
+      error.message,
+      undefined,
+      error.task,
+      approvalDecision
+    );
     appendJsonl(cfg.dataDir, "commands.jsonl", protocolRecord("command", {
       ...commandRecord,
       state: receiptState === "rejected" ? "rejected" : "failed"
@@ -2307,8 +2378,34 @@ function normalizeLifecycleCommand(raw, cfg) {
     actor: String(raw.actor || raw.requestedBy || "iphone").slice(0, 160),
     ...(expectedTaskVersion.value ? { expectedTaskVersion: expectedTaskVersion.value } : {}),
     expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
-    requestedCapability: `task.${kind === "create_task" ? "create" : kind}.v1`
+    requestedCapability: APPROVAL_KINDS.includes(kind)
+      ? APPROVAL_CAPABILITY
+      : `task.${kind === "create_task" ? "create" : kind}.v1`
   };
+  if (APPROVAL_KINDS.includes(kind)) {
+    const approvalId = String(raw.approvalId || raw.approval_id || raw.payload?.approvalId || "").trim();
+    if (!approvalId) {
+      throwLifecycleRequestError("approval_required", "Choose a current approval before responding.", 422);
+    }
+    if (!expectedTaskVersion.value) {
+      throwLifecycleRequestError(
+        "invalid_task_version",
+        "Approval responses must include the task version shown during review.",
+        400
+      );
+    }
+    const approvalTaskVersion = parseExpectedTaskVersion(
+      raw.approvalTaskVersion || raw.approval_task_version || raw.payload?.taskVersion
+    );
+    if (approvalTaskVersion.error) {
+      throwLifecycleRequestError("invalid_task_version", approvalTaskVersion.error, 400);
+    }
+    command.payload = {
+      approvalId,
+      taskVersion: approvalTaskVersion.value
+    };
+    command.expectedTaskVersion = expectedTaskVersion.value;
+  }
   command.commandFingerprint = hashSecret(JSON.stringify({
     kind: command.kind,
     target: command.target,
@@ -2368,7 +2465,7 @@ function findLifecycleCommand(dataDir, idempotencyKey) {
     .find((command) => command?.kind !== "reply" && command?.idempotencyKey === idempotencyKey);
 }
 
-function appendLifecycleReceipt(cfg, command, state, message, duplicateOf, task) {
+function appendLifecycleReceipt(cfg, command, state, message, duplicateOf, task, approvalDecision) {
   const receipt = protocolRecord("commandReceipt", {
     commandId: command.commandId,
     createdAt: new Date().toISOString(),
@@ -2377,7 +2474,14 @@ function appendLifecycleReceipt(cfg, command, state, message, duplicateOf, task)
     taskVersion: task?.version || command.expectedTaskVersion,
     idempotencyKey: command.idempotencyKey,
     ...(message ? { message: String(message).slice(0, 1000) } : {}),
-    ...(duplicateOf ? { duplicateOf } : {})
+    ...(duplicateOf ? { duplicateOf } : {}),
+    ...(approvalDecision
+      ? {
+          approvalId: approvalDecision.approvalId,
+          approvalState: approvalDecision.approvalState,
+          approvalExpiresAt: approvalDecision.approvalExpiresAt
+        }
+      : {})
   });
   appendJsonl(cfg.dataDir, "command-receipts.jsonl", receipt);
   return receipt;
