@@ -10,6 +10,10 @@ final class PhoneDexSettings: ObservableObject {
         didSet { persistToken() }
     }
 
+    @Published var requireApprovalAuthentication: Bool {
+        didSet { defaults.set(requireApprovalAuthentication, forKey: Keys.requireApprovalAuthentication) }
+    }
+
     private let defaults: UserDefaults
     private let tokenStore: any PhoneDexTokenStoring
 
@@ -50,6 +54,7 @@ final class PhoneDexSettings: ObservableObject {
 
         self.bridgeURL = storedBridgeURL
         self.token = storedToken
+        self.requireApprovalAuthentication = defaults.object(forKey: Keys.requireApprovalAuthentication) as? Bool ?? true
         self.credentialStorageError = storageError
     }
 
@@ -106,6 +111,7 @@ final class PhoneDexSettings: ObservableObject {
     private enum Keys {
         static let bridgeURL = "phonedex.bridgeURL"
         static let token = "phonedex.token"
+        static let requireApprovalAuthentication = "phonedex.requireApprovalAuthentication"
     }
 
     private static let credentialStorageErrorMessage =

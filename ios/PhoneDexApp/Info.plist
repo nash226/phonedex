@@ -40,6 +40,8 @@
 	<dict/>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>PhoneDex connects to your local Mac bridge to fetch completed Codex tasks and send replies.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>PhoneDex uses Face ID to confirm high-risk approval decisions.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
