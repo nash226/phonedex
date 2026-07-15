@@ -404,6 +404,10 @@ struct PhoneDexTaskEvidence: Codable, Equatable {
     var isEmpty: Bool {
         changedFiles.isEmpty && artifacts.isEmpty && validations.isEmpty
     }
+
+    var hasReviewContent: Bool {
+        !changedFiles.isEmpty || !validations.isEmpty
+    }
 }
 
 struct PhoneDexChangedFile: Codable, Equatable, Identifiable {

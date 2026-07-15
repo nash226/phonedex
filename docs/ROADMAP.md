@@ -624,7 +624,7 @@ Status: **Queued**
 
 Outcome: let users evaluate completed work without returning to a computer.
 
-- [ ] Build file-level change summaries and validation-result views.
+- [x] Build file-level change summaries and validation-result views.
 - [x] Build a virtualized native text diff viewer with file navigation,
   context expansion, copy, and share.
 - [ ] Add integrity-checked artifact metadata and explicit downloads.
@@ -644,6 +644,16 @@ and incomplete-patch guidance. `scripts/test-evidence.js` covers line-ending
 normalization and size bounds, while `ios/PhoneDexTests/PhoneDexDiffTests.swift`
 covers line classification, hunk numbering, and the mobile line limit. Source
 references remain metadata only; the iPhone does not read desktop files.
+
+Verification evidence for the completed file-summary and validation-result
+slice: `ios/PhoneDexApp/PhoneDexReviewSummary.swift` adds a dedicated native
+review surface from task detail with aggregate file counts, additions,
+deletions, validation outcomes, machine/workspace context, and explicit
+unreported, incomplete, or failed states. File rows preserve relative source references as
+metadata and open only the already-exported patch through the existing bounded
+diff viewer; no desktop file access or artifact download is introduced.
+`ios/PhoneDexTests/PhoneDexReviewSummaryTests.swift` covers aggregation,
+failed-over-running precedence, missing validation, and empty evidence.
 
 ## M8: Beta, Operations, and App Store Release
 
