@@ -17,6 +17,12 @@ The iOS app scaffold includes:
   typed custom replies.
 - Notification action handling that posts replies back to the bridge `/reply`
   endpoint.
+- An adaptive command-center shell with Chats, Workspaces, Browser, Devices,
+  and Settings tabs.
+- A task conversation view with quick actions, a persistent custom composer,
+  and visible reply delivery errors.
+- A native WebKit browser for documentation, pull requests, and research
+  without leaving PhoneDex.
 
 ## Generate The Xcode Project
 
