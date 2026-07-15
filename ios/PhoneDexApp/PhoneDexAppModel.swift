@@ -55,7 +55,7 @@ final class PhoneDexAppModel: ObservableObject {
             async let taskRequest = client.fetchTasks()
             async let deviceRequest = client.fetchDevices()
             let (fetchedTasks, fetchedDevices) = try await (taskRequest, deviceRequest)
-            tasks = fetchedTasks.sorted { lhs, rhs in
+            tasks = PhoneDexTask.latestPerConversation(fetchedTasks).sorted { lhs, rhs in
                 (lhs.displayDate ?? .distantPast) > (rhs.displayDate ?? .distantPast)
             }
             devices = fetchedDevices.sorted { lhs, rhs in
@@ -88,6 +88,7 @@ final class PhoneDexAppModel: ObservableObject {
                 choice: choice,
                 prompt: text,
                 taskId: task.id,
+                sessionId: task.sessionId,
                 machineName: task.machineName
             )
             replyState = .sent(text)
