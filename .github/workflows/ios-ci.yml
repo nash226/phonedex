@@ -37,3 +37,14 @@ jobs:
           CODE_SIGNING_ALLOWED=NO
           CODE_SIGNING_REQUIRED=NO
           build
+
+      - name: Run PhoneDex unit and UI tests
+        run: >-
+          xcodebuild
+          -project ios/PhoneDex.xcodeproj
+          -scheme PhoneDex
+          -destination 'platform=iOS Simulator,name=iPhone 17'
+          -derivedDataPath "$RUNNER_TEMP/PhoneDexTestDerivedData"
+          CODE_SIGNING_ALLOWED=NO
+          CODE_SIGNING_REQUIRED=NO
+          test

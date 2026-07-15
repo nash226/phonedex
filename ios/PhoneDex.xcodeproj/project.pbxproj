@@ -20,6 +20,7 @@
 		96CDAE56CA505EB72AF1B62E /* PhoneDexApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3240FEAD2F5618D959AFEE78 /* PhoneDexApp.swift */; };
 		9A45BA3C831AE7D9319E1CE8 /* PhoneDexSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C4DA9B2C010C3DD5BAF8926 /* PhoneDexSettingsTests.swift */; };
 		9EB70CE573F0C7A801EE8DDA /* PhoneDexSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2A9CD3F16E7ACD6EB2C169E /* PhoneDexSmokeTests.swift */; };
+		AC7516740021D187B3100C91 /* PhoneDexShellUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3D360252DFFAF3736F5F325 /* PhoneDexShellUITests.swift */; };
 		ADA57D392928E5474D7A2819 /* PhoneDexLocalCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE6E0CA593E2A3701AB609A0 /* PhoneDexLocalCache.swift */; };
 		C3F88E12F3AE3E23262CB0D6 /* PhoneDexDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED655BE01B4C1C489674A2D1 /* PhoneDexDiagnostics.swift */; };
 		CC0105A4E0261E4B304E1DEF /* PhoneDexSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECE2BFEEB938CE1690FB6C27 /* PhoneDexSettings.swift */; };
@@ -32,6 +33,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		2AB78292D8A5B1A09C1F438B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 50FA6A296EDE92FC2AF9D949 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = DB6735EA4B07B1A49901E799;
+			remoteInfo = PhoneDex;
+		};
 		E7CF308EBADFB48089079EBC /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 50FA6A296EDE92FC2AF9D949 /* Project object */;
@@ -80,9 +88,11 @@
 		6C4DA9B2C010C3DD5BAF8926 /* PhoneDexSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexSettingsTests.swift; sourceTree = "<group>"; };
 		73934912DDDC32DCE39FC6FA /* PhoneDexDeviceDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexDeviceDetailView.swift; sourceTree = "<group>"; };
 		73FF60BB337122A42682971A /* PhoneDex.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = PhoneDex.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		83D661FED750D9AC2CA53D1B /* PhoneDexUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = PhoneDexUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		860A56B417B84053261A7EA0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		91DBF29F5751A2929960440B /* PhoneDexNotificationDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexNotificationDelegate.swift; sourceTree = "<group>"; };
 		ADCCFEBF0527DD1B51D91321 /* PhoneDexAppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexAppModel.swift; sourceTree = "<group>"; };
+		B3D360252DFFAF3736F5F325 /* PhoneDexShellUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexShellUITests.swift; sourceTree = "<group>"; };
 		BBAEE9F726FE8D4C76E5A3B4 /* NotificationViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationViewController.swift; sourceTree = "<group>"; };
 		BE6E0CA593E2A3701AB609A0 /* PhoneDexLocalCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexLocalCache.swift; sourceTree = "<group>"; };
 		C116F1A84DE193986E04AF6B /* PhoneDexBridgeClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexBridgeClientTests.swift; sourceTree = "<group>"; };
@@ -107,6 +117,7 @@
 				59ABBB4B570D4E9981BB3F2D /* PhoneDexApp */,
 				3081240A4092FC4EB6F962D9 /* PhoneDexNotificationExtension */,
 				8974DA8E45DB055B52788EE4 /* PhoneDexTests */,
+				CC38CC33EA1BEA8E1BCDE11C /* PhoneDexUITests */,
 				F8D2C6157C457C2F55459864 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -146,12 +157,21 @@
 			path = PhoneDexTests;
 			sourceTree = "<group>";
 		};
+		CC38CC33EA1BEA8E1BCDE11C /* PhoneDexUITests */ = {
+			isa = PBXGroup;
+			children = (
+				B3D360252DFFAF3736F5F325 /* PhoneDexShellUITests.swift */,
+			);
+			path = PhoneDexUITests;
+			sourceTree = "<group>";
+		};
 		F8D2C6157C457C2F55459864 /* Products */ = {
 			isa = PBXGroup;
 			children = (
 				73FF60BB337122A42682971A /* PhoneDex.app */,
 				25C82207BC440A87334B4671 /* PhoneDexNotificationExtension.appex */,
 				193B479661C000C8165C2F07 /* PhoneDexTests.xctest */,
+				83D661FED750D9AC2CA53D1B /* PhoneDexUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -194,6 +214,24 @@
 			productReference = 193B479661C000C8165C2F07 /* PhoneDexTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		44D2E530EAF0084ED30F1137 /* PhoneDexUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DA212C7C4305A009EF55F38F /* Build configuration list for PBXNativeTarget "PhoneDexUITests" */;
+			buildPhases = (
+				32FC5B61B37B4C3BF71960FB /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				0CA24001B1A511189863929D /* PBXTargetDependency */,
+			);
+			name = PhoneDexUITests;
+			packageProductDependencies = (
+			);
+			productName = PhoneDexUITests;
+			productReference = 83D661FED750D9AC2CA53D1B /* PhoneDexUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		DB6735EA4B07B1A49901E799 /* PhoneDex */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 8E65B42D59EA0EE6A1F63519 /* Build configuration list for PBXNativeTarget "PhoneDex" */;
@@ -226,6 +264,9 @@
 					02C93F7B509BE88F768CA34A = {
 						DevelopmentTeam = RQRRLJ37K2;
 					};
+					44D2E530EAF0084ED30F1137 = {
+						TestTargetID = DB6735EA4B07B1A49901E799;
+					};
 					DB6735EA4B07B1A49901E799 = {
 						DevelopmentTeam = RQRRLJ37K2;
 					};
@@ -248,6 +289,7 @@
 				DB6735EA4B07B1A49901E799 /* PhoneDex */,
 				02C93F7B509BE88F768CA34A /* PhoneDexNotificationExtension */,
 				0D0AC15C730E7E6A4B898B67 /* PhoneDexTests */,
+				44D2E530EAF0084ED30F1137 /* PhoneDexUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -284,6 +326,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		32FC5B61B37B4C3BF71960FB /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AC7516740021D187B3100C91 /* PhoneDexShellUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		CF182B62DA49AA419A41D55C /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -308,6 +358,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		0CA24001B1A511189863929D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = DB6735EA4B07B1A49901E799 /* PhoneDex */;
+			targetProxy = 2AB78292D8A5B1A09C1F438B /* PBXContainerItemProxy */;
+		};
 		A4E6840C3469220E1CF81955 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = DB6735EA4B07B1A49901E799 /* PhoneDex */;
@@ -337,6 +392,23 @@
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PhoneDex.app/PhoneDex";
 			};
 			name = Debug;
+		};
+		26A97D342A94481FD3FBBDFD /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.nash226.PhoneDexUITests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = PhoneDex;
+			};
+			name = Release;
 		};
 		7C5647D621BB795AF67CDEF9 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -508,6 +580,23 @@
 			};
 			name = Release;
 		};
+		9F431513AE7087412F082FD4 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.nash226.PhoneDexUITests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = PhoneDex;
+			};
+			name = Debug;
+		};
 		DD3A834E609520F5CCFB2B9B /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -568,6 +657,15 @@
 			buildConfigurations = (
 				F00EB27B4BC94816971A2B62 /* Debug */,
 				817878487C440D8A62A16A10 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		DA212C7C4305A009EF55F38F /* Build configuration list for PBXNativeTarget "PhoneDexUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9F431513AE7087412F082FD4 /* Debug */,
+				26A97D342A94481FD3FBBDFD /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

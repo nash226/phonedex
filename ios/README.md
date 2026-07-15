@@ -89,8 +89,8 @@ npm run ios:open
 ```
 
 The generated `PhoneDex` scheme includes the `PhoneDexTests` simulator unit
-test target. With full Xcode selected, list available simulator destinations
-and run the smoke test with:
+test target and the `PhoneDexUITests` shell test target. With full Xcode
+selected, list available simulator destinations and run the scheme tests with:
 
 ```sh
 xcodebuild -project ios/PhoneDex.xcodeproj -scheme PhoneDex -showdestinations
@@ -99,9 +99,10 @@ xcodebuild -project ios/PhoneDex.xcodeproj -scheme PhoneDex \
   test
 ```
 
-The smoke test initializes the app entry point and decodes a representative
-bridge task payload so project wiring and the app's current task contract are
-checked before UI tests are added.
+The unit tests cover app launch, protocol decoding, filtering, cache,
+diagnostics, settings, and reply behavior. The UI tests verify that the five
+primary destinations and Settings controls remain accessible at the largest
+Dynamic Type size, with Reduce Motion and dark appearance traits exercised.
 
 Run the `PhoneDex` iOS app on a device or simulator, allow notifications, and
 tap `Send Preview Notification`. Expand the delivered notification to test the

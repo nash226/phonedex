@@ -330,11 +330,22 @@ Outcome: replace the utility screen with a polished, offline-aware native app.
 - [x] Add reply delivery receipts, retry, stale-version handling, and encrypted
   outbox behavior.
 - [x] Add native device/workspace details and actionable diagnostics.
-- [ ] Cover core workflows with unit, snapshot where useful, UI, VoiceOver,
+- [x] Cover core workflows with unit, snapshot where useful, UI, VoiceOver,
   largest Dynamic Type, Reduce Motion, and dark/light appearance tests.
 
 Exit gate: acceptance scenarios 2, 3, 5, 6, 11, and 14 pass against a real hub
 with at least one supported computer.
+
+Verification evidence for the completed iOS core test-coverage slice:
+`ios/project.yml` defines the `PhoneDexUITests` target and includes it in the
+`PhoneDex` scheme alongside the unit tests. `PhoneDexShellUITests` verifies all
+five primary destinations and their accessible labels at the largest Dynamic
+Type size with Reduce Motion enabled, then verifies Settings navigation and
+secure credential controls in dark appearance. The committed
+`.github/workflows/ios-ci.yml` now runs both the generic unsigned simulator
+build and the scheme's unit/UI test action. On 2026-07-15, Xcode 26.3 passed
+the two UI tests and the full scheme test action on an iPhone 17 iOS 26.3.1
+simulator without signing credentials.
 
 ## M4: Supported Codex Control Adapters
 
