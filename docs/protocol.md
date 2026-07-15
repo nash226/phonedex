@@ -170,7 +170,9 @@ PhoneDex adapter exports review metadata:
         "status": "modified",
         "sourceRef": "ios/PhoneDexApp/ContentView.swift#L10-L30",
         "additions": 12,
-        "deletions": 3
+        "deletions": 3,
+        "patch": "@@ -10,1 +10,2 @@\\n-old\\n+new\\n",
+        "patchTruncated": false
       }
     ],
     "artifacts": [
@@ -194,9 +196,13 @@ PhoneDex adapter exports review metadata:
 }
 ```
 
-`path`, `sourceRef`, and artifact references are relative, bounded strings;
-absolute paths, URLs, parent traversal, and credentials are rejected. The
-bridge deduplicates entries, limits each collection, and emits one
+`path` and `sourceRef` remain relative, bounded references; absolute paths,
+URLs, and parent traversal are rejected. An optional `patch` is a bounded
+unified diff exported by the supported agent, normalized to UTF-8 line endings,
+with `patchTruncated` set when the mobile review payload reaches its size cap.
+The patch is only shown when the originating agent explicitly exports it; the
+iPhone never reads a computer filesystem from a source reference. The bridge
+deduplicates entries, limits each collection, and emits one
 `artifact_available` lifecycle event when new evidence is merged. Evidence can
 be supplied through the explicit hook/`POST /tasks` task contract or through a
 `phonedex_evidence` session event emitted by a PhoneDex-owned adapter. The
