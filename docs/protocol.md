@@ -140,3 +140,27 @@ device-only Keychain item and the cache file uses iOS data protection. A
 rejected or changed cursor causes a fresh snapshot bootstrap; legacy endpoint
 fallbacks deliberately clear the durable cursor so compatibility data cannot be
 mistaken for an acknowledged sync position.
+
+### Reply commands and delivery receipts
+
+Native iPhone replies use the existing versioned command envelope at the
+`/reply` compatibility route. The request includes a client-generated
+`commandId`, an opaque `idempotencyKey`, the `expectedTaskVersion`, and the
+requested `task.reply.v1` capability. The bridge appends the command and its
+receipts to `commands.jsonl` and `command-receipts.jsonl`; the legacy
+`replies.jsonl` mirror remains available for existing agents.
+
+The bridge rejects a reply whose expected task version is no longer current
+with HTTP `409` and `code: "task_stale"`, returning the sanitized current task
+for review. A failed origin forward remains retryable with the same
+idempotency key. A completed command returns `state: "completed"`; a repeated
+request returns `state: "duplicate"` without forwarding the reply again.
+Requests that reuse an idempotency key for another task fail with
+`idempotency_conflict`.
+
+The iPhone writes pending reply commands into its AES-GCM encrypted local cache
+before attempting transport. Offline and timeout failures remain queued, and
+reconnection retries the exact command identity. Stale replies are removed
+from the outbox and shown as a review-needed failure rather than being
+silently applied to newer task context. Legacy hubs that return no receipt are
+treated as accepted only through the compatibility adapter.

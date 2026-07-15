@@ -43,6 +43,7 @@ final class PhoneDexAppModel: ObservableObject {
     enum ReplyState: Equatable {
         case idle
         case sending
+        case queued(String)
         case sent(String)
         case failed(String)
     }
@@ -51,6 +52,7 @@ final class PhoneDexAppModel: ObservableObject {
     @Published private(set) var devices: [PhoneDexDevice] = []
     @Published private(set) var drafts: [PhoneDexTask.ID: String] = [:]
     @Published private(set) var readingPositions: [PhoneDexTask.ID: String] = [:]
+    @Published private(set) var pendingReplies: [PhoneDexPendingReply] = []
     @Published var selectedTaskID: PhoneDexTask.ID?
     @Published var connectionState: ConnectionState = .idle
     @Published var replyState: ReplyState = .idle
@@ -121,6 +123,7 @@ final class PhoneDexAppModel: ObservableObject {
             if result.isComplete {
                 lastSuccessfulSync = now
                 syncCursor = result.usedCompatibilityFallback ? nil : result.cursor
+                await flushPendingReplies()
                 persistCachedState(lastSyncAt: now)
                 if result.usedCompatibilityFallback {
                     connectionState = .incompatible(
@@ -180,20 +183,80 @@ final class PhoneDexAppModel: ObservableObject {
             return false
         }
 
+        let pending = pendingReplies.first(where: { $0.taskId == task.id && $0.prompt == text }) ?? PhoneDexPendingReply(
+            commandId: UUID().uuidString,
+            idempotencyKey: "ios-\(UUID().uuidString)",
+            taskId: task.id,
+            choice: choice.rawValue,
+            prompt: text,
+            expectedTaskVersion: task.version ?? 1,
+            sessionId: task.sessionId,
+            machineName: task.machineName,
+            createdAt: Date()
+        )
+        if !pendingReplies.contains(where: { $0.id == pending.id }) {
+            pendingReplies.append(pending)
+            persistCachedState(lastSyncAt: lastSuccessfulSync)
+        }
+        return await attemptPendingReply(pending, client: client)
+    }
+
+    func retryPendingReply(for task: PhoneDexTask) async -> Bool {
+        guard let pending = pendingReplies.first(where: { $0.taskId == task.id }),
+              let client = bridgeClient else {
+            replyState = .failed("The bridge URL is invalid.")
+            return false
+        }
+        return await attemptPendingReply(pending, client: client)
+    }
+
+    func pendingReply(for taskID: PhoneDexTask.ID) -> PhoneDexPendingReply? {
+        pendingReplies.first(where: { $0.taskId == taskID })
+    }
+
+    private func attemptPendingReply(
+        _ pending: PhoneDexPendingReply,
+        client: PhoneDexBridgeClient
+    ) async -> Bool {
         replyState = .sending
         do {
-            try await client.sendReply(
-                choice: choice,
-                prompt: text,
-                taskId: task.id,
-                sessionId: task.sessionId,
-                machineName: task.machineName
+            let receipt = try await client.sendReply(
+                choice: PhoneDexReplyChoice(rawValue: pending.choice) ?? .custom,
+                prompt: pending.prompt,
+                taskId: pending.taskId,
+                sessionId: pending.sessionId,
+                machineName: pending.machineName,
+                commandId: pending.commandId,
+                idempotencyKey: pending.idempotencyKey,
+                expectedTaskVersion: pending.expectedTaskVersion
             )
-            replyState = .sent(text)
+            guard receipt.isSuccessful else {
+                replyState = .failed(receipt.message ?? "The originating agent did not accept this reply.")
+                return false
+            }
+            pendingReplies.removeAll { $0.id == pending.id }
+            persistCachedState(lastSyncAt: lastSuccessfulSync)
+            replyState = .sent(receipt.message ?? pending.prompt)
             return true
         } catch {
-            replyState = .failed(error.localizedDescription)
+            if error.isStaleTask {
+                pendingReplies.removeAll { $0.id == pending.id }
+                persistCachedState(lastSyncAt: lastSuccessfulSync)
+                replyState = .failed("This task changed before the reply arrived. Refresh and review the latest context.")
+            } else if error.isOffline {
+                replyState = .queued(pending.prompt)
+            } else {
+                replyState = .failed(error.localizedDescription)
+            }
             return false
+        }
+    }
+
+    private func flushPendingReplies() async {
+        guard let client = bridgeClient else { return }
+        for pending in pendingReplies {
+            guard !Task.isCancelled else { return }
+            _ = await attemptPendingReply(pending, client: client)
         }
     }
 
@@ -252,6 +315,7 @@ final class PhoneDexAppModel: ObservableObject {
             devices = cached.devices
             drafts = cached.drafts
             readingPositions = cached.readingPositions
+            pendingReplies = cached.pendingReplies
             syncCursor = cached.cursor
             lastSuccessfulSync = cached.lastSyncAt
             connectionState = .offline(cached.lastSyncAt)
@@ -269,7 +333,8 @@ final class PhoneDexAppModel: ObservableObject {
                 devices: devices,
                 lastSyncAt: lastSyncAt,
                 drafts: drafts,
-                readingPositions: readingPositions
+                readingPositions: readingPositions,
+                pendingReplies: pendingReplies
             )
         )
     }

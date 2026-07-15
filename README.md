@@ -431,6 +431,7 @@ callers cannot record replies.
 | `npm run watch:sessions` | Watch Codex session logs for completed responses missed by hooks. |
 | `npm run scan:sessions` | Scan recent Codex session logs once without notifying old history. |
 | `npm run test:session-watch` | Verify the session watcher captures Codex task-complete and final-answer records. |
+| `npm run test:reply-delivery` | Verify idempotent reply receipts, stale-task rejection, and retry delivery. |
 | `npm run test:device-coverage` | Verify the device coverage pass/fail logic with fixtures. |
 | `npm run test:coverage-alert` | Verify missing-device coverage alerts without leaking the hub token. |
 | `npm run test:agent-enrollment` | Verify generated agent enrollment output. |
