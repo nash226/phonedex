@@ -557,7 +557,7 @@ Outcome: safely handle consequential Codex decisions from iPhone.
 - [x] Render exact operation, scope, origin, reason, risk, and expiry.
 - [x] Add explicit approve/reject controls with stale-state rejection.
 - [x] Add configurable Face ID or passcode confirmation for high-risk actions.
-- [ ] Audit every decision without storing unnecessary sensitive content.
+- [x] Audit every decision without storing unnecessary sensitive content.
 - [x] Add adversarial replay, expiry, compromised-device, and partial-failure
   tests.
 
@@ -591,6 +591,14 @@ commands while retaining `tasks.reply` for ordinary replies. The focused
 for a reply-only or revoked phone, idempotent and mutated replay rejection,
 expiry rejection, and origin outage or mismatched-receipt failures without
 projecting an unacknowledged decision into task state.
+
+Verification evidence for the completed approval-audit slice:
+`bin/codex-watch.js` writes a content-free `approval.decision` security audit
+entry only after an approval or rejection receives a matching origin receipt,
+and records blocked validation, expiry, capability, and origin-receipt outcomes
+without copying the operation, scope, reason, risk, prompt, path, or transcript.
+`scripts/test-approvals.js` covers approved, rejected, and blocked decisions and
+asserts that sensitive approval metadata is absent from the audit log.
 
 Verification evidence for the completed iPhone authentication slice:
 `ios/PhoneDexApp/PhoneDexApprovalAuthenticator.swift` gates capability-backed
