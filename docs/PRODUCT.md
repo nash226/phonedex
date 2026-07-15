@@ -854,11 +854,13 @@ credential cannot inspect or mutate privacy controls.
 ### Current security blockers
 
 Before external beta, legacy shared-token setup must be retired in favor of
-scoped pairing and revocable identities. The token must move out of
-notification payloads; the iOS settings token is no longer stored in
-`UserDefaults`. Pairing grants are now short-lived, single-use, rate-limited,
-and hash-only at rest; paired credentials can be rotated or revoked, and
-replayed reply payloads are rejected with an audit event. Hub/agent TLS
+scoped pairing and revocable identities. Native notification metadata contains
+no durable credential, and the Pushcut fallback uses a ten-minute, single-use
+opaque action grant whose hash is stored at rest; the iOS settings token is no
+longer stored in `UserDefaults`. Pairing grants are now short-lived,
+single-use, rate-limited, and hash-only at rest; paired credentials can be
+rotated or revoked, and replayed reply payloads are rejected with an audit
+event. Hub/agent TLS
 deployment and query-token removal for legacy compatibility remain release
 work. The iOS
 release build disables arbitrary ATS loads. Plain JSONL content needs
