@@ -1366,7 +1366,7 @@ async function handleReplyRequest(req, res, requestUrl, cfg) {
     ...parseBodyFields(body, req.headers["content-type"] || "")
   };
 
-  if (cfg.token && fields.token !== cfg.token) {
+  if (cfg.token && fields.token !== cfg.token && !isRequestTokenValid(req, requestUrl, cfg)) {
     return sendJson(res, 401, { ok: false, error: "Invalid token" });
   }
 

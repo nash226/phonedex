@@ -504,11 +504,12 @@ CODEX_APP_SERVER_BIN=/Users/YOUR_USER/.local/bin/codex
 - `data/session-watch-state.json` stores session message ids already seen by
   the fallback watcher.
 - `/reply` rejects requests with an invalid token when `WATCH_BRIDGE_TOKEN` is
-  set.
+  set. Native PhoneDex clients send the token in the `Authorization: Bearer`
+  header; body-token authentication remains only for legacy clients.
 - `POST /tasks`, `/devices`, `/tasks`, and `/replies` also require
   `WATCH_BRIDGE_TOKEN` when it is set.
-  Native app clients should send it as `Authorization: Bearer ...` or as a
-  `?token=...` query parameter.
+  Native app clients should send it as `Authorization: Bearer ...`; query
+  tokens remain a legacy setup path and should not be embedded in app URLs.
 
 If your watch or phone is not on the same network as your Mac, expose the
 callback URL through a trusted tunnel such as Cloudflare Tunnel, ngrok, or

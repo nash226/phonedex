@@ -61,6 +61,54 @@ final class PhoneDexSettingsTests: XCTestCase {
         XCTAssertNil(try store.readToken())
     }
 
+    func testNativeBridgeURLRejectsEmbeddedCredentialsAndQueries() throws {
+        let defaults = try makeDefaults()
+        let settings = PhoneDexSettings(defaults: defaults, tokenStore: InMemoryTokenStore())
+
+        settings.bridgeURL = "https://user:password@bridge.test"
+        XCTAssertNil(settings.normalizedBridgeURL)
+
+        settings.bridgeURL = "https://bridge.test?token=secret"
+        XCTAssertNil(settings.normalizedBridgeURL)
+    }
+
+    func testConfigurationURLDoesNotImportTokenFromURL() throws {
+        let defaults = try makeDefaults()
+        let store = InMemoryTokenStore()
+        let settings = PhoneDexSettings(defaults: defaults, tokenStore: store)
+        let url = try XCTUnwrap(URL(string: "phonedex://configure?bridgeUrl=https%3A%2F%2Fbridge.test&token=secret"))
+
+        XCTAssertTrue(settings.apply(configurationURL: url))
+        XCTAssertEqual(settings.normalizedBridgeURL?.absoluteString, "https://bridge.test")
+        XCTAssertTrue(settings.token.isEmpty)
+        XCTAssertNil(store.token)
+    }
+
+    func testTaskNotificationMetadataContainsNoCredential() throws {
+        let task = PhoneDexTask(
+            id: "task_123",
+            at: "2026-07-15T12:00:00.000Z",
+            source: "codex",
+            title: "Completed task",
+            text: "Done",
+            cwd: "/work/project",
+            workspaceName: nil,
+            machineName: "Studio Mac",
+            sessionId: "thread_456",
+            status: "completed",
+            branch: nil,
+            repository: nil
+        )
+
+        let metadata = PhoneDexNotificationScheduler.taskNotificationUserInfo(
+            task,
+            bridgeURL: try XCTUnwrap(URL(string: "https://bridge.test"))
+        )
+
+        XCTAssertNil(metadata["token"])
+        XCTAssertFalse(metadata.values.contains { String(describing: $0).contains("secret") })
+    }
+
     private func makeDefaults() throws -> UserDefaults {
         let suiteName = "PhoneDexSettingsTests.\(UUID().uuidString)"
         guard let defaults = UserDefaults(suiteName: suiteName) else {

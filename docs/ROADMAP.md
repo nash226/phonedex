@@ -194,8 +194,11 @@ and exposes a generic, non-secret error when secure storage fails.
 `ios/PhoneDexTests/PhoneDexSettingsTests.swift` covers migration, updates,
 clearing, failure redaction, and Keychain round trips; the concrete Keychain
 round trip is skipped only when an unsigned simulator reports its expected
-missing entitlement. Notification payload credential removal and scoped
-pairing remain separate M2 slices.
+missing entitlement. Notification payload credential removal is now covered by
+the native notification metadata builder and bridge reply integration fixture;
+scoped pairing remains a separate M2 slice. The native app reads the Keychain
+credential when handling a notification action and the bridge accepts the
+authenticated header while retaining legacy body-token compatibility.
 
 Verification evidence for the completed Chats scope slice: the native SwiftUI
 Chats surface in `ios/PhoneDexApp/ContentView.swift` provides Needs You,
