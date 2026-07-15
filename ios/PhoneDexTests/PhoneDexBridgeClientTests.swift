@@ -20,14 +20,17 @@ final class PhoneDexBridgeClientTests: XCTestCase {
 
             let body = try request.httpBody ?? XCTUnwrap(request.httpBodyStream).readAllData()
             let json = try XCTUnwrap(
-                JSONSerialization.jsonObject(with: body) as? [String: String]
+                JSONSerialization.jsonObject(with: body) as? [String: Any]
             )
-            XCTAssertEqual(json["taskId"], "task_123")
-            XCTAssertEqual(json["sessionId"], "thread_456")
-            XCTAssertEqual(json["choice"], "custom")
-            XCTAssertEqual(json["prompt"], "Run the focused tests")
-            XCTAssertEqual(json["reply_text"], "Run the focused tests")
-            XCTAssertEqual(json["machineName"], "Studio Mac")
+            XCTAssertEqual(json["taskId"] as? String, "task_123")
+            XCTAssertEqual(json["sessionId"] as? String, "thread_456")
+            XCTAssertEqual(json["choice"] as? String, "custom")
+            XCTAssertEqual(json["prompt"] as? String, "Run the focused tests")
+            XCTAssertEqual(json["reply_text"] as? String, "Run the focused tests")
+            XCTAssertEqual(json["machineName"] as? String, "Studio Mac")
+            XCTAssertEqual(json["commandId"] as? String, "command_123")
+            XCTAssertEqual(json["idempotencyKey"] as? String, "reply_123")
+            XCTAssertEqual(json["expectedTaskVersion"] as? Int, 3)
             XCTAssertNil(json["token"])
 
             return (
@@ -37,7 +40,9 @@ final class PhoneDexBridgeClientTests: XCTestCase {
                     httpVersion: nil,
                     headerFields: ["content-type": "application/json"]
                 )!,
-                Data("{\"ok\":true}".utf8)
+                Data("""
+                {"ok":true,"receipt":{"schema":"phonedex.command-receipt.v1","protocolVersion":1,"commandId":"command_123","createdAt":"2026-07-15T12:00:00.000Z","state":"completed","taskId":"task_123","taskVersion":3,"idempotencyKey":"reply_123","message":"Accepted"}}
+                """.utf8)
             )
         }
 
@@ -47,13 +52,19 @@ final class PhoneDexBridgeClientTests: XCTestCase {
             session: session
         )
 
-        try await client.sendReply(
+        let receipt = try await client.sendReply(
             choice: .custom,
             prompt: "Run the focused tests",
             taskId: "task_123",
             sessionId: "thread_456",
-            machineName: "Studio Mac"
+            machineName: "Studio Mac",
+            commandId: "command_123",
+            idempotencyKey: "reply_123",
+            expectedTaskVersion: 3
         )
+        XCTAssertEqual(receipt.state, "completed")
+        XCTAssertEqual(receipt.taskVersion, 3)
+        XCTAssertTrue(receipt.isSuccessful)
     }
 
     func testFetchTasksRequestsCompleteProjectHistory() async throws {

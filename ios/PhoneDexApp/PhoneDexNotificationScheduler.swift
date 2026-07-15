@@ -9,7 +9,7 @@ enum PhoneDexNotificationScheduler {
 
     The expanded notification should keep the user in the native iPhone surface, show the full Codex result, and make the next reply obvious without opening a browser.
 
-    Validation passed for the bridge, native notification payload, and project docs. The next useful step is wiring the native app to fetch recent tasks from the local PhoneDex bridge, then post quick replies back to /reply with the task token.
+    Validation passed for the bridge, native notification payload, and project docs. The next useful step is wiring the native app to fetch recent tasks from the local PhoneDex bridge, then post authenticated quick replies back to /reply.
 
     Reply options stay intentionally small: Okay, what's next for a status-only prompt, Let's do that for the recommended action, and Custom reply for dictated instructions.
 
@@ -88,6 +88,7 @@ enum PhoneDexNotificationScheduler {
     static func taskNotificationUserInfo(_ task: PhoneDexTask, bridgeURL: URL) -> [AnyHashable: Any] {
         [
             "taskId": task.id,
+            "taskVersion": task.version ?? 1,
             "sessionId": task.sessionId ?? "",
             "machineName": task.machineName ?? "",
             "replyUrl": bridgeURL.appending(path: "reply").absoluteString,

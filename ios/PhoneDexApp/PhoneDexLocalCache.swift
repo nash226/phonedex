@@ -14,9 +14,10 @@ struct PhoneDexCachedState: Codable, Equatable {
     let lastSyncAt: Date?
     let drafts: [String: String]
     let readingPositions: [String: String]
+    let pendingReplies: [PhoneDexPendingReply]
 
     private enum CodingKeys: String, CodingKey {
-        case schema, version, cursor, tasks, devices, lastSyncAt, drafts, readingPositions
+        case schema, version, cursor, tasks, devices, lastSyncAt, drafts, readingPositions, pendingReplies
     }
 
     init(
@@ -26,6 +27,7 @@ struct PhoneDexCachedState: Codable, Equatable {
         lastSyncAt: Date?,
         drafts: [String: String] = [:],
         readingPositions: [String: String] = [:],
+        pendingReplies: [PhoneDexPendingReply] = [],
         schema: String = PhoneDexCachedState.currentSchema,
         version: Int = PhoneDexCachedState.currentVersion
     ) {
@@ -37,6 +39,7 @@ struct PhoneDexCachedState: Codable, Equatable {
         self.lastSyncAt = lastSyncAt
         self.drafts = drafts
         self.readingPositions = readingPositions
+        self.pendingReplies = pendingReplies
     }
 
     init(from decoder: Decoder) throws {
@@ -49,6 +52,7 @@ struct PhoneDexCachedState: Codable, Equatable {
         lastSyncAt = try container.decodeIfPresent(Date.self, forKey: .lastSyncAt)
         drafts = try container.decodeIfPresent([String: String].self, forKey: .drafts) ?? [:]
         readingPositions = try container.decodeIfPresent([String: String].self, forKey: .readingPositions) ?? [:]
+        pendingReplies = try container.decodeIfPresent([PhoneDexPendingReply].self, forKey: .pendingReplies) ?? []
     }
 
     func encode(to encoder: Encoder) throws {
@@ -61,7 +65,22 @@ struct PhoneDexCachedState: Codable, Equatable {
         try container.encodeIfPresent(lastSyncAt, forKey: .lastSyncAt)
         try container.encode(drafts, forKey: .drafts)
         try container.encode(readingPositions, forKey: .readingPositions)
+        try container.encode(pendingReplies, forKey: .pendingReplies)
     }
+}
+
+struct PhoneDexPendingReply: Codable, Equatable, Identifiable {
+    let commandId: String
+    let idempotencyKey: String
+    let taskId: String
+    let choice: String
+    let prompt: String
+    let expectedTaskVersion: Int
+    let sessionId: String?
+    let machineName: String?
+    let createdAt: Date
+
+    var id: String { idempotencyKey }
 }
 
 protocol PhoneDexCacheStoring {
