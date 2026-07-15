@@ -108,6 +108,10 @@ The repository already proves the core loop, but not the final product.
 
 - There is no APNs provider path, remote push registration, durable foreground
   sync, or reliable background refresh.
+- The iOS app now distinguishes loading, stale, offline, revoked, incompatible, and
+  partial refresh states and keeps successfully loaded content visible during
+  a degraded refresh; this is an in-memory continuity layer, not yet the
+  durable encrypted cache or command outbox described below.
 - The iOS app has no durable lifecycle model, live progress, approval UI,
   artifact review, command queue, or offline outbox; its current task inbox,
   search, and read-only device/workspace details remain bridge-contract
