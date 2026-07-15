@@ -504,7 +504,8 @@ emits an `artifact_available` lifecycle event without parsing private desktop
 UI. `PhoneDexTaskDetailView` renders changed files, source references,
 artifacts, and validation states with accessible native rows. Node protocol,
 normalization, and session-watcher fixtures plus iOS model coverage verify the
-contract. Full patch browsing and artifact downloads remain M7 work.
+contract. Bounded patch browsing and artifact delivery are covered by the M7
+verification below; retention and export policy remain release work.
 
 Verification evidence for the completed managed lifecycle slice:
 `lib/phonedex-lifecycle.js` runs allowlisted workspace prompts through the
@@ -643,7 +644,7 @@ Outcome: let users evaluate completed work without returning to a computer.
 - [x] Build file-level change summaries and validation-result views.
 - [x] Build a virtualized native text diff viewer with file navigation,
   context expansion, copy, and share.
-- [ ] Add integrity-checked artifact metadata and explicit downloads.
+- [x] Add integrity-checked artifact metadata and explicit downloads.
 - [ ] Enforce retention and export policy for sensitive review content.
 - [ ] Meet the 5,000-line diff performance target on the oldest supported
   iPhone.
@@ -667,9 +668,23 @@ review surface from task detail with aggregate file counts, additions,
 deletions, validation outcomes, machine/workspace context, and explicit
 unreported, incomplete, or failed states. File rows preserve relative source references as
 metadata and open only the already-exported patch through the existing bounded
-diff viewer; no desktop file access or artifact download is introduced.
+diff viewer; no desktop file access is introduced.
 `ios/PhoneDexTests/PhoneDexReviewSummaryTests.swift` covers aggregation,
 failed-over-running precedence, missing validation, and empty evidence.
+
+Verification evidence for the completed artifact-download slice:
+`lib/phonedex-artifacts.js` stores bounded agent-exported bytes under opaque
+download ids with private permissions, records verified size/media type/SHA-256
+metadata, rejects malformed base64 and digest or size mismatches, and rechecks
+integrity before every authenticated download. Mac and Windows agents forward
+the same bounded export to the hub through `/artifacts`; the hub never reads a
+desktop path or exposes the stored file path. `PhoneDexBridgeClient` verifies
+the digest again on iPhone, and `PhoneDexReviewSummaryView` offers Download and
+Share only for verified artifacts while keeping unavailable and failed states
+explicit. `scripts/test-artifacts.js` and `PhoneDexBridgeClientTests` cover
+authentication, forwarding storage, headers, tamper rejection, and native
+digest failure. Retention policy for artifact bytes remains a separate release
+gate.
 
 ## M8: Beta, Operations, and App Store Release
 

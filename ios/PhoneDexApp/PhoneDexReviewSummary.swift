@@ -116,8 +116,12 @@ struct PhoneDexReviewSummary: Equatable {
 
 struct PhoneDexReviewSummaryView: View {
     let task: PhoneDexTask
+    @ObservedObject var model: PhoneDexAppModel
     @Environment(\.dismiss) private var dismiss
     @State private var selectedDiffFile: PhoneDexChangedFile?
+    @State private var downloadedArtifacts: [String: Data] = [:]
+    @State private var downloadingArtifactID: String?
+    @State private var artifactError: String?
 
     private var summary: PhoneDexReviewSummary {
         PhoneDexReviewSummary(evidence: task.evidence)
@@ -135,6 +139,7 @@ struct PhoneDexReviewSummaryView: View {
                     reviewMetrics
                     validationsSection
                     filesSection
+                    artifactsSection
                     privacyNote
                 }
                 .padding(.horizontal, 16)
@@ -151,6 +156,14 @@ struct PhoneDexReviewSummaryView: View {
             }
             .sheet(item: $selectedDiffFile) { file in
                 PhoneDexDiffViewer(files: diffFiles, initialFileID: file.id)
+            }
+            .alert("Artifact download failed", isPresented: Binding(
+                get: { artifactError != nil },
+                set: { if !$0 { artifactError = nil } }
+            )) {
+                Button("OK", role: .cancel) { artifactError = nil }
+            } message: {
+                Text(artifactError ?? "The artifact could not be downloaded.")
             }
         }
     }
@@ -247,6 +260,85 @@ struct PhoneDexReviewSummaryView: View {
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private var artifactsSection: some View {
+        let artifacts = task.evidence?.artifacts ?? []
+        VStack(alignment: .leading, spacing: 8) {
+            sectionHeading("Artifacts", count: artifacts.count, symbol: "shippingbox")
+            if artifacts.isEmpty {
+                ContentUnavailableView {
+                    Label("No artifacts", systemImage: "shippingbox")
+                } description: {
+                    Text("The originating agent has not exported a downloadable artifact.")
+                }
+                .frame(maxWidth: .infinity)
+            } else {
+                ForEach(artifacts) { artifact in
+                    artifactRow(artifact)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func artifactRow(_ artifact: PhoneDexArtifact) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Image(systemName: "shippingbox")
+                    .foregroundStyle(.secondary)
+                Text(artifact.name)
+                    .font(.subheadline.weight(.medium))
+                Spacer(minLength: 0)
+                if let data = downloadedArtifacts[artifact.id] {
+                    ShareLink(item: data, preview: SharePreview(artifact.name)) {
+                        Label("Share", systemImage: "square.and.arrow.up")
+                    }
+                    .accessibilityLabel("Share \(artifact.name)")
+                } else if artifact.isDownloadable {
+                    Button {
+                        downloadingArtifactID = artifact.id
+                        Task {
+                            do {
+                                let data = try await model.downloadArtifact(artifact)
+                                downloadedArtifacts[artifact.id] = data
+                                downloadingArtifactID = nil
+                            } catch {
+                                downloadingArtifactID = nil
+                                artifactError = error.localizedDescription
+                            }
+                        }
+                    } label: {
+                        if downloadingArtifactID == artifact.id {
+                            ProgressView()
+                        } else {
+                            Label("Download", systemImage: "arrow.down.circle")
+                        }
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("Download \(artifact.name)")
+                } else {
+                    Text("Not available")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            Text([artifact.kind, artifact.displaySize, artifact.sha256.map { "SHA-256 \($0.prefix(12))…" }]
+                .compactMap { $0 }
+                .joined(separator: " · "))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(artifact.sourceRef)
+                .font(.caption2.monospaced())
+                .foregroundStyle(.tertiary)
+                .textSelection(.enabled)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color(uiColor: .secondarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .accessibilityElement(children: .contain)
     }
 
     private func sectionHeading(_ title: String, count: Int, symbol: String) -> some View {
@@ -352,7 +444,7 @@ struct PhoneDexReviewSummaryView: View {
     }
 
     private var privacyNote: some View {
-        Text("Evidence is exported by the originating agent. Source references are relative metadata and do not grant iPhone file access; artifacts are not downloaded or executed here.")
+        Text("Evidence is exported by the originating agent. Source references are relative metadata and do not grant iPhone file access; bounded artifacts are downloaded only after size and digest verification and are never executed here.")
             .font(.caption)
             .foregroundStyle(.tertiary)
             .accessibilityElement(children: .combine)

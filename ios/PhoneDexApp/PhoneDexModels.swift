@@ -439,6 +439,13 @@ struct PhoneDexArtifact: Codable, Equatable, Identifiable {
     let sourceRef: String
     let sizeBytes: Int?
     let sha256: String?
+    let downloadId: String?
+    let mediaType: String?
+
+    var isDownloadable: Bool {
+        guard let downloadId else { return false }
+        return !downloadId.isEmpty && sha256?.count == 64
+    }
 
     var displaySize: String? {
         guard let sizeBytes else { return nil }

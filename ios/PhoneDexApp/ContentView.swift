@@ -671,7 +671,7 @@ struct PhoneDexTaskDetailView: View {
             PhoneDexDiffViewer(files: diffFiles, initialFileID: file.id)
         }
         .sheet(isPresented: $showReviewSummary) {
-            PhoneDexReviewSummaryView(task: task)
+            PhoneDexReviewSummaryView(task: task, model: model)
         }
     }
 

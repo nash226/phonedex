@@ -191,6 +191,13 @@ final class PhoneDexAppModel: ObservableObject {
         }
     }
 
+    func downloadArtifact(_ artifact: PhoneDexArtifact) async throws -> Data {
+        guard let client = bridgeClient else {
+            throw PhoneDexBridgeClientError.invalidURL
+        }
+        return try await client.downloadArtifact(artifact)
+    }
+
     func send(_ choice: PhoneDexReplyChoice, prompt: String? = nil, to task: PhoneDexTask) async -> Bool {
         let text = (prompt ?? choice.prompt).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else {
