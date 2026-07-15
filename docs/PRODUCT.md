@@ -179,7 +179,7 @@ supported command path on the originating machine.
 | See live progress | Running state, concise activity, and latest meaningful event | **Target.** Requires structured agent events; iOS cannot infer this from desktop UI. |
 | Start a task | Choose a machine/workspace, enter a prompt, and create a tracked run | **Current, bounded.** Allowlisted agents expose a versioned create command; arbitrary desktop task creation is not promised. |
 | Answer a question | Render explicit choices or text input and resume the same task | **Current, partial.** Bounded task questions and reply envelopes exist; richer event streams and adapter-native continuation remain future work. |
-| Review an approval | Show exact operation, scope, risk, and origin before approve/reject | **Current, partial.** Expiring task-version-bound review metadata is rendered read-only; approve/reject controls require the future `approval.respond.v1` contract. |
+| Review an approval | Show exact operation, scope, risk, and origin before approve/reject | **Current, bounded.** Expiring task-version-bound review metadata and capability-gated controls are native; configurable Face ID or device-passcode confirmation is enabled by default before an approval decision is sent. |
 | Review changes | Mobile diff summary, file list, patch detail, and validation results | **Current, partial.** Supported agents can export bounded patches for native mobile review alongside structured file, artifact, source-reference, and validation metadata; full artifact downloads remain target work. |
 | Cancel, retry, or queue | Issue idempotent lifecycle commands with visible receipts | **Target.** Requires adapter capability negotiation. |
 | Cancel, retry, or queue | Issue idempotent lifecycle commands with visible receipts | **Current, bounded.** Cancel/retry apply to PhoneDex-owned runs when advertised; general queueing remains Target. |
@@ -460,9 +460,12 @@ An approval sheet must show:
 - whether approval is one-time, task-scoped, or unsupported;
 - expiry and current agent reachability.
 
-Approve and reject are explicit controls. High-risk approvals can require
-Face ID or device passcode. PhoneDex 1.0 does not offer "approve all" or
-convert an expired approval into a new one.
+Approve and reject are explicit controls. PhoneDex enables Face ID or device
+passcode confirmation by default for these high-risk decisions, with a
+user-configurable setting and passcode fallback when supported by iOS. The
+agent command and receipt remain the final authority; authentication alone
+never reports success. PhoneDex 1.0 does not offer "approve all" or convert an
+expired approval into a new one.
 
 ### 8.6 Create task
 

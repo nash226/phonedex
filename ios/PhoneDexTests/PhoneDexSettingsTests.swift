@@ -30,6 +30,18 @@ final class PhoneDexSettingsTests: XCTestCase {
         XCTAssertNil(settings.credentialStorageError)
     }
 
+    func testApprovalAuthenticationIsEnabledByDefaultAndCanBeDisabled() throws {
+        let defaults = try makeDefaults()
+        let settings = PhoneDexSettings(defaults: defaults, tokenStore: InMemoryTokenStore())
+
+        XCTAssertTrue(settings.requireApprovalAuthentication)
+
+        settings.requireApprovalAuthentication = false
+
+        XCTAssertFalse(settings.requireApprovalAuthentication)
+        XCTAssertEqual(defaults.bool(forKey: "phonedex.requireApprovalAuthentication"), false)
+    }
+
     func testSecureStorageFailureIsExposedWithoutLeakingTheCredential() throws {
         let defaults = try makeDefaults()
         let store = InMemoryTokenStore()
