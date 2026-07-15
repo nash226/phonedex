@@ -61,6 +61,7 @@ final class PhoneDexAppModel: ObservableObject {
     @Published private(set) var drafts: [PhoneDexTask.ID: String] = [:]
     @Published private(set) var readingPositions: [PhoneDexTask.ID: String] = [:]
     @Published private(set) var pendingReplies: [PhoneDexPendingReply] = []
+    @Published private(set) var replyReceipts: [PhoneDexReplyDeliveryRecord] = []
     @Published var selectedTaskID: PhoneDexTask.ID?
     @Published var connectionState: ConnectionState = .idle
     @Published var replyState: ReplyState = .idle
@@ -435,6 +436,10 @@ final class PhoneDexAppModel: ObservableObject {
         pendingReplies.first(where: { $0.taskId == taskID })
     }
 
+    func latestReplyReceipt(for taskID: PhoneDexTask.ID) -> PhoneDexReplyDeliveryRecord? {
+        replyReceipts.first { $0.taskId == taskID }
+    }
+
     private func attemptPendingReply(
         _ pending: PhoneDexPendingReply,
         client: PhoneDexBridgeClient
@@ -453,7 +458,9 @@ final class PhoneDexAppModel: ObservableObject {
                 questionId: pending.questionId,
                 questionResponse: pending.questionResponse
             )
+            recordReplyReceipt(receipt, for: pending)
             guard receipt.isSuccessful else {
+                persistCachedState(lastSyncAt: lastSuccessfulSync)
                 replyState = .failed(receipt.message ?? "The originating agent did not accept this reply.")
                 return false
             }
@@ -472,6 +479,15 @@ final class PhoneDexAppModel: ObservableObject {
                 replyState = .failed(error.localizedDescription)
             }
             return false
+        }
+    }
+
+    private func recordReplyReceipt(_ receipt: PhoneDexReplyReceipt, for pending: PhoneDexPendingReply) {
+        let record = PhoneDexReplyDeliveryRecord(receipt: receipt, pending: pending)
+        replyReceipts.removeAll { $0.id == record.id }
+        replyReceipts.insert(record, at: 0)
+        if replyReceipts.count > 50 {
+            replyReceipts.removeLast(replyReceipts.count - 50)
         }
     }
 
@@ -549,6 +565,7 @@ final class PhoneDexAppModel: ObservableObject {
             drafts = cached.drafts
             readingPositions = cached.readingPositions
             pendingReplies = cached.pendingReplies
+            replyReceipts = cached.replyReceipts
             syncCursor = cached.cursor
             lastSuccessfulSync = cached.lastSyncAt
             connectionState = .offline(cached.lastSyncAt)
@@ -568,7 +585,8 @@ final class PhoneDexAppModel: ObservableObject {
                 lastSyncAt: lastSyncAt,
                 drafts: drafts,
                 readingPositions: readingPositions,
-                pendingReplies: pendingReplies
+                pendingReplies: pendingReplies,
+                replyReceipts: replyReceipts
             )
         )
     }

@@ -16,9 +16,10 @@ struct PhoneDexCachedState: Codable, Equatable {
     let drafts: [String: String]
     let readingPositions: [String: String]
     let pendingReplies: [PhoneDexPendingReply]
+    let replyReceipts: [PhoneDexReplyDeliveryRecord]
 
     private enum CodingKeys: String, CodingKey {
-        case schema, version, cursor, tasks, devices, events, lastSyncAt, drafts, readingPositions, pendingReplies
+        case schema, version, cursor, tasks, devices, events, lastSyncAt, drafts, readingPositions, pendingReplies, replyReceipts
     }
 
     init(
@@ -30,6 +31,7 @@ struct PhoneDexCachedState: Codable, Equatable {
         drafts: [String: String] = [:],
         readingPositions: [String: String] = [:],
         pendingReplies: [PhoneDexPendingReply] = [],
+        replyReceipts: [PhoneDexReplyDeliveryRecord] = [],
         schema: String = PhoneDexCachedState.currentSchema,
         version: Int = PhoneDexCachedState.currentVersion
     ) {
@@ -43,6 +45,7 @@ struct PhoneDexCachedState: Codable, Equatable {
         self.drafts = drafts
         self.readingPositions = readingPositions
         self.pendingReplies = pendingReplies
+        self.replyReceipts = replyReceipts
     }
 
     init(from decoder: Decoder) throws {
@@ -57,6 +60,7 @@ struct PhoneDexCachedState: Codable, Equatable {
         drafts = try container.decodeIfPresent([String: String].self, forKey: .drafts) ?? [:]
         readingPositions = try container.decodeIfPresent([String: String].self, forKey: .readingPositions) ?? [:]
         pendingReplies = try container.decodeIfPresent([PhoneDexPendingReply].self, forKey: .pendingReplies) ?? []
+        replyReceipts = try container.decodeIfPresent([PhoneDexReplyDeliveryRecord].self, forKey: .replyReceipts) ?? []
     }
 
     func encode(to encoder: Encoder) throws {
@@ -71,6 +75,49 @@ struct PhoneDexCachedState: Codable, Equatable {
         try container.encode(drafts, forKey: .drafts)
         try container.encode(readingPositions, forKey: .readingPositions)
         try container.encode(pendingReplies, forKey: .pendingReplies)
+        try container.encode(replyReceipts, forKey: .replyReceipts)
+    }
+}
+
+struct PhoneDexReplyDeliveryRecord: Codable, Equatable, Identifiable {
+    let commandId: String
+    let idempotencyKey: String?
+    let taskId: String
+    let prompt: String
+    let state: String
+    let message: String?
+    let taskVersion: Int?
+    let serverCreatedAt: String?
+    let recordedAt: Date
+
+    var id: String { commandId }
+
+    var isSuccessful: Bool {
+        ["accepted", "completed", "duplicate"].contains(state)
+    }
+
+    var displayState: String {
+        switch state {
+        case "accepted": return "Accepted by hub"
+        case "completed": return "Delivered to agent"
+        case "duplicate": return "Already delivered"
+        case "rejected": return "Rejected by agent"
+        case "expired": return "Expired"
+        case "stale": return "Stale task version"
+        default: return state.replacingOccurrences(of: "_", with: " ").capitalized
+        }
+    }
+
+    init(receipt: PhoneDexReplyReceipt, pending: PhoneDexPendingReply, recordedAt: Date = Date()) {
+        commandId = receipt.commandId
+        idempotencyKey = receipt.idempotencyKey ?? pending.idempotencyKey
+        taskId = receipt.taskId ?? pending.taskId
+        prompt = pending.prompt
+        state = receipt.state
+        message = receipt.message
+        taskVersion = receipt.taskVersion
+        serverCreatedAt = receipt.createdAt
+        self.recordedAt = recordedAt
     }
 }
 
