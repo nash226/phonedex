@@ -64,7 +64,14 @@ function task(id, at) {
     cwd: "C:\\Users\\private\\PhoneDex",
     machineName: "Windows Workstation",
     replyToken: "reply-secret",
-    status: "completed"
+    status: "completed",
+    evidence: {
+      changedFiles: [{
+        path: "README.md",
+        status: "modified",
+        patch: "diff --git a/README.md b/README.md\n+safe source line"
+      }]
+    }
   };
 }
 
@@ -95,6 +102,7 @@ async function main() {
   assert.equal(exported.tasks.find((entry) => entry.id === "old").workspaceName, "PhoneDex");
   assert.equal(JSON.stringify(exported).includes("super-secret-value"), false);
   assert.equal(JSON.stringify(exported).includes("C:\\Users\\private"), false);
+  assert.equal(JSON.stringify(exported).includes("diff --git"), false);
 
   const retention = privacy.applyRetention(1);
   assert.equal(retention.deletedTaskCount, 1);
