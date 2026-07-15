@@ -419,6 +419,7 @@ callers cannot record replies.
 | `npm run agent:invites` | Show active invite links, page views, and bootstrap downloads. |
 | `npm run agent:installs` | Show recent bootstrap install stage reports from missing agents. |
 | `npm run test:privacy` | Verify authenticated privacy summary, redacted export, retention, and confirmed history deletion. |
+| `npm run test:compatibility` | Verify legacy JSONL migration, `/tasks` and `/reply` clients, mirrors, and restart persistence. |
 | `node ./bin/codex-watch.js run -- <command>` | Run a command and notify when it exits. |
 | `npm run services:install` | Install the macOS LaunchAgent for the PhoneDex service. |
 | `npm run services:start` | Start the LaunchAgents. |

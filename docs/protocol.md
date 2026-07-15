@@ -141,6 +141,23 @@ rejected or changed cursor causes a fresh snapshot bootstrap; legacy endpoint
 fallbacks deliberately clear the durable cursor so compatibility data cannot be
 mistaken for an acknowledged sync position.
 
+### Legacy compatibility adapter
+
+During migration, older agents and notification clients may continue using
+`GET /tasks`, `POST /tasks`, `GET /devices`, `GET /replies`, and `POST /reply`.
+The bridge imports legacy `tasks.jsonl` and `devices.json` into the durable
+store, keeps those files as mirrors for local tooling, and exposes the legacy
+task projection from the durable store rather than treating JSONL as a second
+source of truth. A legacy ingested task receives a new hub task id while its
+caller-provided id is retained as `originTaskId` for reply routing.
+
+Legacy reply forms may authenticate with a body or query token and may omit the
+new command envelope fields; the adapter supplies command and idempotency
+identities, writes the legacy `replies.jsonl` mirror, and returns the same
+versioned delivery receipt used by native clients. New clients should use the
+bearer-authenticated `/sync` and `/reply` contracts and must not put tokens in
+URLs.
+
 ### Reply commands and delivery receipts
 
 Native iPhone replies use the existing versioned command envelope at the
