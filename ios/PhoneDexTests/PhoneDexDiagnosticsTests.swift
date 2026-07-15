@@ -70,6 +70,54 @@ final class PhoneDexDiagnosticsTests: XCTestCase {
         XCTAssertTrue(device.capabilityDetails[1].isActionable)
     }
 
+    func testTaskControlsExplainMissingCapabilityWithoutAdvertisingUnsupportedActions() {
+        let task = PhoneDexTask(
+            id: "running",
+            at: "2026-07-15T12:00:00.000Z",
+            source: "remote-agent",
+            title: "Running task",
+            text: "Working",
+            cwd: "/workspace/phonedex",
+            workspaceName: "PhoneDex",
+            machineName: "Windows Workstation",
+            sessionId: "session-1",
+            status: "running",
+            branch: nil,
+            repository: nil,
+            lifecycleCapabilities: ["desktop.handoff.v1"]
+        )
+
+        let controls = task.controlAvailability(desktopHandoffAvailable: true)
+
+        XCTAssertEqual(controls.map(\.id), ["cancel", "handoff"])
+        XCTAssertFalse(controls[0].isAvailable)
+        XCTAssertTrue(controls[0].reason.contains("task.cancel.v1"))
+        XCTAssertTrue(controls[1].isAvailable)
+        XCTAssertEqual(controls[1].capability, "desktop.handoff.v1")
+    }
+
+    func testTaskControlsExplainStableIdentityRequirementForHandoff() {
+        let task = PhoneDexTask(
+            id: "completed",
+            at: "2026-07-15T12:00:00.000Z",
+            source: "remote-agent",
+            title: "Completed task",
+            text: "Done",
+            cwd: "/workspace/phonedex",
+            workspaceName: "PhoneDex",
+            machineName: "MacBook",
+            sessionId: nil,
+            status: "completed",
+            branch: nil,
+            repository: nil
+        )
+
+        let handoff = try! XCTUnwrap(task.controlAvailability(desktopHandoffAvailable: false).first { $0.id == "handoff" })
+
+        XCTAssertFalse(handoff.isAvailable)
+        XCTAssertTrue(handoff.reason.contains("stable Codex session identity"))
+    }
+
     private func makeDevice(status: String) -> PhoneDexDevice {
         PhoneDexDevice(
             deviceId: "macbook",
