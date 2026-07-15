@@ -478,7 +478,7 @@ PhoneDex reads `.env` from the repo root.
 | `PUSHCUT_SOUND` | No | Pushcut sound name. Defaults to `jobDone`. |
 | `PUSHCUT_TIME_SENSITIVE` | No | Send Pushcut alerts as time-sensitive. Defaults to `true`. |
 | `WATCH_BRIDGE_AUTO_RESUME` | No | Continue Codex from phone replies. Defaults to `false`. |
-| `WATCH_BRIDGE_AUTO_RESUME_MODE` | No | `cli` for `codex exec resume`, `app-server` for background app-server turns, or `foreground` for visible Codex.app submission. Defaults to `cli`. |
+| `WATCH_BRIDGE_AUTO_RESUME_MODE` | No | `cli` for `codex exec resume`, `app-server` for background app-server turns, or `foreground` for the experimental macOS-only visible-app submission. Defaults to `cli`. |
 | `PHONEDEX_FOREGROUND_APP` | No | macOS process/application name used by foreground submission. Auto-detects `ChatGPT` when installed and otherwise uses the legacy `Codex` name. |
 | `WATCHDEX_SESSION_WATCH_INTERVAL_MS` | No | Session watcher polling interval. Defaults to `5000`. |
 | `WATCHDEX_SESSION_WATCH_DEBOUNCE_MS` | No | Delay before notifying a completed session message. Defaults to `8000`. |

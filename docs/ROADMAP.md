@@ -436,7 +436,7 @@ across Mac and Windows.
 - [x] Implement desktop handoff using stable supported task/session identity.
 - [x] Build and validate the macOS adapter matrix.
 - [x] Build and validate the Windows adapter matrix.
-- [ ] Keep foreground macOS paste as an explicitly experimental fallback.
+- [x] Keep foreground macOS paste as an explicitly experimental fallback.
 - [x] Hide or explain every unsupported action based on negotiated capability.
 
 Exit gate: acceptance scenarios 3, 4, 5, 9, and 10 pass on one Mac and one
@@ -547,6 +547,17 @@ the native task detail exposes it through an accessible copy/share sheet. Adapte
 and lifecycle fixtures cover Mac/Windows capability negotiation, missing-session
 rejection, duplicate delivery, and secret/path redaction. This is a supported
 context handoff, not private Codex Desktop UI automation.
+
+Verification evidence for the completed foreground-paste fallback slice:
+`foreground-submit` requires the negotiated macOS `foreground` adapter and the
+`task.reply` capability, so direct invocation cannot bypass the Windows
+fail-closed path or a supported CLI/app-server mode. The AppleScript restores
+the user's clipboard on both success and error paths, while thread-URL routing
+keeps the exact supported session identity in view. The focused
+`scripts/test-foreground-submit.js` fixture covers successful routing and
+rejects an unsupported Windows invocation without launching either foreground
+helper. This remains an explicitly experimental Accessibility-based fallback
+and does not claim private Codex Desktop API parity.
 
 ## M5: Approvals and High-Risk Actions
 

@@ -3221,6 +3221,7 @@ async function appServerResumeCommand(args) {
 async function foregroundSubmitCommand(args) {
   const cfg = config();
   ensureDataDir(cfg.dataDir);
+  assertForegroundAdapter(cfg);
   const flags = parseFlags(args);
   const taskId = flags.taskId || flags.task || "";
   const task = taskId ? findTask(cfg.dataDir, taskId) : latestJsonl(cfg.dataDir, "tasks.jsonl");
@@ -3230,6 +3231,17 @@ async function foregroundSubmitCommand(args) {
   if (!prompt) throw new Error("Missing --prompt for foreground submit");
 
   await submitPromptToForegroundCodex(cfg, task, prompt);
+}
+
+function assertForegroundAdapter(cfg) {
+  if (cfg.adapter.mode !== "foreground" || cfg.adapter.platform !== "macos") {
+    throw new Error(
+      "Foreground paste is an experimental macOS-only fallback. Set PHONEDEX_ADAPTER_MODE=foreground on macOS."
+    );
+  }
+  if (!supportsAdapterCapability(cfg.adapter, "task.reply")) {
+    throw new Error("The configured macOS foreground adapter cannot accept task replies.");
+  }
 }
 
 function buildCodexResumePrompt(reply) {
@@ -3262,18 +3274,25 @@ on run argv
   set promptText to item 1 of argv
   set foregroundApp to item 2 of argv
   set previousClipboard to the clipboard
-  delay 0.6
-  set the clipboard to promptText
-  tell application "System Events"
-    tell process foregroundApp
-      set frontmost to true
-      keystroke "v" using {command down}
-      delay 0.2
-      key code 36
+  try
+    delay 0.6
+    set the clipboard to promptText
+    tell application "System Events"
+      tell process foregroundApp
+        set frontmost to true
+        keystroke "v" using {command down}
+        delay 0.2
+        key code 36
+      end tell
     end tell
-  end tell
-  delay 0.5
-  set the clipboard to previousClipboard
+    delay 0.5
+    set the clipboard to previousClipboard
+  on error errorMessage number errorNumber
+    try
+      set the clipboard to previousClipboard
+    end try
+    error errorMessage number errorNumber
+  end try
 end run
 `;
 
