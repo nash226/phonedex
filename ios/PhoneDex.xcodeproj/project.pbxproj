@@ -22,6 +22,7 @@
 		DBB7D6C4A14CA4D6B0AA87D9 /* PhoneDexChatFilteringTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CEF129750D2F0BCA2C8A4FD /* PhoneDexChatFilteringTests.swift */; };
 		E5051DCD0753963C6EB8743D /* PhoneDexNotificationExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 25C82207BC440A87334B4671 /* PhoneDexNotificationExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		EDCA3CD5D1091B69E242B1A5 /* PhoneDexBridgeClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 215494D6ACCADDC5644E6D3F /* PhoneDexBridgeClient.swift */; };
+		F0771711552D4703F3A341D9 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 066AC8504790A55980D802E5 /* Assets.xcassets */; };
 		F0D7EB376A371851815721E1 /* PhoneDexAppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADCCFEBF0527DD1B51D91321 /* PhoneDexAppModel.swift */; };
 /* End PBXBuildFile section */
 
@@ -57,6 +58,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		066AC8504790A55980D802E5 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		1553D7462D31D1E5ABA0E62F /* PhoneDexCredentialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexCredentialStore.swift; sourceTree = "<group>"; };
 		193B479661C000C8165C2F07 /* PhoneDexTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = PhoneDexTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1BEE64FCB7F6C20249393730 /* PhoneDexBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexBrowserView.swift; sourceTree = "<group>"; };
@@ -102,6 +104,7 @@
 		59ABBB4B570D4E9981BB3F2D /* PhoneDexApp */ = {
 			isa = PBXGroup;
 			children = (
+				066AC8504790A55980D802E5 /* Assets.xcassets */,
 				54150915655642C1927495EF /* ContentView.swift */,
 				591360A3AD685BF9A3A4BDCE /* Info.plist */,
 				3240FEAD2F5618D959AFEE78 /* PhoneDexApp.swift */,
@@ -181,6 +184,7 @@
 			buildConfigurationList = 8E65B42D59EA0EE6A1F63519 /* Build configuration list for PBXNativeTarget "PhoneDex" */;
 			buildPhases = (
 				25AB0A277D6AA708EC0FA007 /* Sources */,
+				115E60CE9C2CCC42DB5ED3A6 /* Resources */,
 				9812BE1766641A700BDF87C3 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
@@ -232,6 +236,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		115E60CE9C2CCC42DB5ED3A6 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F0771711552D4703F3A341D9 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		25AB0A277D6AA708EC0FA007 /* Sources */ = {
