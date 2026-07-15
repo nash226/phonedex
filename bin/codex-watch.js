@@ -163,6 +163,16 @@ async function main() {
     return;
   }
 
+  if (command === "pair:list") {
+    listPairingIdentitiesCommand(args);
+    return;
+  }
+
+  if (command === "pair:revoke") {
+    revokePairingIdentityCommand(args);
+    return;
+  }
+
   if (command === "agent-installs") {
     printAgentInstalls(args);
     return;
@@ -326,6 +336,67 @@ function createPairingGrantCommand(args) {
     ...grant.public,
     instructions: "Enter the grant and verification code in the PhoneDex app. Keep both private."
   }, null, 2));
+}
+
+function listPairingIdentitiesCommand(args) {
+  const cfg = config();
+  ensureDataDir(cfg.dataDir);
+  const identities = durableStore(cfg.dataDir)
+    .listIdentities()
+    .map(publicIdentity);
+  const flags = parseFlags(args);
+
+  if (flags.json) {
+    console.log(JSON.stringify(identities, null, 2));
+    return;
+  }
+
+  if (identities.length === 0) {
+    console.log("No paired PhoneDex identities.");
+    return;
+  }
+
+  for (const identity of identities) {
+    console.log(`${identity.id} ${identity.status} ${identity.name} (${identity.role})`);
+    console.log(`  device: ${identity.deviceId} · platform: ${identity.platform}`);
+    console.log(`  scopes: ${identity.scopes.join(", ") || "none"}`);
+    console.log(`  last seen: ${identity.lastSeenAt}`);
+    if (identity.revokedAt) console.log(`  revoked: ${identity.revokedAt}`);
+  }
+}
+
+function revokePairingIdentityCommand(args) {
+  const cfg = config();
+  ensureDataDir(cfg.dataDir);
+  const flags = parseFlags(args);
+  const identityId = String(flags.identity || flags["identity-id"] || "").trim();
+  const deviceId = String(flags.device || flags["device-id"] || "").trim();
+  if (!identityId && !deviceId) {
+    throw new Error("Pass --identity ID or --device-id DEVICE_ID to revoke a paired identity.");
+  }
+
+  const result = durableStore(cfg.dataDir).revokeIdentity({
+    identityId: identityId || undefined,
+    deviceId: deviceId || undefined,
+    reason: flags.reason || "hub-owner-revoked"
+  });
+  if (!result.found) {
+    throw new Error(`No paired identity matched ${identityId || deviceId}.`);
+  }
+
+  const output = {
+    ok: true,
+    changed: result.changed,
+    identity: publicIdentity(result.identity)
+  };
+  if (flags.json) {
+    console.log(JSON.stringify(output, null, 2));
+    return;
+  }
+
+  console.log(result.changed
+    ? `Revoked PhoneDex identity ${result.identity.id} (${result.identity.name}).`
+    : `PhoneDex identity ${result.identity.id} is already revoked.`);
 }
 
 async function handleHook() {
@@ -2701,6 +2772,8 @@ Usage:
   phonedex verify-devices
   phonedex notify-coverage
   phonedex pair:create --name "My iPhone"
+  phonedex pair:list
+  phonedex pair:revoke --identity ID
   phonedex enroll-agent --device-id macbook-air --name "MacBook Air" --platform macos
   phonedex enroll-agent --device-id windows-desktop --name "Windows Desktop" --platform windows --script
   phonedex agent-self-test
@@ -3067,7 +3140,9 @@ function listDeviceCoverage(cfg) {
   const devices = new Map();
   for (const device of readDeviceHeartbeats(cfg.dataDir)) {
     if (!device?.deviceId) continue;
-    const status = heartbeatStatus(device.lastSeenAt, cfg.deviceStaleMs);
+    const status = device.status === "revoked"
+      ? "revoked"
+      : heartbeatStatus(device.lastSeenAt, cfg.deviceStaleMs);
     devices.set(device.deviceId, {
       ...device,
       lastHeartbeatAt: device.lastSeenAt || "",
