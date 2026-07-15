@@ -82,7 +82,25 @@ async function main() {
       machineName: "Studio Mac",
       replyToken: secret,
       originReplyUrl: `https://agent.test/reply?token=${secret}`,
-      status: "completed"
+      version: 1,
+      status: "awaiting_approval",
+      approvalRequest: {
+        id: "approval-security",
+        taskVersion: 1,
+        operation: "Write files",
+        scope: "PhoneDex workspace",
+        origin: {
+          deviceId: "studio-mac",
+          machineName: "Studio Mac",
+          workspaceName: "PhoneDex",
+          path: "/Users/private/PhoneDex"
+        },
+        reason: "Security fixture",
+        risk: "Writes generated files",
+        requestedAt: at,
+        expiresAt: new Date(Date.parse(at) + 15 * 60 * 1000).toISOString(),
+        state: "pending"
+      }
     },
     () => false
   );
@@ -136,6 +154,8 @@ async function main() {
     assert.equal(Object.hasOwn(tasks.json[0], "replyToken"), false);
     assert.equal(Object.hasOwn(tasks.json[0], "cwd"), false);
     assert.equal(tasks.json[0].workspaceName, "PhoneDex");
+    assert.equal(tasks.json[0].approvalRequest.origin.path, undefined);
+    assert.equal(Object.hasOwn(tasks.json[0].approvalRequest.origin, "path"), false);
 
     const sync = await request(`${hubUrl}/sync`, { headers });
     assert.equal(sync.response.status, 200);

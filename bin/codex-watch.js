@@ -13,6 +13,7 @@ const {
   defaultCapabilities,
   negotiateCapabilities,
   negotiateProtocolVersion,
+  normalizeApprovalRequest,
   normalizeCaptureSources,
   normalizeTaskQuestion,
   protocolRecord
@@ -510,6 +511,9 @@ async function handleHook() {
     cwd,
     sessionId,
     messageId,
+    ...(payload.approvalRequest || payload.approval_request
+      ? { approvalRequest: payload.approvalRequest || payload.approval_request }
+      : {}),
     hookPayload: summarizePayload(payload),
     rawHookInputBytes: Buffer.byteLength(rawInput || "")
   });
@@ -580,7 +584,6 @@ function mergeTaskCaptures(existing, incoming) {
   });
 
   if (!merged.question && incoming.question) merged.question = incoming.question;
-
   for (const field of ["logicalEventId", "messageId", "sessionId", "cwd"]) {
     if (!merged[field] && incoming[field]) merged[field] = incoming[field];
   }
@@ -596,8 +599,12 @@ function mergeTaskCaptures(existing, incoming) {
   const incomingVersion = Number.isInteger(incoming.version) ? incoming.version : 0;
   const existingVersion = Number.isInteger(existing.version) ? existing.version : 0;
   if (incomingVersion >= existingVersion) {
-    for (const field of ["status", "updatedAt", "lifecycleCapabilities", "execution", "workspaceName"]) {
-      if (incoming[field] !== undefined) merged[field] = incoming[field];
+    for (const field of ["status", "updatedAt", "lifecycleCapabilities", "execution", "workspaceName", "approvalRequest"]) {
+      if (incoming[field] !== undefined) {
+        merged[field] = field === "approvalRequest"
+          ? normalizeApprovalRequest(incoming[field])
+          : incoming[field];
+      }
     }
     if (incoming.text) merged.text = incoming.text;
     if (incoming.title) merged.title = incoming.title;
@@ -3163,7 +3170,8 @@ function createTask(fields) {
     updatedAt: fields.updatedAt,
     hookPayload: fields.hookPayload,
     rawHookInputBytes: fields.rawHookInputBytes,
-    ...(fields.question ? { question: normalizeTaskQuestion(fields.question) } : {})
+    ...(fields.question ? { question: normalizeTaskQuestion(fields.question) } : {}),
+    ...(fields.approvalRequest ? { approvalRequest: normalizeApprovalRequest(fields.approvalRequest) } : {})
   });
 }
 
@@ -3205,6 +3213,7 @@ function createIngestedTask(fields, cfg, req) {
       : undefined,
     execution: fields.execution,
     ...(fields.question ? { question: normalizeTaskQuestion(fields.question) } : {}),
+    ...(fields.approvalRequest ? { approvalRequest: normalizeApprovalRequest(fields.approvalRequest) } : {}),
     receivedAt: new Date().toISOString(),
     receivedFrom: req.socket.remoteAddress || "",
     hookPayload: fields.hookPayload,
@@ -3606,9 +3615,13 @@ function publicTask(task) {
     ...safeTask
   } = task;
   const workspaceName = safeTask.workspaceName || workspaceNameFromPath(cwd);
-  return workspaceName
-    ? redactPublicStrings({ ...safeTask, workspaceName })
-    : redactPublicStrings(safeTask);
+  const publicValue = workspaceName
+    ? { ...safeTask, workspaceName }
+    : safeTask;
+  if (publicValue.approvalRequest) {
+    publicValue.approvalRequest = publicApprovalRequest(publicValue.approvalRequest);
+  }
+  return redactPublicStrings(publicValue);
 }
 
 function publicSyncTask(task) {
@@ -3632,9 +3645,36 @@ function publicSyncTask(task) {
   } = task;
   const workspaceName =
     task.workspaceName || workspaceNameFromPath(cwd);
-  return workspaceName
-    ? redactPublicStrings({ ...safeTask, workspaceName })
-    : redactPublicStrings(safeTask);
+  const publicValue = workspaceName
+    ? { ...safeTask, workspaceName }
+    : safeTask;
+  if (publicValue.approvalRequest) {
+    publicValue.approvalRequest = publicApprovalRequest(publicValue.approvalRequest);
+  }
+  return redactPublicStrings(publicValue);
+}
+
+function publicApprovalRequest(request) {
+  if (!request || typeof request !== "object" || Array.isArray(request)) return undefined;
+  const origin = request.origin && typeof request.origin === "object" && !Array.isArray(request.origin)
+    ? {
+        deviceId: request.origin.deviceId,
+        machineName: request.origin.machineName,
+        ...(request.origin.workspaceName ? { workspaceName: request.origin.workspaceName } : {})
+      }
+    : undefined;
+  return {
+    id: request.id,
+    taskVersion: request.taskVersion,
+    operation: request.operation,
+    scope: request.scope,
+    origin,
+    reason: request.reason,
+    risk: request.risk,
+    requestedAt: request.requestedAt,
+    expiresAt: request.expiresAt,
+    state: request.state
+  };
 }
 
 function redactPublicStrings(value) {
