@@ -114,8 +114,10 @@ The repository already proves the core loop, but not the final product.
 - The app allows arbitrary network loads and supports plaintext HTTP.
 - Notification reply errors are discarded and cannot be retried or audited by
   the user.
-- The bridge exposes only a recent slice of append-only JSONL data and has no
-  versioned API, pagination contract, per-client cursor, or schema migration.
+- Legacy bridge endpoints still expose a recent slice of append-only JSONL data,
+  but the authenticated `/sync` contract now provides versioned snapshot pages,
+  opaque cursors, stable ordering, and tombstones. Per-client durable cursor
+  storage and encrypted cache remain future iOS work.
 - Starting, canceling, retrying, approving, or streaming a Codex task is not a
   defined cross-platform agent contract.
 - Foreground UI automation is Mac-specific, permission-sensitive, and brittle.

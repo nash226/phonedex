@@ -11,6 +11,10 @@ const {
   addDeviceProtocolFields,
   addTaskProtocolFields
 } = require("../lib/phonedex-protocol");
+const {
+  SYNC_SCHEMA,
+  normalizeSyncLimit
+} = require("../lib/phonedex-sync");
 
 const ROOT = path.resolve(__dirname, "..");
 const DATA_DIR_DEFAULT = path.join(ROOT, "data");
@@ -607,6 +611,31 @@ async function startServer(providedCfg) {
         return sendJson(res, 200, visibleTasks.map(publicTask));
       }
 
+      if (requestUrl.pathname === "/sync") {
+        if (req.method !== "GET") {
+          return sendJson(res, 405, { ok: false, error: "GET required" });
+        }
+        if (!isRequestTokenValid(req, requestUrl, cfg)) {
+          return sendJson(res, 401, { ok: false, error: "Invalid token" });
+        }
+
+        try {
+          const page = durableStore(cfg.dataDir).readSync({
+            cursor: requestUrl.searchParams.get("cursor") || "",
+            limit: normalizeSyncLimit(requestUrl.searchParams.get("limit"))
+          });
+          return sendJson(res, 200, publicSyncPage(page));
+        } catch (error) {
+          if (error.code === "sync_cursor_invalid") {
+            return sendJson(res, 400, { ok: false, error: error.message, code: error.code });
+          }
+          if (error.code === "sync_snapshot_changed") {
+            return sendJson(res, 409, { ok: false, error: error.message, code: error.code });
+          }
+          throw error;
+        }
+      }
+
       if (requestUrl.pathname === "/devices/heartbeat") {
         return handleDeviceHeartbeatRequest(req, res, requestUrl, cfg);
       }
@@ -648,6 +677,7 @@ async function startServer(providedCfg) {
           "/task",
           "/replies",
           "/tasks",
+          "/sync",
           "/devices",
           "/devices/heartbeat",
           "/agent-installs",
@@ -675,6 +705,34 @@ function parseTaskListLimit(value) {
   const parsed = Number.parseInt(value, 10);
   if (!Number.isFinite(parsed) || parsed < 1) return 25;
   return Math.min(parsed, 500);
+}
+
+function publicSyncPage(page) {
+  return {
+    schema: SYNC_SCHEMA,
+    protocolVersion: 1,
+    revision: page.revision,
+    position: page.position,
+    snapshot: page.snapshot
+      ? {
+          ...page.snapshot,
+          tasks: page.snapshot.tasks.map(publicSyncTask),
+          devices: page.snapshot.devices.map(publicDevice)
+        }
+      : null,
+    changes: page.changes.map((change) => ({
+      position: change.position,
+      kind: change.kind,
+      id: change.id,
+      deleted: change.deleted,
+      ...(change.deleted
+        ? {}
+        : { record: change.kind === "task" ? publicSyncTask(change.record) : publicDevice(change.record) })
+    })),
+    cursor: page.cursor,
+    hasMore: page.hasMore,
+    updatedAt: page.updatedAt
+  };
 }
 
 async function startService(args) {
@@ -2320,6 +2378,49 @@ function publicTask(task) {
     ...safeTask
   } = task;
   return safeTask;
+}
+
+function publicSyncTask(task) {
+  if (!task || typeof task !== "object") return task;
+  const {
+    cwd,
+    hookPayload,
+    rawHookInputBytes,
+    receivedFrom,
+    originReplyUrl,
+    originPublicUrl,
+    originToken,
+    replyToken,
+    token,
+    ...safeTask
+  } = task;
+  const workspaceName =
+    task.workspaceName || workspaceNameFromPath(cwd);
+  return workspaceName ? { ...safeTask, workspaceName } : safeTask;
+}
+
+function workspaceNameFromPath(value) {
+  if (typeof value !== "string" || !value) return "";
+  const parts = value.replaceAll("\\", "/").split("/").filter(Boolean);
+  return parts.at(-1) || "";
+}
+
+function publicDevice(device) {
+  if (!device || typeof device !== "object") return device;
+  const safeDevice = {
+    deviceId: device.deviceId,
+    machineName: device.machineName,
+    platform: device.platform,
+    role: device.role,
+    status: device.status,
+    lastSeenAt: device.lastSeenAt,
+    agentVersion: device.agentVersion || device.version,
+    adapterVersion: device.adapterVersion,
+    capabilities: Array.isArray(device.capabilities) ? device.capabilities : []
+  };
+  return Object.fromEntries(
+    Object.entries(safeDevice).filter(([, value]) => value !== undefined)
+  );
 }
 
 async function startDeviceHeartbeat(cfg) {
