@@ -199,7 +199,7 @@ Outcome: remove shared bearer-token setup from the production path.
 - [x] Implement short-lived, single-use pairing grants with verification codes.
 - [x] Add scoped permissions for read, reply, approve, and administration.
 - [x] Move iOS credentials from `UserDefaults` to Keychain.
-- [ ] Remove credentials from URLs, notification metadata, logs, and support
+- [x] Remove credentials from URLs, notification metadata, logs, and support
   output.
 - [x] Require TLS in the iOS release configuration and remove arbitrary ATS
   loads.
@@ -285,9 +285,16 @@ actions resolve the current validated bridge URL from app configuration and
 reload the Keychain credential at action time. The bridge redacts URL userinfo,
 query credentials, and credential-shaped support text, and its health,
 self-test, invite, and bootstrap-manifest surfaces expose sanitized URLs.
-Legacy bootstrap download links and older query-token authentication remain
-explicit migration compatibility paths and are not treated as production
-identity.
+Pushcut fallback actions now use ten-minute, single-use opaque grants whose
+hashes are consumed transactionally and bound to the task version, choice,
+command id, and idempotency key; neither the notification URL nor its POST
+body contains the hub bearer token. Notification text and action input are
+redacted and bounded before delivery. `scripts/test-security.js` proves
+Pushcut payloads contain no durable bearer credential, successful grant
+consumption, replay rejection, and redacted notification text. Legacy
+bootstrap download links
+and older query-token authentication remain explicit migration compatibility
+paths and are not treated as production identity.
 
 Verification evidence for the completed iOS transport-policy slice:
 `ios/PhoneDexApp/Info.plist` disables arbitrary ATS loads and permits insecure
