@@ -109,6 +109,34 @@ final class PhoneDexSettingsTests: XCTestCase {
         XCTAssertFalse(metadata.values.contains { String(describing: $0).contains("secret") })
     }
 
+    func testBridgePolicyRequiresHTTPSOutsideLoopback() throws {
+        let defaults = try makeDefaults()
+        let settings = PhoneDexSettings(defaults: defaults, tokenStore: InMemoryTokenStore())
+
+        settings.bridgeURL = "http://192.168.1.20:8765"
+
+        XCTAssertNil(settings.normalizedBridgeURL)
+        XCTAssertEqual(
+            settings.bridgeURLValidationMessage,
+            "Use an HTTPS bridge URL. HTTP is available only for localhost development."
+        )
+
+        settings.bridgeURL = "https://macbook.example.test:8765"
+
+        XCTAssertEqual(settings.normalizedBridgeURL?.absoluteString, "https://macbook.example.test:8765")
+        XCTAssertTrue(settings.bridgeURLValidationMessage.isEmpty)
+    }
+
+    func testLoopbackHTTPRemainsAvailableForLocalDevelopment() throws {
+        let defaults = try makeDefaults()
+        let settings = PhoneDexSettings(defaults: defaults, tokenStore: InMemoryTokenStore())
+
+        settings.bridgeURL = "http://127.0.0.1:8765/"
+
+        XCTAssertEqual(settings.normalizedBridgeURL?.absoluteString, "http://127.0.0.1:8765")
+        XCTAssertTrue(settings.bridgeURLValidationMessage.isEmpty)
+    }
+
     private func makeDefaults() throws -> UserDefaults {
         let suiteName = "PhoneDexSettingsTests.\(UUID().uuidString)"
         guard let defaults = UserDefaults(suiteName: suiteName) else {

@@ -1008,6 +1008,12 @@ private struct PhoneDexSettingsView: View {
                             .foregroundStyle(.red)
                     }
 
+                    if !settings.bridgeURLValidationMessage.isEmpty {
+                        Label(settings.bridgeURLValidationMessage, systemImage: "lock.shield")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+
                     Button("Test Connection", systemImage: "bolt.horizontal.circle") {
                         Task { await model.refresh() }
                     }
