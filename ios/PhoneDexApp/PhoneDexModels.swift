@@ -20,12 +20,13 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
     let question: PhoneDexTaskQuestion?
     let approvalRequest: PhoneDexApprovalRequest?
     let captureSources: [PhoneDexCaptureSource]
+    let evidence: PhoneDexTaskEvidence?
     let lifecycleCapabilities: [String]
 
     private enum CodingKeys: String, CodingKey {
         case id, at, createdAt, updatedAt, version, source, title, text, cwd, workspaceName
         case machineName, deviceId, sessionId, status, branch, repository, captureSources
-        case question, approvalRequest, lifecycleCapabilities
+        case question, approvalRequest, evidence, lifecycleCapabilities
     }
 
     init(from decoder: Decoder) throws {
@@ -49,6 +50,7 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
         question = try container.decodeIfPresent(PhoneDexTaskQuestion.self, forKey: .question)
         approvalRequest = try container.decodeIfPresent(PhoneDexApprovalRequest.self, forKey: .approvalRequest)
         captureSources = try container.decodeIfPresent([PhoneDexCaptureSource].self, forKey: .captureSources) ?? []
+        evidence = try container.decodeIfPresent(PhoneDexTaskEvidence.self, forKey: .evidence)
         lifecycleCapabilities = try container.decodeIfPresent([String].self, forKey: .lifecycleCapabilities) ?? []
     }
 
@@ -72,6 +74,7 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
         question: PhoneDexTaskQuestion? = nil,
         approvalRequest: PhoneDexApprovalRequest? = nil,
         captureSources: [PhoneDexCaptureSource] = [],
+        evidence: PhoneDexTaskEvidence? = nil,
         lifecycleCapabilities: [String] = []
     ) {
         self.id = id
@@ -93,6 +96,7 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
         self.question = question
         self.approvalRequest = approvalRequest
         self.captureSources = captureSources
+        self.evidence = evidence
         self.lifecycleCapabilities = lifecycleCapabilities
     }
 
@@ -301,6 +305,84 @@ struct PhoneDexCaptureSource: Codable, Equatable, Identifiable {
         case "stop-hook": return "Captured by Stop hook"
         case "session-watcher": return "Captured by session watcher"
         default: return "Captured by \(source.replacingOccurrences(of: "-", with: " "))"
+        }
+    }
+}
+
+struct PhoneDexTaskEvidence: Codable, Equatable {
+    let changedFiles: [PhoneDexChangedFile]
+    let artifacts: [PhoneDexArtifact]
+    let validations: [PhoneDexValidationReceipt]
+
+    init(
+        changedFiles: [PhoneDexChangedFile] = [],
+        artifacts: [PhoneDexArtifact] = [],
+        validations: [PhoneDexValidationReceipt] = []
+    ) {
+        self.changedFiles = changedFiles
+        self.artifacts = artifacts
+        self.validations = validations
+    }
+
+    var isEmpty: Bool {
+        changedFiles.isEmpty && artifacts.isEmpty && validations.isEmpty
+    }
+}
+
+struct PhoneDexChangedFile: Codable, Equatable, Identifiable {
+    let path: String
+    let status: String
+    let sourceRef: String?
+    let summary: String?
+    let additions: Int?
+    let deletions: Int?
+
+    var id: String { path }
+
+    var displayStatus: String {
+        status.capitalized
+    }
+}
+
+struct PhoneDexArtifact: Codable, Equatable, Identifiable {
+    let id: String
+    let name: String
+    let kind: String
+    let sourceRef: String
+    let sizeBytes: Int?
+    let sha256: String?
+
+    var displaySize: String? {
+        guard let sizeBytes else { return nil }
+        return ByteCountFormatter.string(fromByteCount: Int64(sizeBytes), countStyle: .file)
+    }
+}
+
+struct PhoneDexValidationReceipt: Codable, Equatable, Identifiable {
+    let id: String
+    let name: String
+    let status: String
+    let summary: String?
+    let durationMs: Int?
+    let completedAt: String?
+
+    var displayStatus: String {
+        switch status {
+        case "passed": return "Passed"
+        case "failed": return "Failed"
+        case "skipped": return "Skipped"
+        case "running": return "Running"
+        default: return "Unknown"
+        }
+    }
+
+    var symbol: String {
+        switch status {
+        case "passed": return "checkmark.circle.fill"
+        case "failed": return "xmark.octagon.fill"
+        case "skipped": return "minus.circle"
+        case "running": return "arrow.triangle.2.circlepath"
+        default: return "questionmark.circle"
         }
     }
 }

@@ -31,12 +31,19 @@ const task = addTaskProtocolFields({
     prompt: "What should happen next?",
     choices: [{ id: "tests", label: "Run the focused tests" }],
     allowsFreeText: true
+  },
+  evidence: {
+    changedFiles: [{ path: "Sources/App.swift", status: "modified", sourceRef: "Sources/App.swift#L1-L8" }],
+    artifacts: [{ id: "build-log", name: "Build log", kind: "log", sourceRef: "artifacts/build.log" }],
+    validations: [{ id: "tests", name: "npm test", status: "passed" }]
   }
 });
 assert.equal(validateProtocolRecord("task", task).valid, true);
 assert.equal(task.schema, SCHEMAS.task);
 assert.equal(task.origin.deviceId, "macbook-air");
 assert.equal(task.question.choices[0].id, "tests");
+assert.equal(task.evidence.changedFiles[0].sourceRef, "Sources/App.swift#L1-L8");
+assert.equal(task.evidence.validations[0].status, "passed");
 
 const approvalTask = addTaskProtocolFields({
   id: "task_approval",
