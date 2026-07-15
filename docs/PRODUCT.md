@@ -130,7 +130,9 @@ The repository already proves the core loop, but not the final product.
   the current bridge; notification payloads no longer contain it. The iOS
   settings token is stored in device-only Keychain storage, with legacy
   `UserDefaults` migration.
-- The app allows arbitrary network loads and supports plaintext HTTP.
+- Release ATS no longer allows arbitrary network loads, and configured
+  non-loopback bridges require HTTPS; loopback HTTP remains available only for
+  local development. Hub and agent TLS deployment is still release work.
 - Reply commands now carry a client idempotency key and expected task version;
   the bridge persists command receipts and the iPhone exposes queued, failed,
   duplicate, stale, and successful delivery states. General lifecycle command
@@ -830,8 +832,9 @@ Before external beta, legacy shared-token setup must be retired in favor of
 scoped pairing and revocable identities. The token must move out of
 notification payloads; the iOS settings token is no longer stored in
 `UserDefaults`. Pairing grants are now short-lived, single-use, rate-limited,
-and hash-only at rest; credential revocation, TLS enforcement, query-token
-removal, and arbitrary ATS loads remain release work. Plain JSONL content needs
+and hash-only at rest; credential revocation, hub/agent TLS deployment, and
+query-token removal for legacy compatibility remain release work. The iOS
+release build disables arbitrary ATS loads. Plain JSONL content needs
 documented host protection, retention, and migration, and reply failures must
 become auditable command outcomes.
 

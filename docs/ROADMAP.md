@@ -201,7 +201,8 @@ Outcome: remove shared bearer-token setup from the production path.
 - [x] Move iOS credentials from `UserDefaults` to Keychain.
 - [ ] Remove credentials from URLs, notification metadata, logs, and support
   output.
-- [ ] Require TLS in release configuration and remove arbitrary ATS loads.
+- [x] Require TLS in the iOS release configuration and remove arbitrary ATS
+  loads.
 - [ ] Implement rotation, revoke, replay defense, rate limits, and audit events.
 - [x] Add a threat model and automated security regression tests.
 
@@ -247,6 +248,15 @@ Keychain. `scripts/test-pairing.js` and
 cover the end-to-end contract, failed verification, one-time use, scoped
 authorization, and secret redaction. Revocation, rotation, and TLS remain
 separate M2 slices.
+
+Verification evidence for the completed iOS transport-policy slice:
+`ios/PhoneDexApp/Info.plist` disables arbitrary ATS loads and permits insecure
+HTTP only for loopback development hosts. `PhoneDexSettings` rejects plaintext
+URLs for Mac or Windows bridges while preserving localhost development, and
+shows an actionable Settings message when the configured URL is invalid.
+`PhoneDexSettingsTests` covers HTTPS acceptance, non-loopback HTTP rejection,
+and loopback HTTP compatibility. Hub and agent TLS termination, certificate
+deployment, and legacy query-token removal remain separate release work.
 
 Verification evidence for the completed Chats scope slice: the native SwiftUI
 Chats surface in `ios/PhoneDexApp/ContentView.swift` provides Needs You,

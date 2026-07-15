@@ -59,7 +59,7 @@ final class PhoneDexSettings: ObservableObject {
             raw.removeLast()
         }
         guard let url = URL(string: raw),
-              ["http", "https"].contains(url.scheme?.lowercased()),
+              Self.isSupportedBridgeURL(url),
               url.user == nil,
               url.password == nil,
               url.query == nil,
@@ -68,6 +68,12 @@ final class PhoneDexSettings: ObservableObject {
             return nil
         }
         return url
+    }
+
+    var bridgeURLValidationMessage: String {
+        normalizedBridgeURL == nil
+            ? "Use an HTTPS bridge URL. HTTP is available only for localhost development."
+            : ""
     }
 
     @discardableResult
@@ -88,7 +94,7 @@ final class PhoneDexSettings: ObservableObject {
             candidate.password == nil,
             candidate.query == nil,
             candidate.fragment == nil,
-            ["http", "https"].contains(candidate.scheme?.lowercased()),
+            Self.isSupportedBridgeURL(candidate),
             !bridgeURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             self.bridgeURL = candidate.absoluteString
             updated = true
@@ -104,6 +110,13 @@ final class PhoneDexSettings: ObservableObject {
 
     private static let credentialStorageErrorMessage =
         "Secure credential storage is unavailable. Try again."
+
+    private static func isSupportedBridgeURL(_ url: URL) -> Bool {
+        guard let scheme = url.scheme?.lowercased() else { return false }
+        if scheme == "https" { return true }
+        guard scheme == "http", let host = url.host?.lowercased() else { return false }
+        return ["localhost", "127.0.0.1", "::1"].contains(host)
+    }
 
     private func persistToken() {
         do {
