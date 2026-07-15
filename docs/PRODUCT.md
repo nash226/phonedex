@@ -177,7 +177,8 @@ supported command path on the originating machine.
 | Start a task | Choose a machine/workspace, enter a prompt, and create a tracked run | **Current, bounded.** Allowlisted agents expose a versioned create command; arbitrary desktop task creation is not promised. |
 | Answer a question | Render explicit choices or text input and resume the same task | **Current, partial.** Bounded task questions and reply envelopes exist; richer event streams and adapter-native continuation remain future work. |
 | Review an approval | Show exact operation, scope, risk, and origin before approve/reject | **Current, partial.** Expiring task-version-bound review metadata is rendered read-only; approve/reject controls require the future `approval.respond.v1` contract. |
-| Review changes | Mobile diff summary, file list, patch detail, and validation results | **Target.** Requires structured artifact and diff export from the agent. |
+| Review changes | Mobile diff summary, file list, patch detail, and validation results | **Current, partial.** Structured file, artifact, source-reference, and validation metadata can be exported; full patch detail and downloads remain target work. |
+| Cancel, retry, or queue | Issue idempotent lifecycle commands with visible receipts | **Target.** Requires adapter capability negotiation. |
 | Cancel, retry, or queue | Issue idempotent lifecycle commands with visible receipts | **Current, bounded.** Cancel/retry apply to PhoneDex-owned runs when advertised; general queueing remains Target. |
 | Open on desktop | Deep-link or hand off to the exact supported task/session | **Target where the desktop integration exposes a stable identifier.** |
 | Reproduce all desktop tools | Exact private UI, terminal, extensions, and local integrations | **Not promised.** Use explicit mobile workflows or hand off to the computer. |
