@@ -119,23 +119,25 @@ The repository already proves the core loop, but not the final product.
   background refresh.
 - The iOS app restores an encrypted local cache, resumes foreground sync from a
   durable cursor, and distinguishes loading, stale, offline, revoked,
-  incompatible, and partial refresh states; command outbox behavior remains
-  future work.
+  incompatible, and partial refresh states; reply commands are now persisted
+  in the same encrypted cache for offline retry.
 - The iOS app has no complete live-progress model, approval UI, artifact
-  viewer, command queue, or offline outbox; task detail only renders the
+  viewer, or general lifecycle command queue; task detail only renders the
   response and metadata currently exported by the bridge.
 - The shared token remains part of legacy setup and can be accepted in URLs by
   the current bridge; notification payloads no longer contain it. The iOS
   settings token is stored in device-only Keychain storage, with legacy
   `UserDefaults` migration.
 - The app allows arbitrary network loads and supports plaintext HTTP.
-- Notification reply errors are discarded and cannot be retried or audited by
-  the user.
+- Reply commands now carry a client idempotency key and expected task version;
+  the bridge persists command receipts and the iPhone exposes queued, failed,
+  duplicate, stale, and successful delivery states. General lifecycle command
+  receipts remain future work.
 - Legacy bridge endpoints still expose a recent slice of append-only JSONL data,
   but the authenticated `/sync` contract now provides versioned snapshot pages,
   opaque cursors, stable ordering, and tombstones. The native iPhone client
-  persists its cursor and encrypted cache; command receipts and outbox replay
-  remain future work.
+  persists its cursor and encrypted cache; reply command receipts and outbox
+  replay are implemented while general lifecycle commands remain future work.
 - Starting, canceling, retrying, approving, or streaming a Codex task is not a
   defined cross-platform agent contract.
 - Foreground UI automation is Mac-specific, permission-sensitive, and brittle.
@@ -152,7 +154,7 @@ supported command path on the originating machine.
 | --- | --- | --- |
 | Find recent work | Unified, searchable tasks grouped by workspace and machine | **Target.** Extend the hub protocol and durable store. |
 | Read a completed response | Rich, readable transcript with machine and workspace context | **Current, partial.** Completion text exists; full transcript sync does not. |
-| Reply to a task | Send text or a constrained quick action with delivery state | **Current, partial.** Add durable commands, receipts, retries, and conflict checks. |
+| Reply to a task | Send text or a constrained quick action with delivery state | **Current, partial.** Reply receipts, retries, and task-version conflict checks exist; structured agent commands remain partial. |
 | See live progress | Running state, concise activity, and latest meaningful event | **Target.** Requires structured agent events; iOS cannot infer this from desktop UI. |
 | Start a task | Choose a machine/workspace, enter a prompt, and create a tracked run | **Target.** Requires a versioned agent command API and supported Codex adapter. |
 | Answer a question | Render explicit choices or text input and resume the same task | **Target.** Requires structured `needs_input` events and continuation support. |

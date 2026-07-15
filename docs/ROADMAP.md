@@ -259,6 +259,19 @@ logical position after relaunch without jumping when newer activity arrives.
 `PhoneDexLocalCacheTests.swift` covers encrypted round-trip persistence and
 reading legacy cache payloads that predate the optional position map.
 
+Verification evidence for the completed reply-delivery slice:
+`/reply` accepts a client command id, idempotency key, and expected task version;
+it persists `phonedex.command.v1` entries and
+`phonedex.command-receipt.v1` receipts, rejects stale context with HTTP 409,
+and retries a failed origin forward without executing a completed command a
+second time. `scripts/test-reply-delivery.js` covers stale rejection,
+failure-then-retry, duplicate receipt handling, and no-double-forward behavior.
+`PhoneDexBridgeClient` sends the same command identity on retry, while
+`PhoneDexLocalCache` encrypts pending replies and `PhoneDexAppModel` restores,
+queues, retries, and removes them only after a successful or duplicate receipt.
+`PhoneDexLocalCacheTests.swift` covers pending-reply persistence and the
+simulator iOS test suite covers receipt request/response decoding.
+
 Verification evidence for the completed device/workspace details slice:
 `ios/PhoneDexApp/PhoneDexDeviceDetailView.swift` provides read-only device
 identity, heartbeat health, visible-work counts, copyable device identity, and
@@ -290,7 +303,7 @@ Outcome: replace the utility screen with a polished, offline-aware native app.
 - [x] Preserve task reading position across relaunch.
 - [x] Build explicit loading, empty, stale, offline, revoked, incompatible, and
   partial-failure states.
-- [ ] Add reply delivery receipts, retry, stale-version handling, and encrypted
+- [x] Add reply delivery receipts, retry, stale-version handling, and encrypted
   outbox behavior.
 - [x] Add native device/workspace details and actionable diagnostics.
 - [ ] Cover core workflows with unit, snapshot where useful, UI, VoiceOver,

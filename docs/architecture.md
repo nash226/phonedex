@@ -35,8 +35,12 @@ The experience is intentionally simple:
    optional webhook notification.
 5. You expand the notification, read the result, then tap a canned action or
    type or dictate a custom reply.
-6. The iPhone calls the originating machine's PhoneDex `/reply` endpoint.
-7. PhoneDex records the reply and can paste it into the active Codex thread.
+6. The iPhone stores a task-version-bound reply command in its encrypted cache,
+   then calls the originating machine's PhoneDex `/reply` endpoint with a
+   stable idempotency key.
+7. PhoneDex records the command and receipt, retries failed origin delivery
+   without forwarding a completed command twice, and can paste the reply into
+   the active Codex thread.
 
 ![PhoneDex iPhone notification](assets/phonedex-scroll-preview.png)
 
