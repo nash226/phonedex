@@ -262,12 +262,19 @@ making retention and deletion explicit:
 | `data/devices.json` | Latest heartbeat for each reporting PhoneDex service. |
 | `data/privacy-policy.json` | Bounded retention policy. A missing policy is non-destructive. |
 | `data/privacy-audit.jsonl` | Content-free retention and history-deletion audit entries. |
+| `data/security-audit.jsonl` | Content-free pairing, credential, rate-limit, reply, and replay audit entries. |
 
 Legacy bridge security is handled with `WATCH_BRIDGE_TOKEN`. Compatibility
 endpoints still accept body or query tokens for older clients when configured,
 but native app clients use the paired credential as an authorization bearer
 token and do not put it in URLs or notification metadata. Production native
 iPhone connections require HTTPS; loopback HTTP is reserved for development.
+
+Paired credentials can be rotated with `pair:rotate`; rotation is atomic and
+invalidates the previous credential immediately. Protected requests are
+rate-limited per identity or compatibility principal. Reply idempotency keys
+are bound to their original payload so a changed replay fails closed. Security
+audits contain only bounded identity, route, outcome, and reason metadata.
 
 Authenticated `GET /privacy` and `GET /privacy/export` expose bounded policy
 and redacted user data. `POST /privacy/retention` requires

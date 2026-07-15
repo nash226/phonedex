@@ -104,10 +104,25 @@ explicit broad administrative grant. Approval scope is reserved for the
 versioned approval command when that M5 capability exists and is never inferred
 from a phone or agent role.
 
-This slice establishes the pairing grant, device-bound credential path, and
-least-privilege authorization boundary. Credential rotation, hub/agent TLS
-deployment, and removal of legacy query-token compatibility remain separate
-security work.
+The hub owner can rotate a paired credential without changing its identity,
+device, task history, or command receipts:
+
+```sh
+npm run pair:rotate -- --identity ID
+```
+
+Rotation replaces the stored hash atomically, increments `credentialVersion`,
+and returns the new credential once. The previous credential fails closed on
+the next request. Protected requests are bounded per principal and return
+`429` with `Retry-After` when the configured window is exceeded. Reply command
+identities are replay-safe: an idempotency key is bound to a payload
+fingerprint, and reusing a command id or key for different content returns a
+conflict rather than executing a second action. Content-free lifecycle and
+security outcomes are recorded in `security-audit.jsonl`; credentials and task
+content are never written to that audit.
+
+Hub/agent TLS deployment and removal of legacy query-token compatibility remain
+separate security work.
 
 ### Completion capture convergence
 
