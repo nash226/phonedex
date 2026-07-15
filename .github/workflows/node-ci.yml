@@ -37,3 +37,27 @@ jobs:
 
       - name: Run bridge fixture tests
         run: npm test
+
+  windows-adapter:
+    name: Windows adapter matrix
+    runs-on: windows-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [18.x, 22.x]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Syntax check bridge
+        run: npm run check
+
+      - name: Validate Windows adapter and Scheduled Tasks contract
+        run: npm run test:windows-adapter

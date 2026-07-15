@@ -432,7 +432,7 @@ across Mac and Windows.
   receipts.
 - [x] Implement desktop handoff using stable supported task/session identity.
 - [x] Build and validate the macOS adapter matrix.
-- [ ] Build and validate the Windows adapter matrix.
+- [x] Build and validate the Windows adapter matrix.
 - [ ] Keep foreground macOS paste as an explicitly experimental fallback.
 - [ ] Hide or explain every unsupported action based on negotiated capability.
 
@@ -457,6 +457,18 @@ lifecycle or desktop-handoff capabilities even when workspace roots are
 configured. `scripts/test-adapter.js` covers macOS CLI, app-server, foreground,
 and missing-executable cases, including capability and limitation assertions;
 the same fixture continues to cover the Windows fail-closed foreground case.
+
+Verification evidence for the completed Windows adapter-matrix slice:
+`scripts/test-windows-adapter.js` exercises both `win32` and canonical
+`windows` platform inputs across CLI and app-server modes, with and without
+allowlisted Windows workspace roots. It verifies reply and handoff readiness,
+managed task capability gates, missing-executable failure, and the explicit
+unavailable experimental foreground path. On Windows runners it also invokes
+the scheduled-task `status` action read-only, proving the built-in
+ScheduledTasks contract without changing user task state. The `windows-adapter`
+job in `.github/workflows/node-ci.yml` runs this fixture on `windows-latest`
+with Node 18.x and 22.x. Full install, update, sleep/reconnect, session-file,
+and revoke validation remain real Windows release-matrix work.
 
 Verification evidence for the completed structured question-response slice:
 `lib/phonedex-protocol.js` validates bounded task questions with unique choice
