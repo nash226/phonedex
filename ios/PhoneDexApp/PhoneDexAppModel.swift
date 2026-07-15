@@ -343,6 +343,10 @@ final class PhoneDexAppModel: ObservableObject {
         }?.supportsCapability("desktop.handoff.v1") == true
     }
 
+    func controlAvailability(for task: PhoneDexTask) -> [PhoneDexTaskControlAvailability] {
+        task.controlAvailability(desktopHandoffAvailable: supportsDesktopHandoff(for: task))
+    }
+
     func createTask(deviceId: String, workspaceName: String, prompt: String) async -> Bool {
         guard let client = bridgeClient else {
             lifecycleState = .failed("The bridge URL is invalid.")

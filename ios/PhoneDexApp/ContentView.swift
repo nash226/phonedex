@@ -518,6 +518,7 @@ struct PhoneDexTaskDetailView: View {
                 LazyVStack(alignment: .leading, spacing: 20) {
                     detailSection(.header) { taskHeader }
                     detailSection(.status) { statusSummary }
+                    detailSection(.controls) { remoteControls }
                     if task.approvalRequest != nil {
                         detailSection(.approval) { approvalReview }
                     }
@@ -738,6 +739,48 @@ struct PhoneDexTaskDetailView: View {
         .background(Color(uiColor: .secondarySystemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .accessibilityElement(children: .combine)
+    }
+
+    private var remoteControls: some View {
+        let controls = model.controlAvailability(for: task)
+        return VStack(alignment: .leading, spacing: 12) {
+            Label("Remote controls", systemImage: "switch.2")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.blue)
+
+            Text("Controls are shown only when the originating agent advertises the matching supported capability.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            ForEach(controls) { control in
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: control.isAvailable ? "checkmark.circle.fill" : "minus.circle")
+                        .foregroundStyle(control.isAvailable ? .green : .secondary)
+                        .frame(width: 20)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Label(control.title, systemImage: control.symbol)
+                                .font(.subheadline.weight(.medium))
+                            Spacer(minLength: 8)
+                            Text(control.isAvailable ? "Available" : "Unavailable")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(control.isAvailable ? .green : .secondary)
+                        }
+                        Text(control.reason)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityValue(control.isAvailable ? "Available" : "Unavailable")
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(Color(uiColor: .secondarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .accessibilityElement(children: .contain)
     }
 
     private var questionPrompt: some View {
@@ -1421,6 +1464,7 @@ private struct PhoneDexDesktopHandoffView: View {
 private enum PhoneDexTaskDetailAnchor: String {
     case header
     case status
+    case controls
     case approval
     case question
     case transcript
