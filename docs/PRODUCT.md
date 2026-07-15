@@ -111,7 +111,8 @@ The repository already proves the core loop, but not the final product.
   keyboard-safe composer with encrypted draft and logical reading-position
   restoration.
 - Configuration and preview actions can be invoked through a custom URL scheme.
-- The project targets iOS 17 and includes an iOS unit-test target.
+- The project targets iOS 17 and includes unit and UI test targets for the
+  native shell.
 
 ### Not production-ready today
 
