@@ -44,7 +44,7 @@ tests, and a trustworthy small-PR path.
 
 - [x] Canonical product requirements and production acceptance scenarios.
 - [x] Ordered delivery roadmap suitable for autonomous small PRs.
-- [ ] Add GitHub Actions for Node checks and all bridge test scripts.
+- [x] Add GitHub Actions for Node checks and all bridge test scripts.
 - [ ] Add a reproducible unsigned iOS simulator build job.
 - [ ] Add an iOS unit-test target and one smoke test for app launch/model decode.
 - [ ] Add PR templates for validation evidence and human decisions.
@@ -53,6 +53,10 @@ tests, and a trustworthy small-PR path.
 
 Exit gate: pull requests cannot merge with failing required checks, and both
 the bridge and iOS prototype build from a clean checkout.
+
+Verification evidence for the completed Node CI slice: `.github/workflows/node-ci.yml`
+runs `npm run check` and `npm test` on Node 18 and 22 for pull requests and
+`main` pushes. `npm test` covers all seven bridge fixture scripts.
 
 ## M1: Versioned Hub and Durable State
 

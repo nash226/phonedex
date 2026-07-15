@@ -111,6 +111,7 @@ Clone the repo, then from the project root:
 git clone https://github.com/nash226/phonedex.git
 cd phonedex
 npm run check
+npm test
 node ./bin/codex-watch.js setup
 npm run install-hook
 ```
@@ -395,6 +396,7 @@ callers cannot record replies.
 | Command | Purpose |
 | --- | --- |
 | `npm run check` | Syntax-check the PhoneDex CLI. |
+| `npm test` | Run the complete bridge fixture test suite. |
 | `node ./bin/codex-watch.js setup` | Create `.env` with a generated reply token. |
 | `npm run install-hook` | Install the Codex `Stop` hook. |
 | `npm run server` | Start the local PhoneDex reply server. |
