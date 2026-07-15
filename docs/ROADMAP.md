@@ -706,7 +706,7 @@ Outcome: turn the complete system into an operable public product.
 
 - [ ] Reproducible signing, entitlements, semantic versioning, and build
   provenance.
-- [ ] Staged migration, backup, rollback, and disaster-recovery drills.
+- [x] Staged migration, backup, rollback, and disaster-recovery drills.
 - [ ] Content-free observability with correlation IDs and component health.
 - [ ] Privacy manifest, App Store privacy answers, privacy policy, retention,
   deletion, security contact, and incident-response process.
@@ -718,6 +718,13 @@ Outcome: turn the complete system into an operable public product.
 
 Exit gate: the release owner records a go decision with known limitations,
 metrics, rollback plan, and verification evidence.
+
+Verification evidence for the completed recovery-drill slice:
+`scripts/test-recovery-drill.js` runs the legacy JSONL/device migration,
+transaction backup, corrupt-primary rollback in a fresh Node process,
+post-recovery writes, restart persistence, and fail-closed future-version
+checks in temporary data directories. `docs/RECOVERY.md` records the local
+operator procedure, backup boundary, privacy cautions, and escalation path.
 
 ## Human-Decision Queue
 
