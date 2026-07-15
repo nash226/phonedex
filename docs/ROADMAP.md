@@ -713,7 +713,7 @@ Outcome: turn the complete system into an operable public product.
 - [ ] TestFlight cohorts and real-device iOS/macOS/Windows matrix.
 - [ ] Performance, battery, accessibility, localization readiness, and crash
   gates.
-- [ ] App Review notes and customer support runbooks.
+- [x] App Review notes and customer support runbooks.
 - [ ] Final pass of all production gates and 15 acceptance scenarios.
 
 Exit gate: the release owner records a go decision with known limitations,
@@ -727,6 +727,16 @@ compatibility command/receipt logs. `docs/RECOVERY.md` defines the staged
 upgrade stop conditions, complete backup boundary, read-only recovery smoke
 checks, and rerun evidence required before writers resume. The drill does not
 require Apple credentials, a hosted service, or private Codex APIs.
+
+Verification evidence for the completed App Review and support-runbook slice:
+`docs/APP_REVIEW.md` provides a release-owner checklist and truthful App Review
+explanation for local-network use, notification privacy, supported Mac/Windows
+adapters, approval safeguards, and known signing/APNs/real-device gates.
+`docs/SUPPORT.md` defines severity, content-free diagnostics, iPhone recovery,
+Mac and Windows agent checks, credential-incident escalation, and a safe
+support record template. Neither document requests secrets or claims private
+Codex Desktop API parity; provider, signing, and real-device release decisions
+remain explicit human gates.
 
 ## Human-Decision Queue
 
