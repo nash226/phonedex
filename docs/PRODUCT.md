@@ -137,6 +137,10 @@ The repository already proves the core loop, but not the final product.
   the bridge persists command receipts and the iPhone exposes queued, failed,
   duplicate, stale, and successful delivery states. General lifecycle command
   receipts remain future work.
+- Paired credentials can be rotated without changing task history, protected
+  requests are rate-limited per principal, and reply idempotency keys reject
+  mutated replays. Content-free security lifecycle outcomes are written to the
+  hub audit log without serializing credentials or task text.
 - Legacy bridge endpoints still expose a recent slice of append-only JSONL data,
   but the authenticated `/sync` contract now provides versioned snapshot pages,
   opaque cursors, stable ordering, and tombstones. The native iPhone client
@@ -837,8 +841,10 @@ Before external beta, legacy shared-token setup must be retired in favor of
 scoped pairing and revocable identities. The token must move out of
 notification payloads; the iOS settings token is no longer stored in
 `UserDefaults`. Pairing grants are now short-lived, single-use, rate-limited,
-and hash-only at rest; credential revocation, hub/agent TLS deployment, and
-query-token removal for legacy compatibility remain release work. The iOS
+and hash-only at rest; paired credentials can be rotated or revoked, and
+replayed reply payloads are rejected with an audit event. Hub/agent TLS
+deployment and query-token removal for legacy compatibility remain release
+work. The iOS
 release build disables arbitrary ATS loads. Plain JSONL content needs
 documented host protection, retention, and migration, and reply failures must
 become auditable command outcomes.
