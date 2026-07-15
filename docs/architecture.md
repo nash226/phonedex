@@ -224,8 +224,9 @@ The system is local-first. Codex sessions, replies, and logs stay on the
 machine that generated them. The hub stores task metadata for configured
 devices; Pushcut is only an optional webhook notification fallback.
 
-The data model uses JSONL files instead of a database because the workflow is
-append-only and easy to inspect:
+The data model uses a versioned local store plus compatibility JSONL files. The
+privacy control plane keeps the local-first deployment inspectable while
+making retention and deletion explicit:
 
 | File | Purpose |
 | --- | --- |
@@ -234,10 +235,19 @@ append-only and easy to inspect:
 | `data/events.jsonl` | Notification attempts and auto-resume events. |
 | `data/session-watch-state.json` | Deduplication state for the session watcher. |
 | `data/devices.json` | Latest heartbeat for each reporting PhoneDex service. |
+| `data/privacy-policy.json` | Bounded retention policy. A missing policy is non-destructive. |
+| `data/privacy-audit.jsonl` | Content-free retention and history-deletion audit entries. |
 
 Security is handled with `WATCH_BRIDGE_TOKEN`. The token is verified by
-`/reply`, `/tasks`, `/devices`, and `/replies` when it is set. Native app
-clients should send it as an authorization bearer token or query parameter.
+`/reply`, `/tasks`, `/devices`, `/replies`, and the privacy endpoints when it
+is set. Native app clients should send it as an authorization bearer token or
+query parameter.
+
+Authenticated `GET /privacy` and `GET /privacy/export` expose bounded policy
+and redacted user data. `POST /privacy/retention` requires
+`APPLY_PHONEDEX_RETENTION`; `POST /privacy/delete` requires
+`DELETE_PHONEDEX_HISTORY`. Both controls are hub-owned and platform-neutral,
+and deletion retains device inventory for recovery diagnostics.
 Secrets live in `.env`, which is ignored by git.
 
 ## Multi-Machine Plan
