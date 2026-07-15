@@ -134,6 +134,72 @@ final class PhoneDexBridgeClientTests: XCTestCase {
         XCTAssertEqual(result.tasks.map(\.id), ["task_123"])
         XCTAssertTrue(result.devices.isEmpty)
     }
+
+    func testResilientSyncFallsBackWithoutHidingPartialData() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [URLProtocolStub.self]
+        let session = URLSession(configuration: configuration)
+        var requestedPaths: [String] = []
+
+        URLProtocolStub.handler = { request in
+            requestedPaths.append(request.url?.path ?? "")
+            switch request.url?.path {
+            case "/sync":
+                return (
+                    HTTPURLResponse(
+                        url: try XCTUnwrap(request.url),
+                        statusCode: 404,
+                        httpVersion: nil,
+                        headerFields: ["content-type": "application/json"]
+                    )!,
+                    Data("{\"error\":\"Not found\"}".utf8)
+                )
+            case "/tasks":
+                return (
+                    HTTPURLResponse(
+                        url: try XCTUnwrap(request.url),
+                        statusCode: 200,
+                        httpVersion: nil,
+                        headerFields: ["content-type": "application/json"]
+                    )!,
+                    Data("[{\"id\":\"task_123\",\"title\":\"Build passed\",\"text\":\"All good\"}]".utf8)
+                )
+            case "/devices":
+                return (
+                    HTTPURLResponse(
+                        url: try XCTUnwrap(request.url),
+                        statusCode: 503,
+                        httpVersion: nil,
+                        headerFields: ["content-type": "application/json"]
+                    )!,
+                    Data("{\"error\":\"Unavailable\"}".utf8)
+                )
+            default:
+                throw URLError(.badURL)
+            }
+        }
+
+        let client = PhoneDexBridgeClient(
+            bridgeURL: URL(string: "http://bridge.test")!,
+            token: "secret",
+            session: session
+        )
+
+        let result = try await client.fetchResilientSync(limit: 1)
+
+        XCTAssertEqual(requestedPaths.sorted(), ["/devices", "/sync", "/tasks"])
+        XCTAssertEqual(result.tasks?.map(\.id), ["task_123"])
+        XCTAssertNil(result.devices)
+        XCTAssertTrue(result.usedCompatibilityFallback)
+        XCTAssertEqual(result.availableDataSet, .tasks)
+    }
+
+    func testBridgeErrorsClassifyRevokedAndCompatibilityResponses() {
+        XCTAssertTrue(PhoneDexBridgeClientError.httpStatus(401, "").isRevoked)
+        XCTAssertTrue(PhoneDexBridgeClientError.httpStatus(404, "").isCompatibilityFailure)
+        XCTAssertFalse(PhoneDexBridgeClientError.httpStatus(500, "").isCompatibilityFailure)
+        XCTAssertTrue(URLError(.notConnectedToInternet).isOffline)
+    }
 }
 
 private extension InputStream {

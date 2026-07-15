@@ -31,6 +31,13 @@ final class PhoneDexDiagnosticsTests: XCTestCase {
         XCTAssertEqual(project.latestTask?.id, "done")
     }
 
+    func testConnectionStateTreatsStaleCacheAsBlockingEmptyContent() {
+        let state = PhoneDexAppModel.ConnectionState.stale(Date(timeIntervalSince1970: 0))
+
+        XCTAssertTrue(state.blocksEmptyContent)
+        XCTAssertFalse(state.isInitialLoading)
+    }
+
     private func makeDevice(status: String) -> PhoneDexDevice {
         PhoneDexDevice(
             deviceId: "macbook",
@@ -53,6 +60,7 @@ final class PhoneDexDiagnosticsTests: XCTestCase {
             title: id,
             text: "Task \(id)",
             cwd: "/workspace/phonedex",
+            workspaceName: nil,
             machineName: "MacBook",
             sessionId: id,
             status: status,
