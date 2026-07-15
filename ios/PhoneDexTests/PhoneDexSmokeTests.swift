@@ -28,7 +28,7 @@ final class PhoneDexSmokeTests: XCTestCase {
         XCTAssertEqual(task.sessionId, "session_smoke")
     }
 
-    func testProjectsKeepMatchingNamesOnDifferentDevicesDistinct() throws {
+    func testProjectsCombineMatchingNamesAcrossDevices() throws {
         let first = try decodeTask(
             id: "task_mac",
             cwd: "/Users/example/PhoneDex",
@@ -40,14 +40,43 @@ final class PhoneDexSmokeTests: XCTestCase {
             machineName: "Windows PC"
         )
 
-        XCTAssertNotEqual(first.projectID, second.projectID)
+        XCTAssertEqual(first.projectID, second.projectID)
 
         let projects = Dictionary(grouping: [first, second], by: \PhoneDexTask.projectID)
             .values
             .map(PhoneDexProject.init(tasks:))
 
-        XCTAssertEqual(projects.count, 2)
-        XCTAssertEqual(Set(projects.map(\.machineName)), ["MacBook Pro", "Windows PC"])
+        XCTAssertEqual(projects.count, 1)
+        XCTAssertEqual(projects[0].machineNames, ["MacBook Pro", "Windows PC"])
+        XCTAssertEqual(projects[0].deviceSummary, "2 devices")
+        XCTAssertEqual(projects[0].paths.count, 2)
+        XCTAssertEqual(projects[0].tasks.count, 2)
+    }
+
+    func testProjectsKeepDifferentWorkspaceNamesSeparate() throws {
+        let first = try decodeTask(
+            id: "task_phonedex",
+            cwd: "/Users/example/PhoneDex",
+            machineName: "MacBook Pro"
+        )
+        let second = try decodeTask(
+            id: "task_website",
+            cwd: "/Users/example/Website",
+            machineName: "MacBook Pro"
+        )
+
+        XCTAssertNotEqual(first.projectID, second.projectID)
+    }
+
+    func testWindowsPathsProduceTheExpectedProjectName() throws {
+        let task = try decodeTask(
+            id: "task_windows",
+            cwd: "C:\\Users\\example\\PhoneDex",
+            machineName: "Windows PC"
+        )
+
+        XCTAssertEqual(task.displayWorkspace, "PhoneDex")
+        XCTAssertEqual(task.projectID, "phonedex")
     }
 
     func testTaskActivityUsesLifecycleAndCaptureProvenance() throws {
