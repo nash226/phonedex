@@ -42,6 +42,7 @@ struct ContentView: View {
 private struct PhoneDexChatsView: View {
     @ObservedObject var model: PhoneDexAppModel
     @State private var filter = PhoneDexTaskFilter()
+    @State private var showingCreateTask = false
 
     private var filteredTasks: [PhoneDexTask] {
         filter.filteredTasks(model.tasks)
@@ -92,6 +93,17 @@ private struct PhoneDexChatsView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     filterMenu
                 }
+
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showingCreateTask = true
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    .disabled(createDevices.isEmpty)
+                    .accessibilityLabel("Start a task")
+                    .accessibilityHint(createDevices.isEmpty ? "No reachable agent advertises task creation" : "Choose an agent and workspace")
+                }
             }
             .searchable(text: $filter.searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search conversations")
             .onChange(of: filter) { _, _ in keepSelectionVisible() }
@@ -108,6 +120,13 @@ private struct PhoneDexChatsView: View {
                 )
             }
         }
+        .sheet(isPresented: $showingCreateTask) {
+            PhoneDexCreateTaskView(model: model)
+        }
+    }
+
+    private var createDevices: [PhoneDexDevice] {
+        model.devices.filter { $0.isOnline && $0.supportsCapability("task.create.v1") && !$0.workspaces.isEmpty }
     }
 
     @ViewBuilder
@@ -222,6 +241,95 @@ struct PhoneDexTaskRow: View {
         }
         .padding(.vertical, 6)
         .accessibilityElement(children: .combine)
+    }
+}
+
+private struct PhoneDexCreateTaskView: View {
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject var model: PhoneDexAppModel
+    @State private var selectedDeviceID = ""
+    @State private var selectedWorkspace = ""
+    @State private var prompt = ""
+
+    private var devices: [PhoneDexDevice] {
+        model.devices.filter { $0.isOnline && $0.supportsCapability("task.create.v1") && !$0.workspaces.isEmpty }
+    }
+
+    private var selectedDevice: PhoneDexDevice? {
+        devices.first { $0.deviceId == selectedDeviceID } ?? devices.first
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Picker("Agent", selection: $selectedDeviceID) {
+                        ForEach(devices) { device in
+                            Text(device.displayName).tag(device.deviceId)
+                        }
+                    }
+                    .onChange(of: selectedDeviceID) { _, _ in
+                        selectedWorkspace = selectedDevice?.workspaces.first ?? ""
+                    }
+
+                    Picker("Workspace", selection: $selectedWorkspace) {
+                        ForEach(selectedDevice?.workspaces ?? [], id: \.self) { workspace in
+                            Text(workspace).tag(workspace)
+                        }
+                    }
+                } header: {
+                    Text("Where should this run?")
+                } footer: {
+                    Text("Only workspaces explicitly advertised by the agent are available.")
+                }
+
+                Section("Prompt") {
+                    TextField("Ask Codex to…", text: $prompt, axis: .vertical)
+                        .lineLimit(4...10)
+                        .textInputAutocapitalization(.sentences)
+                        .accessibilityLabel("Task prompt")
+                }
+
+                if case .failed(let message) = model.lifecycleState {
+                    Label(message, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                        .accessibilityElement(children: .combine)
+                }
+            }
+            .navigationTitle("Start a task")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button {
+                        Task {
+                            guard let selectedDevice else { return }
+                            if await model.createTask(
+                                deviceId: selectedDevice.deviceId,
+                                workspaceName: selectedWorkspace,
+                                prompt: prompt
+                            ) {
+                                dismiss()
+                            }
+                        }
+                    } label: {
+                        if case .sending = model.lifecycleState {
+                            ProgressView()
+                        } else {
+                            Text("Start")
+                        }
+                    }
+                    .disabled(selectedDevice == nil || selectedWorkspace.isEmpty || prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.lifecycleState == .sending)
+                    .accessibilityLabel("Start task")
+                }
+            }
+            .onAppear {
+                selectedDeviceID = devices.first?.deviceId ?? ""
+                selectedWorkspace = selectedDevice?.workspaces.first ?? ""
+            }
+        }
     }
 }
 
@@ -390,6 +498,7 @@ struct PhoneDexTaskDetailView: View {
     @State private var showNewActivity = false
     @State private var draftSaveTask: Task<Void, Never>?
     @State private var hasRestoredReadingPosition = false
+    @State private var showCancelConfirmation = false
     @FocusState private var composerFocused: Bool
 
     init(task: PhoneDexTask, model: PhoneDexAppModel) {
@@ -487,11 +596,31 @@ struct PhoneDexTaskDetailView: View {
                             UIPasteboard.general.string = cwd
                         }
                     }
+                    if task.supportsLifecycle("task.cancel.v1") && ["queued", "running", "needs_input"].contains(task.status ?? "") {
+                        Divider()
+                        Button("Cancel task", systemImage: "xmark.circle") {
+                            showCancelConfirmation = true
+                        }
+                    }
+                    if task.supportsLifecycle("task.retry.v1") && ["failed", "cancelled"].contains(task.status ?? "") {
+                        Divider()
+                        Button("Retry task", systemImage: "arrow.clockwise") {
+                            Task { _ = await model.retry(task: task) }
+                        }
+                    }
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
                 .accessibilityLabel("Conversation actions")
             }
+        }
+        .confirmationDialog("Cancel this task?", isPresented: $showCancelConfirmation, titleVisibility: .visible) {
+            Button("Cancel task", role: .destructive) {
+                Task { _ = await model.cancel(task: task) }
+            }
+            Button("Keep working", role: .cancel) {}
+        } message: {
+            Text("PhoneDex will ask the originating agent to stop this managed run. The task will remain in your history.")
         }
     }
 
@@ -1011,6 +1140,7 @@ struct PhoneDexTaskDetailView: View {
         case "awaiting_approval": return "This task is waiting for approval"
         case "needs_review": return "This task is ready for review"
         case "running": return "Codex is still working"
+        case "canceling": return "PhoneDex is cancelling this task"
         case "failed": return "Codex reported a failure"
         case "cancelled": return "This task was cancelled"
         case "completed": return "Codex reported completion"
