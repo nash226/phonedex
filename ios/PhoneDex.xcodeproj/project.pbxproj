@@ -10,6 +10,7 @@
 		1229201577C351A245C15779 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54150915655642C1927495EF /* ContentView.swift */; };
 		33C7D800E56A544D6C1FE4A6 /* NotificationViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBAEE9F726FE8D4C76E5A3B4 /* NotificationViewController.swift */; };
 		40F7F901FEC0B24B6F40E18D /* PhoneDexCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1553D7462D31D1E5ABA0E62F /* PhoneDexCredentialStore.swift */; };
+		4ABCA9E6BAB9285AAE961757 /* PhoneDexDiagnosticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A8E9F4AFF570E7FCB8FF856 /* PhoneDexDiagnosticsTests.swift */; };
 		4AD2D4C66638418C10829681 /* PhoneDexModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47C36F125C6C567BFBAEBA8F /* PhoneDexModels.swift */; };
 		6227A85E0E24CB5969010156 /* PhoneDexNotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DA3B7D5BFCEF5C3D552B1AD /* PhoneDexNotificationScheduler.swift */; };
 		68879D1C907AADCF164F0128 /* PhoneDexNotificationDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91DBF29F5751A2929960440B /* PhoneDexNotificationDelegate.swift */; };
@@ -18,8 +19,10 @@
 		96CDAE56CA505EB72AF1B62E /* PhoneDexApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3240FEAD2F5618D959AFEE78 /* PhoneDexApp.swift */; };
 		9A45BA3C831AE7D9319E1CE8 /* PhoneDexSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C4DA9B2C010C3DD5BAF8926 /* PhoneDexSettingsTests.swift */; };
 		9EB70CE573F0C7A801EE8DDA /* PhoneDexSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2A9CD3F16E7ACD6EB2C169E /* PhoneDexSmokeTests.swift */; };
+		C3F88E12F3AE3E23262CB0D6 /* PhoneDexDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED655BE01B4C1C489674A2D1 /* PhoneDexDiagnostics.swift */; };
 		CC0105A4E0261E4B304E1DEF /* PhoneDexSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECE2BFEEB938CE1690FB6C27 /* PhoneDexSettings.swift */; };
 		DBB7D6C4A14CA4D6B0AA87D9 /* PhoneDexChatFilteringTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CEF129750D2F0BCA2C8A4FD /* PhoneDexChatFilteringTests.swift */; };
+		E3170EE92AC334B16981C74E /* PhoneDexDeviceDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73934912DDDC32DCE39FC6FA /* PhoneDexDeviceDetailView.swift */; };
 		E5051DCD0753963C6EB8743D /* PhoneDexNotificationExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 25C82207BC440A87334B4671 /* PhoneDexNotificationExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		EDCA3CD5D1091B69E242B1A5 /* PhoneDexBridgeClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 215494D6ACCADDC5644E6D3F /* PhoneDexBridgeClient.swift */; };
 		F0771711552D4703F3A341D9 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 066AC8504790A55980D802E5 /* Assets.xcassets */; };
@@ -67,10 +70,12 @@
 		3240FEAD2F5618D959AFEE78 /* PhoneDexApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexApp.swift; sourceTree = "<group>"; };
 		3CEF129750D2F0BCA2C8A4FD /* PhoneDexChatFilteringTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexChatFilteringTests.swift; sourceTree = "<group>"; };
 		47C36F125C6C567BFBAEBA8F /* PhoneDexModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexModels.swift; sourceTree = "<group>"; };
+		4A8E9F4AFF570E7FCB8FF856 /* PhoneDexDiagnosticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexDiagnosticsTests.swift; sourceTree = "<group>"; };
 		54150915655642C1927495EF /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		591360A3AD685BF9A3A4BDCE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		5DA3B7D5BFCEF5C3D552B1AD /* PhoneDexNotificationScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexNotificationScheduler.swift; sourceTree = "<group>"; };
 		6C4DA9B2C010C3DD5BAF8926 /* PhoneDexSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexSettingsTests.swift; sourceTree = "<group>"; };
+		73934912DDDC32DCE39FC6FA /* PhoneDexDeviceDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexDeviceDetailView.swift; sourceTree = "<group>"; };
 		73FF60BB337122A42682971A /* PhoneDex.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = PhoneDex.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		860A56B417B84053261A7EA0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		91DBF29F5751A2929960440B /* PhoneDexNotificationDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexNotificationDelegate.swift; sourceTree = "<group>"; };
@@ -79,6 +84,7 @@
 		C116F1A84DE193986E04AF6B /* PhoneDexBridgeClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexBridgeClientTests.swift; sourceTree = "<group>"; };
 		E2A9CD3F16E7ACD6EB2C169E /* PhoneDexSmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexSmokeTests.swift; sourceTree = "<group>"; };
 		ECE2BFEEB938CE1690FB6C27 /* PhoneDexSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexSettings.swift; sourceTree = "<group>"; };
+		ED655BE01B4C1C489674A2D1 /* PhoneDexDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexDiagnostics.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -112,6 +118,8 @@
 				215494D6ACCADDC5644E6D3F /* PhoneDexBridgeClient.swift */,
 				1BEE64FCB7F6C20249393730 /* PhoneDexBrowserView.swift */,
 				1553D7462D31D1E5ABA0E62F /* PhoneDexCredentialStore.swift */,
+				73934912DDDC32DCE39FC6FA /* PhoneDexDeviceDetailView.swift */,
+				ED655BE01B4C1C489674A2D1 /* PhoneDexDiagnostics.swift */,
 				47C36F125C6C567BFBAEBA8F /* PhoneDexModels.swift */,
 				91DBF29F5751A2929960440B /* PhoneDexNotificationDelegate.swift */,
 				5DA3B7D5BFCEF5C3D552B1AD /* PhoneDexNotificationScheduler.swift */,
@@ -125,6 +133,7 @@
 			children = (
 				C116F1A84DE193986E04AF6B /* PhoneDexBridgeClientTests.swift */,
 				3CEF129750D2F0BCA2C8A4FD /* PhoneDexChatFilteringTests.swift */,
+				4A8E9F4AFF570E7FCB8FF856 /* PhoneDexDiagnosticsTests.swift */,
 				6C4DA9B2C010C3DD5BAF8926 /* PhoneDexSettingsTests.swift */,
 				E2A9CD3F16E7ACD6EB2C169E /* PhoneDexSmokeTests.swift */,
 			);
@@ -259,6 +268,8 @@
 				EDCA3CD5D1091B69E242B1A5 /* PhoneDexBridgeClient.swift in Sources */,
 				875549C8A1F06FE7D9FD6418 /* PhoneDexBrowserView.swift in Sources */,
 				40F7F901FEC0B24B6F40E18D /* PhoneDexCredentialStore.swift in Sources */,
+				E3170EE92AC334B16981C74E /* PhoneDexDeviceDetailView.swift in Sources */,
+				C3F88E12F3AE3E23262CB0D6 /* PhoneDexDiagnostics.swift in Sources */,
 				4AD2D4C66638418C10829681 /* PhoneDexModels.swift in Sources */,
 				68879D1C907AADCF164F0128 /* PhoneDexNotificationDelegate.swift in Sources */,
 				6227A85E0E24CB5969010156 /* PhoneDexNotificationScheduler.swift in Sources */,
@@ -280,6 +291,7 @@
 			files = (
 				93D4773FC5D09E84EB25CF98 /* PhoneDexBridgeClientTests.swift in Sources */,
 				DBB7D6C4A14CA4D6B0AA87D9 /* PhoneDexChatFilteringTests.swift in Sources */,
+				4ABCA9E6BAB9285AAE961757 /* PhoneDexDiagnosticsTests.swift in Sources */,
 				9A45BA3C831AE7D9319E1CE8 /* PhoneDexSettingsTests.swift in Sources */,
 				9EB70CE573F0C7A801EE8DDA /* PhoneDexSmokeTests.swift in Sources */,
 			);

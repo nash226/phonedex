@@ -157,6 +157,15 @@ workspace filters, stable selection, and contextual empty states. The
 cover status partitioning, legacy records, context search, combined filters,
 and stable filter options.
 
+Verification evidence for the completed device/workspace details slice:
+`ios/PhoneDexApp/PhoneDexDeviceDetailView.swift` provides read-only device
+identity, heartbeat health, visible-work counts, copyable device identity, and
+refresh guidance for online, stale, missing, revoked, and unknown states.
+Workspace detail provides machine/path context, active and attention counts,
+conversation history, and refresh state without introducing unsupported
+pairing or remote-control actions. `ios/PhoneDexTests/PhoneDexDiagnosticsTests.swift`
+covers state mapping, revoked-device recovery guidance, and workspace counts.
+
 ## M3: Native iPhone Core
 
 Status: **Queued**
@@ -180,7 +189,7 @@ Outcome: replace the utility screen with a polished, offline-aware native app.
   partial-failure states.
 - [ ] Add reply delivery receipts, retry, stale-version handling, and encrypted
   outbox behavior.
-- [ ] Add native device/workspace details and actionable diagnostics.
+- [x] Add native device/workspace details and actionable diagnostics.
 - [ ] Cover core workflows with unit, snapshot where useful, UI, VoiceOver,
   largest Dynamic Type, Reduce Motion, and dark/light appearance tests.
 
