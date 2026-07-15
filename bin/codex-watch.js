@@ -2416,7 +2416,8 @@ function publicDevice(device) {
     lastSeenAt: device.lastSeenAt,
     agentVersion: device.agentVersion || device.version,
     adapterVersion: device.adapterVersion,
-    capabilities: Array.isArray(device.capabilities) ? device.capabilities : []
+    capabilities: Array.isArray(device.capabilities) ? device.capabilities : [],
+    health: device.health
   };
   return Object.fromEntries(
     Object.entries(safeDevice).filter(([, value]) => value !== undefined)
@@ -2449,6 +2450,11 @@ function buildLocalDeviceHeartbeat(cfg) {
     hostname: os.hostname(),
     pid: process.pid,
     version: "0.1.0",
+    health: {
+      agent: "healthy",
+      // The current bridge has no supported adapter health signal yet.
+      adapter: "unknown"
+    },
     lastSeenAt: new Date().toISOString()
   });
 }
@@ -2522,6 +2528,11 @@ function normalizeDeviceHeartbeat(fields, req) {
     hostname: fields.hostname || "",
     pid: fields.pid || "",
     version: fields.version || "",
+    health: fields.health || {
+      reachability: fields.reachability || fields.reachabilityStatus,
+      agent: fields.agentHealth || fields.agent_health,
+      adapter: fields.adapterHealth || fields.adapter_health
+    },
     lastSeenAt: fields.lastSeenAt || fields.at || now,
     receivedAt: now,
     receivedFrom: req?.socket?.remoteAddress || ""
@@ -2543,10 +2554,15 @@ function listDeviceCoverage(cfg) {
   const devices = new Map();
   for (const device of readDeviceHeartbeats(cfg.dataDir)) {
     if (!device?.deviceId) continue;
+    const status = heartbeatStatus(device.lastSeenAt, cfg.deviceStaleMs);
     devices.set(device.deviceId, {
       ...device,
       lastHeartbeatAt: device.lastSeenAt || "",
-      status: heartbeatStatus(device.lastSeenAt, cfg.deviceStaleMs)
+      status,
+      health: {
+        ...(device.health || {}),
+        reachability: status
+      }
     });
   }
 
@@ -2583,7 +2599,8 @@ function listDeviceCoverage(cfg) {
       expected: true,
       status: "missing",
       lastHeartbeatAt: "",
-      lastTaskAt: ""
+      lastTaskAt: "",
+      health: { reachability: "missing", agent: "unknown", adapter: "unknown" }
     });
   }
 

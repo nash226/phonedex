@@ -9,6 +9,7 @@ struct PhoneDexDeviceDetailView: View {
             LazyVStack(alignment: .leading, spacing: 20) {
                 overview
                 diagnosticCard
+                healthOverview
                 details
                 visibleWork
                 refreshAction
@@ -104,6 +105,35 @@ struct PhoneDexDeviceDetailView: View {
         .font(.subheadline)
     }
 
+    private var healthOverview: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("System health")
+                .font(.headline)
+            PhoneDexHealthRow(
+                title: "Reachability",
+                detail: device.reachabilityHealth.title,
+                symbol: device.reachabilityHealth.symbol,
+                isActionable: device.reachabilityHealth.isActionable
+            )
+            PhoneDexHealthRow(
+                title: "PhoneDex agent",
+                detail: device.agentHealth.title,
+                symbol: device.agentHealth.symbol,
+                isActionable: device.agentHealth.isActionable
+            )
+            PhoneDexHealthRow(
+                title: "Codex adapter",
+                detail: device.adapterHealth.title,
+                symbol: device.adapterHealth.symbol,
+                isActionable: device.adapterHealth.isActionable
+            )
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .accessibilityElement(children: .contain)
+    }
+
     private var visibleWork: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Visible work")
@@ -136,6 +166,30 @@ struct PhoneDexDeviceDetailView: View {
         [device.role?.capitalized, device.platform?.capitalized]
             .compactMap { $0 }
             .joined(separator: " · ")
+    }
+}
+
+private struct PhoneDexHealthRow: View {
+    let title: String
+    let detail: String
+    let symbol: String
+    let isActionable: Bool
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: symbol)
+                .foregroundStyle(isActionable ? .orange : .green)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline.weight(.medium))
+                Text(detail)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 
