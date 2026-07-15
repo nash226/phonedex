@@ -260,21 +260,32 @@ struct PhoneDexWorkspaceDetailView: View {
     var body: some View {
         List {
             Section {
-                LabeledContent("Machine", value: project.machineName)
+                LabeledContent("Devices", value: project.deviceSummary)
                 LabeledContent("Conversations", value: "\(project.tasks.count)")
                 LabeledContent("Active", value: "\(project.activeTaskCount)")
                 LabeledContent("Needs you", value: "\(project.attentionTaskCount)")
                 if let latestTask = project.latestTask {
                     LabeledContent("Latest activity", value: latestTask.title)
                 }
-                if let path = project.path {
+                if !project.machineNames.isEmpty {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Working directory")
+                        Text("Available on")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        Text(path)
+                        Text(project.machineNames.joined(separator: ", "))
                             .font(.footnote)
-                            .textSelection(.enabled)
+                    }
+                }
+                if !project.paths.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(project.paths.count == 1 ? "Working directory" : "Working directories")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        ForEach(project.paths, id: \.self) { path in
+                            Text(path)
+                                .font(.footnote)
+                                .textSelection(.enabled)
+                        }
                     }
                 }
             } header: {

@@ -57,7 +57,7 @@ final class PhoneDexChatFilteringTests: XCTestCase {
 
         filter.machineName = nil
         filter.workspaceName = "PhoneDex"
-        XCTAssertEqual(filter.filteredTasks(tasks).map(\.id), ["mac-task"])
+        XCTAssertEqual(filter.filteredTasks(tasks).map(\.id), ["mac-task", "windows-task"])
     }
 
     func testFilterOptionsAreStableAndUnique() {

@@ -101,9 +101,18 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
     }
 
     var displayWorkspace: String {
-        if let workspaceName, !workspaceName.isEmpty { return workspaceName }
-        guard let cwd, !cwd.isEmpty else { return "Unknown workspace" }
-        return URL(fileURLWithPath: cwd).lastPathComponent
+        if let workspace = workspaceName?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !workspace.isEmpty {
+            return workspace
+        }
+        if let directory = Self.lastComponent(cwd), !directory.isEmpty {
+            return directory
+        }
+        if let repository = Self.lastComponent(repository, removingGitSuffix: true),
+           !repository.isEmpty {
+            return repository
+        }
+        return "Unknown workspace"
     }
 
     var displayMachine: String {
@@ -197,7 +206,9 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
     }
 
     var projectID: String {
-        "\(machineName ?? "")\u{1F}\(cwd ?? "")"
+        displayWorkspace
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     var conversationID: String {
@@ -207,6 +218,23 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
 
     func supportsLifecycle(_ capability: String) -> Bool {
         lifecycleCapabilities.contains(capability)
+    }
+
+    private static func lastComponent(
+        _ value: String?,
+        removingGitSuffix: Bool = false
+    ) -> String? {
+        guard var normalized = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !normalized.isEmpty else {
+            return nil
+        }
+        normalized = normalized.replacingOccurrences(of: "\\", with: "/")
+        while normalized.hasSuffix("/") { normalized.removeLast() }
+        var component = normalized.split(whereSeparator: { $0 == "/" || $0 == ":" }).last.map(String.init)
+        if removingGitSuffix, component?.lowercased().hasSuffix(".git") == true {
+            component?.removeLast(4)
+        }
+        return component
     }
 
     func controlAvailability(desktopHandoffAvailable: Bool) -> [PhoneDexTaskControlAvailability] {
@@ -565,17 +593,31 @@ struct PhoneDexEvent: Codable, Equatable, Identifiable {
 struct PhoneDexProject: Identifiable, Equatable {
     let id: String
     let name: String
-    let path: String?
-    let machineName: String
+    let machineNames: [String]
+    let paths: [String]
     let tasks: [PhoneDexTask]
+
+    var machineName: String { deviceSummary }
+    var deviceSummary: String {
+        machineNames.count == 1 ? machineNames[0] : "\(machineNames.count) devices"
+    }
+    var path: String? { paths.count == 1 ? paths[0] : nil }
 
     init(tasks: [PhoneDexTask]) {
         let first = tasks[0]
         id = first.projectID
         name = first.displayWorkspace
-        path = first.cwd
-        machineName = first.displayMachine
-        self.tasks = tasks.sorted {
+        machineNames = Array(Set(tasks.map(\.displayMachine))).sorted {
+            $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+        }
+        paths = Array(Set(tasks.compactMap { task in
+            guard let path = task.cwd?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !path.isEmpty else { return nil }
+            return path
+        })).sorted {
+            $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+        }
+        self.tasks = PhoneDexTask.latestPerConversation(tasks).sorted {
             ($0.displayDate ?? .distantPast) > ($1.displayDate ?? .distantPast)
         }
     }

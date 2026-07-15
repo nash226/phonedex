@@ -1545,7 +1545,7 @@ private struct PhoneDexProjectsView: View {
                             .frame(width: 32)
                         VStack(alignment: .leading, spacing: 3) {
                             Text(project.name).font(.headline)
-                            Text("\(project.machineName) · \(project.tasks.count) conversation\(project.tasks.count == 1 ? "" : "s")")
+                            Text("\(project.deviceSummary) · \(project.tasks.count) conversation\(project.tasks.count == 1 ? "" : "s")")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                             if project.activeTaskCount > 0 || project.attentionTaskCount > 0 {
@@ -1558,6 +1558,10 @@ private struct PhoneDexProjectsView: View {
                                     .font(.caption2)
                                     .foregroundStyle(.tertiary)
                                     .lineLimit(1)
+                            } else if project.paths.count > 1 {
+                                Text("\(project.paths.count) working directories")
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
                             }
                         }
                     }
