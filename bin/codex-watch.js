@@ -20,6 +20,12 @@ const {
   SYNC_SCHEMA,
   normalizeSyncLimit
 } = require("../lib/phonedex-sync");
+const {
+  DELETE_CONFIRMATION,
+  RETENTION_CONFIRMATION,
+  createPhoneDexPrivacy,
+  normalizeRetentionDays
+} = require("../lib/phonedex-privacy");
 
 const ROOT = path.resolve(__dirname, "..");
 const DATA_DIR_DEFAULT = path.join(ROOT, "data");
@@ -239,7 +245,8 @@ function config() {
     ),
     sessionWatchFileLimit: Number(
       env.WATCHDEX_SESSION_WATCH_FILE_LIMIT || DEFAULT_SESSION_WATCH_FILE_LIMIT
-    )
+    ),
+    retentionDays: normalizeConfiguredRetentionDays(env.PHONEDEX_RETENTION_DAYS)
   };
 }
 
@@ -584,6 +591,13 @@ function isRequestTokenValid(req, requestUrl, cfg) {
   return queryToken === cfg.token || bearerToken === cfg.token;
 }
 
+function isBearerTokenValid(req, cfg) {
+  if (!cfg.token) return true;
+  const authHeader = req.headers.authorization || "";
+  const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
+  return Boolean(bearerMatch && bearerMatch[1].trim() === cfg.token);
+}
+
 function formatNotificationTitle(cfg, task) {
   const machineName = task.machineName || cfg.machineName;
   if (!machineName) return task.title;
@@ -600,6 +614,14 @@ function formatPhoneNotificationMessage(task) {
 async function startServer(providedCfg) {
   const cfg = providedCfg || config();
   ensureDataDir(cfg.dataDir);
+
+  if (cfg.retentionDays > 0) {
+    try {
+      createPhoneDexPrivacy(cfg.dataDir).applyRetention(cfg.retentionDays, { audit: false });
+    } catch (error) {
+      console.warn(`Warning: PhoneDex retention was not applied: ${error.message}`);
+    }
+  }
 
   if (!cfg.token) {
     console.warn("Warning: WATCH_BRIDGE_TOKEN is empty. /reply is not protected.");
@@ -623,6 +645,15 @@ async function startServer(providedCfg) {
           supportedProtocolVersions: [1],
           capabilities: defaultCapabilities(cfg.agentMode ? "agent" : "hub")
         });
+      }
+
+      if (
+        requestUrl.pathname === "/privacy" ||
+        requestUrl.pathname === "/privacy/export" ||
+        requestUrl.pathname === "/privacy/retention" ||
+        requestUrl.pathname === "/privacy/delete"
+      ) {
+        return handlePrivacyRequest(req, res, requestUrl, cfg);
       }
 
       if (requestUrl.pathname === "/reply") {
@@ -735,6 +766,10 @@ async function startServer(providedCfg) {
         service: "watchdex",
         endpoints: [
           "/health",
+          "/privacy",
+          "/privacy/export",
+          "/privacy/retention",
+          "/privacy/delete",
           "/reply",
           "/task",
           "/replies",
@@ -760,6 +795,54 @@ async function startServer(providedCfg) {
   }
 
   return server;
+}
+
+async function handlePrivacyRequest(req, res, requestUrl, cfg) {
+  if (!isBearerTokenValid(req, cfg)) {
+    return sendJson(res, 401, { ok: false, error: "Invalid token" });
+  }
+
+  const privacy = createPhoneDexPrivacy(cfg.dataDir);
+  if (req.method === "GET" && requestUrl.pathname === "/privacy") {
+    return sendJson(res, 200, privacy.summary());
+  }
+  if (req.method === "GET" && requestUrl.pathname === "/privacy/export") {
+    return sendJson(res, 200, privacy.exportData());
+  }
+  if (req.method !== "POST") {
+    return sendJson(res, 405, { ok: false, error: "GET or POST required" });
+  }
+
+  const body = parseBodyFields(await readHttpBody(req), req.headers["content-type"] || "");
+  try {
+    if (requestUrl.pathname === "/privacy/retention") {
+      if (body.confirmation !== RETENTION_CONFIRMATION) {
+        return sendJson(res, 400, {
+          ok: false,
+          code: "privacy_confirmation_required",
+          error: `Confirmation must be ${RETENTION_CONFIRMATION}.`
+        });
+      }
+      const result = privacy.applyRetention(normalizeRetentionDays(body.retentionDays));
+      return sendJson(res, 200, { ok: true, ...result });
+    }
+    if (requestUrl.pathname === "/privacy/delete") {
+      const result = privacy.deleteHistory({ confirmation: body.confirmation });
+      return sendJson(res, 200, { ok: true, ...result });
+    }
+    return sendJson(res, 404, { ok: false, error: "Unknown privacy endpoint" });
+  } catch (error) {
+    return sendJson(res, error.statusCode || 500, {
+      ok: false,
+      code: error.code || "privacy_request_failed",
+      error: error.message
+    });
+  }
+}
+
+function normalizeConfiguredRetentionDays(value) {
+  if (value === undefined || value === "") return 0;
+  return normalizeRetentionDays(value);
 }
 
 function parseTaskListLimit(value) {
