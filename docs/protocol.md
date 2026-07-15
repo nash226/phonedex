@@ -70,6 +70,10 @@ The hub CLI creates a short-lived pairing grant with:
 npm run pair:create -- --name "Nash iPhone"
 ```
 
+The hub owner may grant a narrower or administrative allowlisted scope set when
+needed, for example `--scopes tasks.read,privacy.read,privacy.manage,admin`.
+Unknown scopes are rejected rather than silently broadened or ignored.
+
 The command prints a random grant and a separate six-digit verification code.
 The grant is valid for ten minutes by default and can be redeemed once at
 `POST /pair`:
@@ -92,9 +96,18 @@ send the credential only as an `Authorization: Bearer` header. Query-string
 credentials are not accepted for paired identities. Invalid, expired, reused,
 and rate-limited attempts return bounded errors without echoing secrets.
 
-This slice establishes the pairing grant and device-bound credential path;
-credential revocation, rotation, TLS enforcement, and admin scope remain
-separate security work.
+The hub enforces the identity scopes on every paired request. Read scopes cover
+task, device, and sync projections; `tasks.reply` and `tasks.ingest` are
+separate command and agent-write permissions; `privacy.read` and
+`privacy.manage` protect privacy inspection and mutation; and `admin` is an
+explicit broad administrative grant. Approval scope is reserved for the
+versioned approval command when that M5 capability exists and is never inferred
+from a phone or agent role.
+
+This slice establishes the pairing grant, device-bound credential path, and
+least-privilege authorization boundary. Credential rotation, hub/agent TLS
+deployment, and removal of legacy query-token compatibility remain separate
+security work.
 
 ### Completion capture convergence
 
