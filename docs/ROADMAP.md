@@ -648,7 +648,7 @@ lost durable state or duplicate command execution.
 
 ## M7: Mobile Review Experience
 
-Status: **Queued**
+Status: **Current**
 
 Outcome: let users evaluate completed work without returning to a computer.
 
