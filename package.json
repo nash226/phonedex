@@ -42,7 +42,7 @@
     "pair:create": "node ./bin/codex-watch.js pair:create",
     "pair:rotate": "node ./bin/codex-watch.js pair:rotate",
     "agent:installs": "node ./bin/codex-watch.js agent-installs",
-    "test": "npm run test:protocol && npm run test:evidence && npm run test:store && npm run test:recovery && npm run test:sync && npm run test:adapter && npm run test:windows-adapter && npm run test:lifecycle && npm run test:reply-delivery && npm run test:question-response && npm run test:session-watch && npm run test:notification-policy && npm run test:device-coverage && npm run test:coverage-alert && npm run test:agent-enrollment && npm run test:agent-bootstrap-server && npm run test:agent-installs && npm run test:agent-self-test && npm run test:foreground-submit && npm run test:reply-routing && npm run test:privacy && npm run test:compatibility && npm run test:security && npm run test:pairing && npm run test:identity-lifecycle && npm run test:approvals && npm run test:approval-adversarial && npm run test:artifacts && npm run test:ios-privacy-manifest",
+    "test": "npm run test:protocol && npm run test:evidence && npm run test:store && npm run test:recovery && npm run test:sync && npm run test:adapter && npm run test:windows-adapter && npm run test:lifecycle && npm run test:reply-delivery && npm run test:question-response && npm run test:session-watch && npm run test:notification-policy && npm run test:device-coverage && npm run test:coverage-alert && npm run test:agent-enrollment && npm run test:agent-bootstrap-server && npm run test:agent-installs && npm run test:agent-self-test && npm run test:foreground-submit && npm run test:reply-routing && npm run test:privacy && npm run test:compatibility && npm run test:security && npm run test:pairing && npm run test:identity-lifecycle && npm run test:approvals && npm run test:approval-adversarial && npm run test:artifacts && npm run test:ios-privacy-manifest && npm run test:release-manifest",
     "test:protocol": "node ./scripts/test-protocol.js",
     "test:evidence": "node ./scripts/test-evidence.js",
     "test:store": "node ./scripts/test-store.js",
@@ -72,7 +72,10 @@
     "test:approval-adversarial": "node ./scripts/test-approval-adversarial.js",
     "test:artifacts": "node ./scripts/test-artifacts.js",
     "test:ios-privacy-manifest": "node ./scripts/test-ios-privacy-manifest.js",
-    "check": "node --check ./bin/codex-watch.js && node --check ./lib/phonedex-store.js && node --check ./lib/phonedex-sync.js && node --check ./lib/phonedex-adapter.js && node --check ./lib/phonedex-artifacts.js && node --check ./lib/phonedex-handoff.js && node --check ./lib/phonedex-lifecycle.js && node --check ./lib/phonedex-security.js"
+    "test:release-manifest": "node ./scripts/test-release-manifest.js",
+    "release:manifest": "node ./scripts/release-manifest.js",
+    "release:verify": "node ./scripts/release-manifest.js --check",
+    "check": "node --check ./bin/codex-watch.js && node --check ./lib/phonedex-store.js && node --check ./lib/phonedex-sync.js && node --check ./lib/phonedex-adapter.js && node --check ./lib/phonedex-artifacts.js && node --check ./lib/phonedex-handoff.js && node --check ./lib/phonedex-lifecycle.js && node --check ./lib/phonedex-security.js && node --check ./scripts/release-manifest.js"
   },
   "engines": {
     "node": ">=18"

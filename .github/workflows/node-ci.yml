@@ -35,6 +35,9 @@ jobs:
       - name: Syntax check bridge
         run: npm run check
 
+      - name: Verify release identity and provenance inputs
+        run: npm run release:verify
+
       - name: Run bridge fixture tests
         run: npm test
 
