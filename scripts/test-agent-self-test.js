@@ -57,6 +57,7 @@ async function main() {
       WATCH_BRIDGE_PUBLIC_URL: hubUrl,
       WATCH_BRIDGE_TOKEN: "hub-token",
       WATCH_BRIDGE_PROVIDER: "pushcut",
+      PHONEDEX_ADAPTER_MODE: "cli",
       PUSHCUT_WEBHOOK_URL: ""
     }
   });
@@ -90,6 +91,7 @@ async function main() {
           WATCH_BRIDGE_PUBLIC_URL: "http://agent-one.local:8765",
           WATCH_BRIDGE_TOKEN: "agent-token",
           WATCH_BRIDGE_PROVIDER: "pushcut",
+          PHONEDEX_ADAPTER_MODE: "cli",
           PUSHCUT_WEBHOOK_URL: ""
         }
       }

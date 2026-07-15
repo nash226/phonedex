@@ -139,6 +139,9 @@ async function main() {
       WATCH_BRIDGE_PORT: String(port),
       WATCH_BRIDGE_PUBLIC_URL: `http://support-user:${secret}@127.0.0.1:${port}?token=${secret}`,
       WATCH_BRIDGE_TOKEN: "hub-token",
+      WATCH_BRIDGE_PROVIDER: "pushcut",
+      WATCH_BRIDGE_AUTO_RESUME: "false",
+      PHONEDEX_ADAPTER_MODE: "cli",
       PUSHCUT_WEBHOOK_URL: `http://127.0.0.1:${pushcutPort}`
     }
   });

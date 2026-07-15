@@ -592,13 +592,32 @@ async function recordTaskAndDispatch(cfg, task, options = {}) {
       ? await maybeForwardTaskToHub(cfg, task)
       : { ok: true, skipped: true, reason: "forward disabled" };
 
-  const shouldNotify = options.notify !== false && !cfg.agentMode &&
+  const notificationCandidate = options.notify !== false && !cfg.agentMode &&
     (result.created || (result.merged && statusChanged));
-  if (shouldNotify) {
+  const suppressionReason = notificationCandidate
+    ? taskNotificationSuppressionReason(result.task)
+    : "";
+  if (suppressionReason) {
+    appendJsonl(cfg.dataDir, "events.jsonl", {
+      at: new Date().toISOString(),
+      type: "notification-suppressed",
+      taskId: result.task.id,
+      sessionId: result.task.sessionId || "",
+      reason: suppressionReason
+    });
+  } else if (notificationCandidate) {
     await sendWatchNotification(cfg, task);
   }
 
   return { task: result.task, created: result.created, merged: Boolean(result.merged), forward };
+}
+
+function taskNotificationSuppressionReason(task) {
+  const cwd = String(task?.cwd || "").replaceAll("\\", "/");
+  if (cwd.includes("/.codex/worktrees/")) {
+    return "Automated Codex git-worktree worker";
+  }
+  return "";
 }
 
 function mergeTaskCaptures(existing, incoming) {
