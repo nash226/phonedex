@@ -18,11 +18,12 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
     let repository: String?
     let question: PhoneDexTaskQuestion?
     let captureSources: [PhoneDexCaptureSource]
+    let evidence: PhoneDexTaskEvidence?
 
     private enum CodingKeys: String, CodingKey {
         case id, at, createdAt, updatedAt, version, source, title, text, cwd, workspaceName
         case machineName, sessionId, status, branch, repository, captureSources
-        case question
+        case question, evidence
     }
 
     init(from decoder: Decoder) throws {
@@ -44,6 +45,7 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
         repository = try container.decodeIfPresent(String.self, forKey: .repository)
         question = try container.decodeIfPresent(PhoneDexTaskQuestion.self, forKey: .question)
         captureSources = try container.decodeIfPresent([PhoneDexCaptureSource].self, forKey: .captureSources) ?? []
+        evidence = try container.decodeIfPresent(PhoneDexTaskEvidence.self, forKey: .evidence)
     }
 
     init(
@@ -63,7 +65,8 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
         updatedAt: String? = nil,
         version: Int? = nil,
         question: PhoneDexTaskQuestion? = nil,
-        captureSources: [PhoneDexCaptureSource] = []
+        captureSources: [PhoneDexCaptureSource] = [],
+        evidence: PhoneDexTaskEvidence? = nil
     ) {
         self.id = id
         self.at = at
@@ -82,6 +85,7 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
         self.repository = repository
         self.question = question
         self.captureSources = captureSources
+        self.evidence = evidence
     }
 
     var displayWorkspace: String {
@@ -243,6 +247,84 @@ struct PhoneDexCaptureSource: Codable, Equatable, Identifiable {
         case "stop-hook": return "Captured by Stop hook"
         case "session-watcher": return "Captured by session watcher"
         default: return "Captured by \(source.replacingOccurrences(of: "-", with: " "))"
+        }
+    }
+}
+
+struct PhoneDexTaskEvidence: Codable, Equatable {
+    let changedFiles: [PhoneDexChangedFile]
+    let artifacts: [PhoneDexArtifact]
+    let validations: [PhoneDexValidationReceipt]
+
+    init(
+        changedFiles: [PhoneDexChangedFile] = [],
+        artifacts: [PhoneDexArtifact] = [],
+        validations: [PhoneDexValidationReceipt] = []
+    ) {
+        self.changedFiles = changedFiles
+        self.artifacts = artifacts
+        self.validations = validations
+    }
+
+    var isEmpty: Bool {
+        changedFiles.isEmpty && artifacts.isEmpty && validations.isEmpty
+    }
+}
+
+struct PhoneDexChangedFile: Codable, Equatable, Identifiable {
+    let path: String
+    let status: String
+    let sourceRef: String?
+    let summary: String?
+    let additions: Int?
+    let deletions: Int?
+
+    var id: String { path }
+
+    var displayStatus: String {
+        status.capitalized
+    }
+}
+
+struct PhoneDexArtifact: Codable, Equatable, Identifiable {
+    let id: String
+    let name: String
+    let kind: String
+    let sourceRef: String
+    let sizeBytes: Int?
+    let sha256: String?
+
+    var displaySize: String? {
+        guard let sizeBytes else { return nil }
+        return ByteCountFormatter.string(fromByteCount: Int64(sizeBytes), countStyle: .file)
+    }
+}
+
+struct PhoneDexValidationReceipt: Codable, Equatable, Identifiable {
+    let id: String
+    let name: String
+    let status: String
+    let summary: String?
+    let durationMs: Int?
+    let completedAt: String?
+
+    var displayStatus: String {
+        switch status {
+        case "passed": return "Passed"
+        case "failed": return "Failed"
+        case "skipped": return "Skipped"
+        case "running": return "Running"
+        default: return "Unknown"
+        }
+    }
+
+    var symbol: String {
+        switch status {
+        case "passed": return "checkmark.circle.fill"
+        case "failed": return "xmark.octagon.fill"
+        case "skipped": return "minus.circle"
+        case "running": return "arrow.triangle.2.circlepath"
+        default: return "questionmark.circle"
         }
     }
 }

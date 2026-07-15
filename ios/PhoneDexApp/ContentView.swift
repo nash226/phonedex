@@ -739,7 +739,29 @@ struct PhoneDexTaskDetailView: View {
             if let branch = task.branch, !branch.isEmpty {
                 evidenceRow("Branch", branch, symbol: "arrow.triangle.branch")
             }
-            if task.repository == nil && task.branch == nil {
+            if let taskEvidence = task.evidence, !taskEvidence.isEmpty {
+                if !taskEvidence.changedFiles.isEmpty {
+                    evidenceSubheading("Changed files", count: taskEvidence.changedFiles.count, symbol: "doc.text")
+                    ForEach(taskEvidence.changedFiles) { file in
+                        changedFileRow(file)
+                    }
+                }
+                if !taskEvidence.validations.isEmpty {
+                    evidenceSubheading("Validation", count: taskEvidence.validations.count, symbol: "checkmark.shield")
+                    ForEach(taskEvidence.validations) { validation in
+                        validationRow(validation)
+                    }
+                }
+                if !taskEvidence.artifacts.isEmpty {
+                    evidenceSubheading("Artifacts", count: taskEvidence.artifacts.count, symbol: "shippingbox")
+                    ForEach(taskEvidence.artifacts) { artifact in
+                        artifactRow(artifact)
+                    }
+                }
+                Text("Evidence is exported by the originating agent. Source references are relative and do not grant file access.")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            } else if task.repository == nil && task.branch == nil {
                 ContentUnavailableView {
                     Label("No exported evidence", systemImage: "doc.text.magnifyingglass")
                 } description: {
@@ -752,6 +774,88 @@ struct PhoneDexTaskDetailView: View {
                     .foregroundStyle(.tertiary)
             }
         }
+    }
+
+    private func evidenceSubheading(_ title: String, count: Int, symbol: String) -> some View {
+        Label("\(title) · \(count)", systemImage: symbol)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .padding(.top, 4)
+    }
+
+    private func changedFileRow(_ file: PhoneDexChangedFile) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Image(systemName: file.status == "deleted" ? "minus.circle" : "doc.text")
+                    .foregroundStyle(file.status == "deleted" ? .red : .secondary)
+                Text(file.path)
+                    .font(.subheadline.weight(.medium))
+                    .lineLimit(2)
+                Spacer(minLength: 0)
+                Text(file.displayStatus)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if let sourceRef = file.sourceRef, !sourceRef.isEmpty {
+                Text(sourceRef)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            }
+            if let summary = file.summary, !summary.isEmpty {
+                Text(summary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if file.additions != nil || file.deletions != nil {
+                Text("+\(file.additions ?? 0)  −\(file.deletions ?? 0)")
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color(uiColor: .secondarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+
+    private func validationRow(_ validation: PhoneDexValidationReceipt) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: validation.symbol)
+                .foregroundStyle(validation.status == "failed" ? .red : validation.status == "passed" ? .green : .secondary)
+                .frame(width: 20)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack {
+                    Text(validation.name)
+                        .font(.subheadline.weight(.medium))
+                    Spacer(minLength: 0)
+                    Text(validation.displayStatus)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if let summary = validation.summary, !summary.isEmpty {
+                    Text(summary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color(uiColor: .secondarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+
+    private func artifactRow(_ artifact: PhoneDexArtifact) -> some View {
+        evidenceRow(
+            artifact.name,
+            [artifact.kind, artifact.displaySize, artifact.sourceRef]
+                .compactMap { $0 }
+                .joined(separator: " · "),
+            symbol: "shippingbox"
+        )
     }
 
     private func evidenceRow(_ title: String, _ value: String, symbol: String) -> some View {

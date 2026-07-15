@@ -141,7 +141,7 @@ duplicate fallback.
 
 | Schema | Required identity | Purpose |
 | --- | --- | --- |
-| `phonedex.task.v1` | `id`, `createdAt`, `origin`, `status` | A tracked Codex run and its current summary. |
+| `phonedex.task.v1` | `id`, `createdAt`, `origin`, `status` | A tracked Codex run and its current summary, with optional bounded review evidence. |
 | `phonedex.event.v1` | `id`, `taskId`, `createdAt`, `sequence`, `type`, `data` | Ordered task activity suitable for cursor sync. |
 | `phonedex.device.v1` | `deviceId`, `machineName`, `platform`, `role`, `status`, `lastSeenAt` | Reachability, installed-agent identity, and separately reported component health. |
 | `phonedex.workspace.v1` | `workspaceId`, `deviceId`, `name`, `createdAt` | Durable repository or working-directory context. |
@@ -155,6 +155,54 @@ records, so `publicTask` must continue to remove credentials before an API
 response. URLs and local paths are optional metadata and must be filtered
 according to the retention and privacy policy before leaving the user's
 devices.
+
+### Task evidence
+
+Agents may attach an additive `evidence` object to a task when a supported
+PhoneDex adapter exports review metadata:
+
+```json
+{
+  "evidence": {
+    "changedFiles": [
+      {
+        "path": "ios/PhoneDexApp/ContentView.swift",
+        "status": "modified",
+        "sourceRef": "ios/PhoneDexApp/ContentView.swift#L10-L30",
+        "additions": 12,
+        "deletions": 3
+      }
+    ],
+    "artifacts": [
+      {
+        "id": "ios-build-log",
+        "name": "Unsigned iOS build log",
+        "kind": "log",
+        "sourceRef": "artifacts/ios-build.log",
+        "sha256": "..."
+      }
+    ],
+    "validations": [
+      {
+        "id": "ios-build",
+        "name": "Unsigned iOS build",
+        "status": "passed",
+        "summary": "Build completed"
+      }
+    ]
+  }
+}
+```
+
+`path`, `sourceRef`, and artifact references are relative, bounded strings;
+absolute paths, URLs, parent traversal, and credentials are rejected. The
+bridge deduplicates entries, limits each collection, and emits one
+`artifact_available` lifecycle event when new evidence is merged. Evidence can
+be supplied through the explicit hook/`POST /tasks` task contract or through a
+`phonedex_evidence` session event emitted by a PhoneDex-owned adapter. The
+session watcher does not infer changed files or validations from private
+Codex Desktop UI. The native iPhone surface renders this metadata and receipts;
+full patch browsing and artifact downloads remain a later review milestone.
 
 `phonedex.event.v1` records are append-only lifecycle observations. The
 `sequence` is ordered within a task, `type` is a bounded lifecycle name such
