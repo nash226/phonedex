@@ -26,6 +26,9 @@ const {
   supportsAdapterCapability
 } = require("../lib/phonedex-adapter");
 const {
+  createPhoneDexLifecycleManager
+} = require("../lib/phonedex-lifecycle");
+const {
   DELETE_CONFIRMATION,
   RETENTION_CONFIRMATION,
   createPhoneDexPrivacy,
@@ -239,11 +242,13 @@ function config() {
   const codexBin = env.CODEX_BIN || defaultCodexBin();
   const codexAppServerBin = env.CODEX_APP_SERVER_BIN || codexBin || defaultAppServerCodexBin();
   const adapterMode = env.PHONEDEX_ADAPTER_MODE || env.WATCH_BRIDGE_AUTO_RESUME_MODE || "cli";
+  const workspaceRoots = parseWorkspaceRoots(env.PHONEDEX_WORKSPACE_ROOTS);
   const adapter = createCodexAdapter({
     platform: env.PHONEDEX_ADAPTER_PLATFORM || process.platform,
     mode: adapterMode,
     codexBin,
-    appServerBin: codexAppServerBin
+    appServerBin: codexAppServerBin,
+    workspaceRoots
   });
 
   return {
@@ -291,6 +296,7 @@ function config() {
     autoResumeMode: adapter.mode,
     adapter,
     codexHome: env.CODEX_HOME || path.join(os.homedir(), ".codex"),
+    workspaceRoots,
     sessionWatchIntervalMs: Number(env.WATCHDEX_SESSION_WATCH_INTERVAL_MS || "5000"),
     sessionWatchDebounceMs: Number(env.WATCHDEX_SESSION_WATCH_DEBOUNCE_MS || "8000"),
     codexBin,
@@ -587,13 +593,18 @@ function mergeTaskCaptures(existing, incoming) {
   if ((!merged.text || merged.text === "Task completed") && incoming.text) {
     merged.text = incoming.text;
   }
-  if (incoming.text && incoming.text !== existing.text && incoming.status !== undefined) {
-    merged.text = incoming.text;
+  const incomingVersion = Number.isInteger(incoming.version) ? incoming.version : 0;
+  const existingVersion = Number.isInteger(existing.version) ? existing.version : 0;
+  if (incomingVersion >= existingVersion) {
+    for (const field of ["status", "updatedAt", "lifecycleCapabilities", "execution", "workspaceName"]) {
+      if (incoming[field] !== undefined) merged[field] = incoming[field];
+    }
+    if (incoming.text) merged.text = incoming.text;
+    if (incoming.title) merged.title = incoming.title;
+    if (incoming.version) merged.version = incoming.version;
   }
-  if (merged.status !== existing.status || merged.text !== existing.text) {
-    merged.version = Math.max((existing.version || 1) + 1, merged.version || 1);
-    merged.updatedAt = incoming.updatedAt || incoming.at || new Date().toISOString();
-  }
+  if (incoming.originCommandUrl) merged.originCommandUrl = incoming.originCommandUrl;
+  if (incoming.originCommandToken) merged.originCommandToken = incoming.originCommandToken;
   if (!merged.hookPayload && incoming.hookPayload) merged.hookPayload = incoming.hookPayload;
   return merged;
 }
@@ -708,6 +719,8 @@ async function maybeForwardTaskToHub(cfg, task) {
           deviceId: task.deviceId || cfg.deviceId,
           machineName: task.machineName || cfg.machineName,
           replyUrl: cfg.replyUrl,
+          commandUrl: `${cfg.publicUrl}/command`,
+          commandToken: cfg.token,
           publicUrl: cfg.publicUrl,
           replyToken: cfg.token
         }
@@ -881,6 +894,16 @@ function formatPhoneNotificationMessage(task) {
 async function startServer(providedCfg) {
   const cfg = providedCfg || config();
   ensureDataDir(cfg.dataDir);
+  const lifecycle = createPhoneDexLifecycleManager({
+    cfg,
+    recordTask: (task) => recordTaskAndDispatch(cfg, task, { notify: false }),
+    updateTask: (taskId, changes) => updateTaskAndDispatch(cfg, taskId, changes),
+    findTask: (taskId) => findTask(cfg.dataDir, taskId),
+    appendEvent: (event) => appendJsonl(cfg.dataDir, "events.jsonl", {
+      at: new Date().toISOString(),
+      ...event
+    })
+  });
   const pairingAttempts = new Map();
   const requestRateLimiter = createRequestRateLimiter({
     limit: cfg.authRateLimit,
@@ -953,6 +976,10 @@ async function startServer(providedCfg) {
 
       if (requestUrl.pathname === "/reply") {
         return handleReplyRequest(req, res, requestUrl, cfg);
+      }
+
+      if (requestUrl.pathname === "/command") {
+        return handleLifecycleCommandRequest(req, res, requestUrl, cfg, lifecycle);
       }
 
       if (requestUrl.pathname === "/task") {
@@ -1067,6 +1094,7 @@ async function startServer(providedCfg) {
           "/privacy/retention",
           "/privacy/delete",
           "/reply",
+          "/command",
           "/task",
           "/replies",
           "/tasks",
@@ -2082,6 +2110,248 @@ async function handleReplyRequest(req, res, requestUrl, cfg) {
   });
 }
 
+async function handleLifecycleCommandRequest(req, res, requestUrl, cfg, lifecycle) {
+  if (req.method !== "POST") {
+    return sendJson(res, 405, { ok: false, error: "POST required" });
+  }
+
+  const body = await readHttpBody(req);
+  const fields = {
+    ...Object.fromEntries(requestUrl.searchParams.entries()),
+    ...parseBodyFields(body, req.headers["content-type"] || "")
+  };
+  if (cfg.token && !isRequestAuthorized(req, requestUrl, cfg, "tasks.reply")) {
+    return sendJson(res, 401, { ok: false, error: "Invalid token" });
+  }
+
+  const raw = fields.command && typeof fields.command === "object" ? fields.command : fields;
+  let command;
+  try {
+    command = normalizeLifecycleCommand(raw, cfg);
+  } catch (error) {
+    return sendJson(res, error.statusCode || 400, {
+      ok: false,
+      code: error.code || "invalid_lifecycle_command",
+      error: error.message
+    });
+  }
+  const existing = findLifecycleCommand(cfg.dataDir, command.idempotencyKey);
+  if (existing) {
+    if (existing.commandFingerprint !== command.commandFingerprint) {
+      appendSecurityAudit(cfg.dataDir, {
+        action: "lifecycle.replay",
+        outcome: "blocked",
+        route: "/command",
+        reason: "idempotency key reused with a different lifecycle payload"
+      });
+      return sendJson(res, 409, {
+        ok: false,
+        code: "replay_conflict",
+        error: "The idempotency key was already used for a different lifecycle command."
+      });
+    }
+    const receipt = appendLifecycleReceipt(cfg, command, "duplicate", "Command was already accepted.", existing.commandId);
+    return sendJson(res, 200, {
+      ok: true,
+      duplicate: true,
+      recorded: existing,
+      receipt
+    });
+  }
+
+  const commandRecord = protocolRecord("command", {
+    commandId: command.commandId,
+    createdAt: command.createdAt,
+    kind: command.kind,
+    target: command.target,
+    idempotencyKey: command.idempotencyKey,
+    state: "sent",
+    payload: command.payload,
+    requestedBy: command.requestedBy,
+    actor: command.actor,
+    expectedTaskVersion: command.expectedTaskVersion,
+    expiresAt: command.expiresAt,
+    requestedCapability: command.requestedCapability,
+    commandFingerprint: command.commandFingerprint
+  });
+  appendJsonl(cfg.dataDir, "commands.jsonl", commandRecord);
+
+  try {
+    const result = shouldForwardLifecycleCommand(cfg, command)
+      ? await forwardLifecycleCommand(cfg, command)
+      : await lifecycle.execute(command);
+    const state = result.state === "accepted" ? "accepted" : "completed";
+    const receipt = appendLifecycleReceipt(cfg, command, state, result.message, undefined, result.task);
+    appendJsonl(cfg.dataDir, "commands.jsonl", protocolRecord("command", {
+      ...commandRecord,
+      state: "acknowledged"
+    }));
+    return sendJson(res, 200, {
+      ok: true,
+      commandId: command.commandId,
+      state: result.state,
+      task: result.task ? publicTask(result.task) : undefined,
+      receipt
+    });
+  } catch (error) {
+    const status = error.statusCode || 500;
+    const receiptState = ["task_stale", "capability_unsupported", "task_not_managed", "task_running"].includes(error.code)
+      ? "rejected"
+      : "failed";
+    const receipt = appendLifecycleReceipt(cfg, command, receiptState, error.message, undefined, error.task);
+    appendJsonl(cfg.dataDir, "commands.jsonl", protocolRecord("command", {
+      ...commandRecord,
+      state: receiptState === "rejected" ? "rejected" : "failed"
+    }));
+    return sendJson(res, status, {
+      ok: false,
+      code: error.code || "lifecycle_command_failed",
+      error: error.message,
+      ...(error.currentTaskVersion ? { currentTaskVersion: error.currentTaskVersion } : {}),
+      ...(error.task ? { task: publicTask(error.task) } : {}),
+      receipt
+    });
+  }
+}
+
+function normalizeLifecycleCommand(raw, cfg) {
+  const kind = String(raw.kind || "").trim();
+  const commandId = String(raw.commandId || raw.command_id || makeId("command")).slice(0, 160);
+  const idempotencyKey = String(raw.idempotencyKey || raw.idempotency_key || commandId).slice(0, 240);
+  const taskId = String(raw.target?.taskId || raw.taskId || raw.task_id || "").trim();
+  const deviceId = String(raw.target?.deviceId || raw.deviceId || raw.device_id || "").trim();
+  const expectedTaskVersion = parseExpectedTaskVersion(raw.expectedTaskVersion || raw.expected_task_version);
+  if (expectedTaskVersion.error) {
+    const error = new Error(expectedTaskVersion.error);
+    error.code = "invalid_task_version";
+    error.statusCode = 400;
+    throw error;
+  }
+  const payload = raw.payload && typeof raw.payload === "object"
+    ? raw.payload
+    : {
+        prompt: raw.prompt,
+        workspaceName: raw.workspaceName || raw.workspace_name
+      };
+  const target = {
+    ...(taskId ? { taskId } : {}),
+    ...(deviceId ? { deviceId } : {})
+  };
+  if (kind === "create_task" && !target.deviceId) {
+    throwLifecycleRequestError("device_required", "Choose a target Mac or Windows agent before starting a task.", 422);
+  }
+  if (kind !== "create_task" && !target.taskId) {
+    throwLifecycleRequestError("task_required", "Choose a task before sending a lifecycle command.", 422);
+  }
+  const command = {
+    commandId,
+    createdAt: new Date().toISOString(),
+    kind,
+    target,
+    idempotencyKey,
+    payload: {
+      ...(typeof payload.prompt === "string" ? { prompt: payload.prompt } : {}),
+      ...(typeof payload.workspaceName === "string" ? { workspaceName: payload.workspaceName } : {})
+    },
+    requestedBy: String(raw.requestedBy || raw.actor || "iphone").slice(0, 160),
+    actor: String(raw.actor || raw.requestedBy || "iphone").slice(0, 160),
+    ...(expectedTaskVersion.value ? { expectedTaskVersion: expectedTaskVersion.value } : {}),
+    expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+    requestedCapability: `task.${kind === "create_task" ? "create" : kind}.v1`
+  };
+  command.commandFingerprint = hashSecret(JSON.stringify({
+    kind: command.kind,
+    target: command.target,
+    payload: command.payload,
+    expectedTaskVersion: command.expectedTaskVersion || null
+  }));
+  return command;
+}
+
+function shouldForwardLifecycleCommand(cfg, command) {
+  if (cfg.agentMode) return false;
+  if (command.kind === "create_task") return command.target.deviceId !== cfg.deviceId;
+  const task = findTask(cfg.dataDir, command.target.taskId);
+  return Boolean(task && (task.deviceId || task.originCommandUrl) !== cfg.deviceId);
+}
+
+async function forwardLifecycleCommand(cfg, command) {
+  const task = command.target.taskId ? findTask(cfg.dataDir, command.target.taskId) : null;
+  const deviceId = command.target.deviceId || task?.deviceId || "";
+  const device = deviceId
+    ? durableStore(cfg.dataDir).listDevices().find((candidate) => candidate.deviceId === deviceId)
+    : null;
+  const commandUrl = task?.originCommandUrl || device?.commandUrl || (device?.publicUrl ? `${trimTrailingSlash(device.publicUrl)}/command` : "");
+  const token = task?.originCommandToken || device?.commandToken || "";
+  if (!commandUrl) {
+    const error = new Error("The originating agent does not advertise a lifecycle command endpoint.");
+    error.code = "origin_unavailable";
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const response = await fetch(commandUrl, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      ...(token ? { authorization: `Bearer ${token}` } : {})
+    },
+    body: JSON.stringify({ command })
+  });
+  const responseText = await response.text();
+  const payload = parseMaybeJson(responseText);
+  if (!response.ok) {
+    const error = new Error(payload.error || "The originating agent rejected the lifecycle command.");
+    error.code = payload.code || "origin_command_failed";
+    error.statusCode = response.status;
+    error.currentTaskVersion = payload.currentTaskVersion;
+    error.task = payload.task;
+    throw error;
+  }
+  return payload;
+}
+
+function findLifecycleCommand(dataDir, idempotencyKey) {
+  return readJsonl(dataDir, "commands.jsonl")
+    .slice()
+    .reverse()
+    .find((command) => command?.kind !== "reply" && command?.idempotencyKey === idempotencyKey);
+}
+
+function appendLifecycleReceipt(cfg, command, state, message, duplicateOf, task) {
+  const receipt = protocolRecord("commandReceipt", {
+    commandId: command.commandId,
+    createdAt: new Date().toISOString(),
+    state,
+    taskId: command.target.taskId || task?.id,
+    taskVersion: task?.version || command.expectedTaskVersion,
+    idempotencyKey: command.idempotencyKey,
+    ...(message ? { message: String(message).slice(0, 1000) } : {}),
+    ...(duplicateOf ? { duplicateOf } : {})
+  });
+  appendJsonl(cfg.dataDir, "command-receipts.jsonl", receipt);
+  return receipt;
+}
+
+async function updateTaskAndDispatch(cfg, taskId, changes) {
+  const result = durableStore(cfg.dataDir).updateTask(taskId, changes);
+  if (!result.found) return null;
+  const task = result.task;
+  appendJsonl(cfg.dataDir, "tasks.jsonl", task);
+  if (cfg.agentMode) await maybeForwardTaskToHub(cfg, task);
+  if (!cfg.agentMode && ["completed", "failed", "cancelled"].includes(task.status)) {
+    await sendWatchNotification(cfg, task);
+  }
+  return task;
+}
+
+function throwLifecycleRequestError(code, message, statusCode) {
+  const error = new Error(message);
+  error.code = code;
+  error.statusCode = statusCode;
+  throw error;
+}
+
 function parseExpectedTaskVersion(value) {
   if (value === undefined || value === null || value === "") return { value: undefined };
   const parsed = Number(value);
@@ -2917,6 +3187,7 @@ function createIngestedTask(fields, cfg, req) {
     version: fields.version,
     updatedAt: fields.updatedAt,
     cwd: fields.cwd || "",
+    workspaceName: fields.workspaceName || "",
     machineName,
     deviceId,
     sessionId: fields.sessionId || fields.session_id || "",
@@ -2925,8 +3196,14 @@ function createIngestedTask(fields, cfg, req) {
     captureSources: fields.captureSources,
     originTaskId,
     originReplyUrl: fields.replyUrl || fields.reply_url || "",
+    originCommandUrl: fields.commandUrl || fields.command_url || "",
+    originCommandToken: fields.commandToken || fields.command_token || "",
     originPublicUrl: fields.publicUrl || fields.public_url || "",
     originToken: fields.replyToken || fields.reply_token || "",
+    lifecycleCapabilities: Array.isArray(fields.lifecycleCapabilities)
+      ? fields.lifecycleCapabilities
+      : undefined,
+    execution: fields.execution,
     ...(fields.question ? { question: normalizeTaskQuestion(fields.question) } : {}),
     receivedAt: new Date().toISOString(),
     receivedFrom: req.socket.remoteAddress || "",
@@ -3317,8 +3594,11 @@ function publicTask(task) {
     rawHookInputBytes,
     receivedFrom,
     originReplyUrl,
+    originCommandUrl,
+    originCommandToken,
     originPublicUrl,
     originToken,
+    execution,
     replyToken,
     token,
     replyUrl,
@@ -3339,8 +3619,11 @@ function publicSyncTask(task) {
     rawHookInputBytes,
     receivedFrom,
     originReplyUrl,
+    originCommandUrl,
+    originCommandToken,
     originPublicUrl,
     originToken,
+    execution,
     replyToken,
     token,
     replyUrl,
@@ -3389,6 +3672,7 @@ function publicDevice(device) {
     adapterState: device.adapterState,
     adapterLimitations: Array.isArray(device.adapterLimitations) ? device.adapterLimitations : [],
     adapter: device.adapter,
+    workspaces: Array.isArray(device.workspaces) ? device.workspaces : [],
     capabilities: Array.isArray(device.capabilities) ? device.capabilities : [],
     capabilityDetails: Array.isArray(device.capabilityDetails) ? device.capabilityDetails : [],
     health: device.health
@@ -3438,10 +3722,17 @@ function buildLocalDeviceHeartbeat(cfg) {
     adapterState: cfg.adapter.state,
     adapterLimitations: cfg.adapter.limitations,
     adapter: cfg.adapter,
+    commandUrl: `${cfg.publicUrl}/command`,
+    commandToken: cfg.token,
+    workspaces: lifecycleWorkspaceNames(cfg),
     capabilities: capabilities.map((capability) => `${capability.id}.v${capability.version}`),
     capabilityDetails: capabilities,
     lastSeenAt: new Date().toISOString()
   });
+}
+
+function lifecycleWorkspaceNames(cfg) {
+  return (cfg.workspaceRoots || []).map((root) => path.basename(root));
 }
 
 async function maybeForwardDeviceHeartbeatToHub(cfg, device) {
@@ -3526,6 +3817,9 @@ function normalizeDeviceHeartbeat(fields, req) {
     adapterState: fields.adapterState || fields.adapter_state,
     adapterLimitations: fields.adapterLimitations || fields.adapter_limitations,
     adapter: fields.adapter,
+    commandUrl: fields.commandUrl || fields.command_url,
+    commandToken: fields.commandToken || fields.command_token,
+    workspaces: Array.isArray(fields.workspaces) ? fields.workspaces : [],
     lastSeenAt: fields.lastSeenAt || fields.at || now,
     receivedAt: now,
     receivedFrom: req?.socket?.remoteAddress || ""
@@ -5304,6 +5598,13 @@ function sendBuffer(res, status, body, contentType, extraHeaders = {}) {
 function parseBoolean(value, defaultValue) {
   if (value === undefined || value === "") return defaultValue;
   return ["1", "true", "yes", "on"].includes(String(value).toLowerCase());
+}
+
+function parseWorkspaceRoots(value) {
+  if (typeof value !== "string") return [];
+  return [...new Set(value.split(path.delimiter).map((candidate) => candidate.trim()).filter(Boolean))]
+    .map((candidate) => path.resolve(candidate))
+    .slice(0, 32);
 }
 
 function positiveNumber(value, defaultValue) {

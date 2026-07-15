@@ -48,6 +48,13 @@ final class PhoneDexAppModel: ObservableObject {
         case failed(String)
     }
 
+    enum LifecycleState: Equatable {
+        case idle
+        case sending
+        case accepted(String)
+        case failed(String)
+    }
+
     @Published private(set) var tasks: [PhoneDexTask] = []
     @Published private(set) var devices: [PhoneDexDevice] = []
     @Published private(set) var events: [PhoneDexEvent] = []
@@ -57,6 +64,7 @@ final class PhoneDexAppModel: ObservableObject {
     @Published var selectedTaskID: PhoneDexTask.ID?
     @Published var connectionState: ConnectionState = .idle
     @Published var replyState: ReplyState = .idle
+    @Published var lifecycleState: LifecycleState = .idle
     @Published private(set) var lastSuccessfulSync: Date?
 
     static let staleAfter: TimeInterval = 5 * 60
@@ -274,6 +282,75 @@ final class PhoneDexAppModel: ObservableObject {
             return false
         }
         return await attemptPendingReply(pending, client: client)
+    }
+
+    func cancel(task: PhoneDexTask) async -> Bool {
+        await sendLifecycle(kind: "cancel", task: task)
+    }
+
+    func retry(task: PhoneDexTask) async -> Bool {
+        await sendLifecycle(kind: "retry", task: task)
+    }
+
+    func createTask(deviceId: String, workspaceName: String, prompt: String) async -> Bool {
+        guard let client = bridgeClient else {
+            lifecycleState = .failed("The bridge URL is invalid.")
+            return false
+        }
+        let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedPrompt.isEmpty else {
+            lifecycleState = .failed("Enter a prompt before starting a task.")
+            return false
+        }
+        lifecycleState = .sending
+        do {
+            let result = try await client.sendLifecycleCommand(
+                kind: "create_task",
+                deviceId: deviceId,
+                workspaceName: workspaceName,
+                prompt: trimmedPrompt
+            )
+            if let task = result.task { upsertLifecycleTask(task) }
+            lifecycleState = .accepted(result.receipt.message ?? "Task queued.")
+            return result.receipt.isSuccessful
+        } catch {
+            lifecycleState = .failed(error.localizedDescription)
+            return false
+        }
+    }
+
+    private func sendLifecycle(kind: String, task: PhoneDexTask) async -> Bool {
+        guard let client = bridgeClient else {
+            lifecycleState = .failed("The bridge URL is invalid.")
+            return false
+        }
+        lifecycleState = .sending
+        do {
+            let result = try await client.sendLifecycleCommand(
+                kind: kind,
+                taskId: task.id,
+                expectedTaskVersion: task.version ?? 1
+            )
+            if let updatedTask = result.task { upsertLifecycleTask(updatedTask) }
+            lifecycleState = .accepted(result.receipt.message ?? "Command accepted.")
+            return result.receipt.isSuccessful
+        } catch {
+            lifecycleState = .failed(error.localizedDescription)
+            return false
+        }
+    }
+
+    private func upsertLifecycleTask(_ task: PhoneDexTask) {
+        if let index = syncTasks.firstIndex(where: { $0.id == task.id }) {
+            syncTasks[index] = task
+        } else {
+            syncTasks.append(task)
+        }
+        tasks = PhoneDexTask.latestPerConversation(syncTasks).sorted {
+            ($0.displayDate ?? .distantPast) > ($1.displayDate ?? .distantPast)
+        }
+        selectedTaskID = task.id
+        persistCachedState(lastSyncAt: lastSuccessfulSync)
     }
 
     func pendingReply(for taskID: PhoneDexTask.ID) -> PhoneDexPendingReply? {
