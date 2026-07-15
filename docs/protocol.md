@@ -20,6 +20,19 @@ clients. Unknown fields are ignored by validation so newer hubs can add
 optional data without breaking older clients; an unknown schema or protocol
 version is rejected rather than guessed.
 
+### Completion capture convergence
+
+Task records may include `messageId`, `logicalEventId`, and `captureSources`.
+The bridge derives `logicalEventId` as a one-way, bounded identifier from the
+source device, Codex session, and completion message identity. It is not a
+credential and does not contain task text or a local path. `captureSources`
+contains at most eight bounded entries such as `codex-stop-hook` and
+`codex-session-watch`, with an optional message identity and observation time.
+The hook and session watcher can therefore represent one completion as one
+task even when both paths observe it or when either path arrives first. Older
+records without these fields continue to use the existing session/text/time
+duplicate fallback.
+
 ## v1 records
 
 | Schema | Required identity | Purpose |

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -56,6 +57,17 @@ try {
     ]
   );
 
+  const hook = runHook({
+    sessionId: "019faaaa-1111-7222-8333-444444444444",
+    messageId: "2026-06-30T01:01:00.000Z",
+    last_assistant_message: "Agent message final answer fixture"
+  });
+  if (hook.status !== 0) {
+    process.stderr.write(hook.stdout);
+    process.stderr.write(hook.stderr);
+    process.exit(hook.status || 1);
+  }
+
   const result = spawnSync(
     process.execPath,
     [path.join(root, "bin", "codex-watch.js"), "scan-sessions", "--notify-existing"],
@@ -89,9 +101,38 @@ try {
   assertTask(tasks, "Task complete final answer fixture", "019fbbbb-1111-7222-8333-555555555555");
 
   const parsed = JSON.parse(result.stdout);
-  if (parsed.notified !== 2) {
-    throw new Error(`Expected 2 fixture notifications, got ${parsed.notified}`);
+  if (parsed.notified !== 1) {
+    throw new Error(`Expected 1 fixture notification after hook convergence, got ${parsed.notified}`);
   }
+
+  const storePath = path.join(dataDir, "phonedex-store.json");
+  const initialStore = JSON.parse(fs.readFileSync(storePath, "utf8"));
+  assert.equal(initialStore.tasks.length, 2);
+  assertCaptureSources(
+    initialStore.tasks,
+    "Agent message final answer fixture",
+    ["codex-stop-hook", "codex-session-watch"]
+  );
+  assertCaptureSources(initialStore.tasks, "Task complete final answer fixture", ["codex-session-watch"]);
+
+  const hookAfterWatcher = runHook({
+    sessionId: "019fbbbb-1111-7222-8333-555555555555",
+    messageId: "turn-fixture-b",
+    last_assistant_message: "Task complete final answer fixture"
+  });
+  if (hookAfterWatcher.status !== 0) {
+    process.stderr.write(hookAfterWatcher.stdout);
+    process.stderr.write(hookAfterWatcher.stderr);
+    process.exit(hookAfterWatcher.status || 1);
+  }
+
+  const convergedStore = JSON.parse(fs.readFileSync(storePath, "utf8"));
+  assert.equal(convergedStore.tasks.length, 2);
+  assertCaptureSources(
+    convergedStore.tasks,
+    "Task complete final answer fixture",
+    ["codex-session-watch", "codex-stop-hook"]
+  );
 
   const statePath = path.join(dataDir, "session-watch-state.json");
   const state = JSON.parse(fs.readFileSync(statePath, "utf8"));
@@ -146,6 +187,29 @@ function runSessionScan() {
   );
 }
 
+function runHook(payload) {
+  return spawnSync(
+    process.execPath,
+    [path.join(root, "bin", "codex-watch.js"), "hook"],
+    {
+      cwd: root,
+      input: `${JSON.stringify(payload)}\n`,
+      env: {
+        ...process.env,
+        CODEX_HOME: codexHome,
+        WATCH_BRIDGE_DATA_DIR: dataDir,
+        WATCH_BRIDGE_PROVIDER: "pushcut",
+        PUSHCUT_WEBHOOK_URL: "",
+        WATCH_BRIDGE_TOKEN: "test-token",
+        WATCHDEX_SESSION_WATCH_DEBOUNCE_MS: "0",
+        PHONEDEX_MACHINE_NAME: "Session Fixture",
+        PHONEDEX_DEVICE_ID: "session-fixture"
+      },
+      encoding: "utf8"
+    }
+  );
+}
+
 function writeJsonl(filePath, records) {
   fs.writeFileSync(filePath, `${records.map((record) => JSON.stringify(record)).join("\n")}\n`);
 }
@@ -167,4 +231,14 @@ function assertTask(tasks, text, sessionId) {
   if (task.sessionId !== sessionId) {
     throw new Error(`Expected session ${sessionId} for ${text}, got ${task.sessionId}`);
   }
+}
+
+function assertCaptureSources(storeTasks, text, expectedSources) {
+  const task = storeTasks.find((candidate) => candidate.text === text);
+  assert.ok(task, `Missing store task text: ${text}`);
+  assert.deepEqual(
+    task.captureSources.map((capture) => capture.source),
+    expectedSources
+  );
+  assert.match(task.logicalEventId, /^completion_[0-9a-f]{32}$/);
 }
