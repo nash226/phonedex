@@ -6,14 +6,18 @@ struct PhoneDexBridgeClient {
     var session: URLSession = .shared
 
     func fetchTasks() async throws -> [PhoneDexTask] {
-        var request = URLRequest(url: bridgeURL.appending(path: "tasks"))
-        if !token.isEmpty {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
-        }
+        let request = authorizedRequest(url: bridgeURL.appending(path: "tasks"))
 
         let (data, response) = try await session.data(for: request)
         try validate(response: response, data: data)
         return try JSONDecoder().decode([PhoneDexTask].self, from: data)
+    }
+
+    func fetchDevices() async throws -> [PhoneDexDevice] {
+        let request = authorizedRequest(url: bridgeURL.appending(path: "devices"))
+        let (data, response) = try await session.data(for: request)
+        try validate(response: response, data: data)
+        return try JSONDecoder().decode([PhoneDexDevice].self, from: data)
     }
 
     func sendReply(
@@ -26,6 +30,9 @@ struct PhoneDexBridgeClient {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "content-type")
+        if !token.isEmpty {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
+        }
         request.httpBody = try JSONSerialization.data(withJSONObject: [
             "token": token,
             "taskId": taskId,
@@ -37,6 +44,15 @@ struct PhoneDexBridgeClient {
 
         let (data, response) = try await session.data(for: request)
         try validate(response: response, data: data)
+    }
+
+    private func authorizedRequest(url: URL) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 15
+        if !token.isEmpty {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
+        }
+        return request
     }
 
     private func validate(response: URLResponse, data: Data) throws {
@@ -62,8 +78,8 @@ enum PhoneDexBridgeClientError: LocalizedError {
             return "Bridge URL is invalid."
         case .invalidResponse:
             return "Bridge returned an invalid response."
-        case .httpStatus(let status, let body):
-            return "Bridge returned HTTP \(status): \(body)"
+        case .httpStatus(let status, _):
+            return "Bridge returned HTTP \(status)."
         }
     }
 }
