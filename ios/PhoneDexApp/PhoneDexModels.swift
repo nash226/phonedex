@@ -213,11 +213,34 @@ struct PhoneDexDevice: Codable, Identifiable, Equatable {
     let version: String?
     let publicUrl: String?
     let expected: Bool?
+    let capabilities: [String]
     let componentHealth: PhoneDexDeviceHealthSummary?
+    let capabilityDetails: [PhoneDexCapability]
 
     private enum CodingKeys: String, CodingKey {
-        case deviceId, machineName, platform, role, status, lastSeenAt, version, publicUrl, expected
+        case deviceId, machineName, platform, role, status, lastSeenAt, version, agentVersion, publicUrl, expected, capabilities
         case componentHealth = "health"
+        case capabilityDetails
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        deviceId = try container.decode(String.self, forKey: .deviceId)
+        machineName = try container.decodeIfPresent(String.self, forKey: .machineName)
+        platform = try container.decodeIfPresent(String.self, forKey: .platform)
+        role = try container.decodeIfPresent(String.self, forKey: .role)
+        status = try container.decodeIfPresent(String.self, forKey: .status)
+        lastSeenAt = try container.decodeIfPresent(String.self, forKey: .lastSeenAt)
+        version = try container.decodeIfPresent(String.self, forKey: .version) ??
+            container.decodeIfPresent(String.self, forKey: .agentVersion)
+        publicUrl = try container.decodeIfPresent(String.self, forKey: .publicUrl)
+        expected = try container.decodeIfPresent(Bool.self, forKey: .expected)
+        capabilities = try container.decodeIfPresent([String].self, forKey: .capabilities) ?? []
+        componentHealth = try container.decodeIfPresent(PhoneDexDeviceHealthSummary.self, forKey: .componentHealth)
+        let details = try container.decodeIfPresent([PhoneDexCapability].self, forKey: .capabilityDetails) ?? []
+        capabilityDetails = details.isEmpty
+            ? capabilities.compactMap(PhoneDexCapability.init(legacyFlag:))
+            : details
     }
 
     init(
@@ -230,7 +253,9 @@ struct PhoneDexDevice: Codable, Identifiable, Equatable {
         version: String?,
         publicUrl: String?,
         expected: Bool?,
-        componentHealth: PhoneDexDeviceHealthSummary? = nil
+        capabilities: [String] = [],
+        componentHealth: PhoneDexDeviceHealthSummary? = nil,
+        capabilityDetails: [PhoneDexCapability] = []
     ) {
         self.deviceId = deviceId
         self.machineName = machineName
@@ -241,7 +266,25 @@ struct PhoneDexDevice: Codable, Identifiable, Equatable {
         self.version = version
         self.publicUrl = publicUrl
         self.expected = expected
+        self.capabilities = capabilities
         self.componentHealth = componentHealth
+        self.capabilityDetails = capabilityDetails
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(deviceId, forKey: .deviceId)
+        try container.encodeIfPresent(machineName, forKey: .machineName)
+        try container.encodeIfPresent(platform, forKey: .platform)
+        try container.encodeIfPresent(role, forKey: .role)
+        try container.encodeIfPresent(status, forKey: .status)
+        try container.encodeIfPresent(lastSeenAt, forKey: .lastSeenAt)
+        try container.encodeIfPresent(version, forKey: .version)
+        try container.encodeIfPresent(publicUrl, forKey: .publicUrl)
+        try container.encodeIfPresent(expected, forKey: .expected)
+        try container.encode(capabilities, forKey: .capabilities)
+        try container.encodeIfPresent(componentHealth, forKey: .componentHealth)
+        try container.encode(capabilityDetails, forKey: .capabilityDetails)
     }
 
     var id: String { deviceId }
@@ -260,11 +303,72 @@ struct PhoneDexDeviceHealthSummary: Codable, Equatable {
     let adapter: String?
 }
 
+struct PhoneDexCapability: Codable, Identifiable, Equatable {
+    let capabilityId: String
+    let version: String
+    let scope: String
+    let supported: Bool
+
+    private enum CodingKeys: String, CodingKey {
+        case capabilityId = "id"
+        case version, scope, supported
+    }
+
+    init(capabilityId: String, version: String, scope: String, supported: Bool) {
+        self.capabilityId = capabilityId
+        self.version = version
+        self.scope = scope
+        self.supported = supported
+    }
+
+    init?(legacyFlag: String) {
+        let parts = legacyFlag.split(separator: ".")
+        guard parts.count >= 2, let version = parts.last, version.first == "v" else { return nil }
+        let capabilityId = parts.dropLast().joined(separator: ".")
+        guard !capabilityId.isEmpty else { return nil }
+        self.init(
+            capabilityId: capabilityId,
+            version: String(version.dropFirst()),
+            scope: capabilityId == "task.reply" ? "task" : "device",
+            supported: true
+        )
+    }
+
+    var identity: String { "\(capabilityId).v\(version)" }
+    var displayName: String {
+        capabilityId.split(separator: ".")
+            .map { $0.replacingOccurrences(of: "_", with: " ").capitalized }
+            .joined(separator: " ")
+    }
+    var scopeTitle: String { scope.capitalized }
+
+    var isActionable: Bool { !supported }
+    var symbol: String { supported ? "checkmark.circle.fill" : "minus.circle" }
+
+    var id: String { identity }
+}
+
+struct PhoneDexProtocolNegotiation: Decodable, Equatable {
+    let negotiatedVersion: Int
+    let supportedVersions: [Int]
+    let capabilities: [PhoneDexCapability]
+
+    var isCurrent: Bool {
+        negotiatedVersion == 1 && supportedVersions.contains(1)
+    }
+}
+
 struct PhoneDexSyncPage: Decodable {
+    let protocolNegotiation: PhoneDexProtocolNegotiation?
     let snapshot: PhoneDexSyncSnapshot?
     let changes: [PhoneDexSyncChange]
     let cursor: String
     let hasMore: Bool
+
+    private enum CodingKeys: String, CodingKey {
+        case protocolNegotiation = "protocol"
+        case snapshot, changes, cursor, hasMore
+    }
 }
 
 struct PhoneDexSyncSnapshot: Decodable {

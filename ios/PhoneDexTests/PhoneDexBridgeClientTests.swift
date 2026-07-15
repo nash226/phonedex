@@ -94,6 +94,11 @@ final class PhoneDexBridgeClientTests: XCTestCase {
         URLProtocolStub.handler = { request in
             requestCount += 1
             XCTAssertEqual(request.value(forHTTPHeaderField: "authorization"), "Bearer secret")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "x-phonedex-protocol-version"), "1")
+            XCTAssertEqual(
+                request.value(forHTTPHeaderField: "x-phonedex-capabilities"),
+                "sync.snapshot.v1,device.health.v1"
+            )
             if requestCount == 1 {
                 XCTAssertEqual(request.url?.absoluteString, "http://bridge.test/sync?limit=1")
                 return (
@@ -256,6 +261,69 @@ final class PhoneDexBridgeClientTests: XCTestCase {
         ])
         XCTAssertEqual(result.tasks?.map(\.id), ["fresh"])
         XCTAssertTrue(result.restartedFromSnapshot)
+    }
+
+    func testProtocolIncompatibilityIsReportedWithoutLegacyFallback() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [URLProtocolStub.self]
+        let session = URLSession(configuration: configuration)
+
+        URLProtocolStub.handler = { request in
+            (
+                HTTPURLResponse(
+                    url: try XCTUnwrap(request.url),
+                    statusCode: 426,
+                    httpVersion: nil,
+                    headerFields: nil
+                )!,
+                Data("{\"code\":\"protocol_incompatible\",\"error\":\"Update the hub.\"}".utf8)
+            )
+        }
+
+        let client = PhoneDexBridgeClient(
+            bridgeURL: URL(string: "http://bridge.test")!,
+            token: "secret",
+            session: session
+        )
+
+        do {
+            _ = try await client.fetchSyncPage()
+            XCTFail("Expected protocol incompatibility")
+        } catch {
+            XCTAssertTrue(error.isProtocolIncompatible)
+            XCTAssertEqual(error.localizedDescription, "Update the hub.")
+            XCTAssertFalse(error.isCompatibilityFailure)
+        }
+    }
+
+    func testUnsupportedCapabilityIsReportedAsCompatibilityError() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [URLProtocolStub.self]
+        let session = URLSession(configuration: configuration)
+
+        URLProtocolStub.handler = { request in
+            (
+                HTTPURLResponse(
+                    url: try XCTUnwrap(request.url),
+                    statusCode: 426,
+                    httpVersion: nil,
+                    headerFields: nil
+                )!,
+                Data("{\"code\":\"capability_unsupported\",\"error\":\"Update the hub.\"}".utf8)
+            )
+        }
+
+        do {
+            _ = try await PhoneDexBridgeClient(
+                bridgeURL: URL(string: "http://bridge.test")!,
+                token: "secret",
+                session: session
+            ).fetchSyncPage()
+            XCTFail("Expected unsupported capability")
+        } catch {
+            XCTAssertTrue(error.isProtocolIncompatible)
+            XCTAssertEqual(error.localizedDescription, "Update the hub.")
+        }
     }
 
     func testResilientSyncFallsBackWithoutHidingPartialData() async throws {

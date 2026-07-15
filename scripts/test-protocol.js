@@ -2,10 +2,15 @@
 
 const assert = require("node:assert/strict");
 const {
+  CAPABILITY_IDS,
   SCHEMAS,
+  SUPPORTED_PROTOCOL_VERSIONS,
   addDeviceProtocolFields,
   addTaskProtocolFields,
   assertProtocolRecord,
+  defaultCapabilities,
+  negotiateCapabilities,
+  negotiateProtocolVersion,
   protocolRecord,
   validateProtocolRecord
 } = require("../lib/phonedex-protocol");
@@ -63,6 +68,11 @@ assert.deepEqual(device.health, {
   adapter: "unknown"
 });
 
+assert.deepEqual(
+  device.capabilityDetails.map((capability) => `${capability.id}.v${capability.version}`),
+  ["task.reply.v1", "task.cancel.v1"]
+);
+
 const separatedHealthDevice = addDeviceProtocolFields({
   deviceId: "windows-desktop",
   machineName: "Windows Desktop",
@@ -99,6 +109,38 @@ const localDevice = addDeviceProtocolFields({
 });
 assert.equal(localDevice.platform, "macos");
 assert.deepEqual(localDevice.capabilities, ["task.reply.v1"]);
+
+const negotiated = addDeviceProtocolFields({
+  deviceId: "negotiated-device",
+  machineName: "Negotiated Device",
+  platform: "windows",
+  capabilityDetails: [
+    { id: CAPABILITY_IDS.taskReply, version: "1", scope: "task", supported: true },
+    { id: CAPABILITY_IDS.taskReply, version: "1", scope: "task", supported: true },
+    { id: "future.control", version: "2", scope: "task", supported: false }
+  ],
+  lastSeenAt: now
+});
+assert.equal(validateProtocolRecord("device", negotiated).valid, true);
+assert.deepEqual(negotiated.capabilityDetails, [
+  { schema: SCHEMAS.capability, protocolVersion: 1, id: "task.reply", version: "1", scope: "task", supported: true },
+  { schema: SCHEMAS.capability, protocolVersion: 1, id: "future.control", version: "2", scope: "task", supported: false }
+]);
+assert.equal(defaultCapabilities("hub").some((capability) => capability.id === "sync.snapshot"), true);
+assert.equal(negotiateProtocolVersion(1), 1);
+assert.deepEqual(SUPPORTED_PROTOCOL_VERSIONS, [1]);
+assert.deepEqual(
+  negotiateCapabilities("sync.snapshot.v1,device.health.v1").map((capability) => capability.id),
+  ["sync.snapshot", "device.health"]
+);
+assert.throws(
+  () => negotiateProtocolVersion(99),
+  (error) => error.code === "protocol_incompatible" && error.statusCode === 426
+);
+assert.throws(
+  () => negotiateCapabilities("task.cancel.v1"),
+  (error) => error.code === "capability_unsupported" && error.statusCode === 426
+);
 
 const fixtures = {
   event: protocolRecord("event", {

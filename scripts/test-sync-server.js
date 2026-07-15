@@ -75,6 +75,27 @@ async function main() {
     const unauthenticated = await request(`${hubUrl}/sync`);
     assert.equal(unauthenticated.response.status, 401);
 
+    const incompatible = await request(`${hubUrl}/sync`, {
+      headers: {
+        authorization: "Bearer hub-token",
+        "x-phonedex-protocol-version": "99"
+      }
+    });
+    assert.equal(incompatible.response.status, 426);
+    assert.equal(incompatible.json.code, "protocol_incompatible");
+    assert.deepEqual(incompatible.json.supportedProtocolVersions, [1]);
+
+    const unsupportedCapability = await request(`${hubUrl}/sync`, {
+      headers: {
+        authorization: "Bearer hub-token",
+        "x-phonedex-protocol-version": "1",
+        "x-phonedex-capabilities": "task.cancel.v1"
+      }
+    });
+    assert.equal(unsupportedCapability.response.status, 426);
+    assert.equal(unsupportedCapability.json.code, "capability_unsupported");
+    assert.deepEqual(unsupportedCapability.json.unsupportedCapabilities, ["task.cancel.v1"]);
+
     const taskIds = [];
     for (const id of ["remote_task_1", "remote_task_2"]) {
       const ingested = await request(`${hubUrl}/tasks`, {
@@ -123,6 +144,8 @@ async function main() {
       assert.equal(page.response.status, 200);
       assert.equal(page.json.schema, "phonedex.sync.v1");
       assert.equal(page.json.protocolVersion, 1);
+      assert.equal(page.json.protocol.negotiatedVersion, 1);
+      assert.equal(page.json.protocol.capabilities.some((capability) => capability.id === "sync.snapshot"), true);
       assert.equal(page.json.changes.length, 0);
       tasks = tasks.concat(page.json.snapshot.tasks);
       devices = devices.concat(page.json.snapshot.devices);
@@ -141,6 +164,7 @@ async function main() {
       agent: "healthy",
       adapter: "unknown"
     });
+    assert.equal(devices[0].capabilityDetails.some((capability) => capability.id === "task.reply"), false);
 
     const ingested = await request(`${hubUrl}/tasks`, {
       method: "POST",

@@ -10,6 +10,9 @@ const { createPhoneDexStore } = require("../lib/phonedex-store");
 const {
   addDeviceProtocolFields,
   addTaskProtocolFields,
+  defaultCapabilities,
+  negotiateCapabilities,
+  negotiateProtocolVersion,
   normalizeCaptureSources
 } = require("../lib/phonedex-protocol");
 const {
@@ -614,7 +617,10 @@ async function startServer(providedCfg) {
           publicUrl: cfg.publicUrl,
           replyUrl: cfg.replyUrl,
           role: cfg.agentMode ? "agent" : "hub",
-          hubUrl: cfg.hubUrl || ""
+          hubUrl: cfg.hubUrl || "",
+          protocolVersion: 1,
+          supportedProtocolVersions: [1],
+          capabilities: defaultCapabilities(cfg.agentMode ? "agent" : "hub")
         });
       }
 
@@ -654,6 +660,24 @@ async function startServer(providedCfg) {
         }
         if (!isRequestTokenValid(req, requestUrl, cfg)) {
           return sendJson(res, 401, { ok: false, error: "Invalid token" });
+        }
+
+        try {
+          negotiateProtocolVersion(req.headers["x-phonedex-protocol-version"]);
+          negotiateCapabilities(req.headers["x-phonedex-capabilities"]);
+        } catch (error) {
+          if (error.code === "protocol_incompatible" || error.code === "capability_unsupported") {
+            return sendJson(res, error.statusCode || 426, {
+              ok: false,
+              code: error.code,
+              error: error.message,
+              supportedProtocolVersions: error.supportedVersions || [1],
+              ...(error.unsupportedCapabilities
+                ? { unsupportedCapabilities: error.unsupportedCapabilities }
+                : {})
+            });
+          }
+          throw error;
         }
 
         try {
@@ -748,6 +772,11 @@ function publicSyncPage(page) {
   return {
     schema: SYNC_SCHEMA,
     protocolVersion: 1,
+    protocol: {
+      negotiatedVersion: 1,
+      supportedVersions: [1],
+      capabilities: defaultCapabilities("hub")
+    },
     revision: page.revision,
     position: page.position,
     snapshot: page.snapshot
@@ -2456,6 +2485,7 @@ function publicDevice(device) {
     agentVersion: device.agentVersion || device.version,
     adapterVersion: device.adapterVersion,
     capabilities: Array.isArray(device.capabilities) ? device.capabilities : [],
+    capabilityDetails: Array.isArray(device.capabilityDetails) ? device.capabilityDetails : [],
     health: device.health
   };
   return Object.fromEntries(
@@ -2494,6 +2524,8 @@ function buildLocalDeviceHeartbeat(cfg) {
       // The current bridge has no supported adapter health signal yet.
       adapter: "unknown"
     },
+    capabilities: defaultCapabilities("agent").map((capability) => `${capability.id}.v${capability.version}`),
+    capabilityDetails: defaultCapabilities("agent"),
     lastSeenAt: new Date().toISOString()
   });
 }
@@ -2572,6 +2604,8 @@ function normalizeDeviceHeartbeat(fields, req) {
       agent: fields.agentHealth || fields.agent_health,
       adapter: fields.adapterHealth || fields.adapter_health
     },
+    capabilities: fields.capabilities,
+    capabilityDetails: fields.capabilityDetails || fields.capability_details,
     lastSeenAt: fields.lastSeenAt || fields.at || now,
     receivedAt: now,
     receivedFrom: req?.socket?.remoteAddress || ""

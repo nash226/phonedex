@@ -140,6 +140,11 @@ final class PhoneDexAppModel: ObservableObject {
         } catch let error {
             if error.isRevoked {
                 connectionState = .revoked
+            } else if error.isProtocolIncompatible {
+                connectionState = .incompatible(
+                    message: error.localizedDescription,
+                    lastSync: lastSuccessfulSync
+                )
             } else if error.isOffline {
                 if let lastSuccessfulSync,
                    Date().timeIntervalSince(lastSuccessfulSync) >= Self.staleAfter {

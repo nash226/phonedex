@@ -20,6 +20,34 @@ clients. Unknown fields are ignored by validation so newer hubs can add
 optional data without breaking older clients; an unknown schema or protocol
 version is rejected rather than guessed.
 
+### Capability and protocol negotiation
+
+The native client sends `X-PhoneDex-Protocol-Version: 1` and declares the
+capabilities it needs with `X-PhoneDex-Capabilities`. The hub includes the
+negotiated version and its supported capabilities in every `/sync` response:
+
+```json
+{
+  "protocol": {
+    "negotiatedVersion": 1,
+    "supportedVersions": [1],
+    "capabilities": [
+      { "schema": "phonedex.capability.v1", "protocolVersion": 1,
+        "id": "sync.snapshot", "version": "1", "scope": "device", "supported": true }
+    ]
+  }
+}
+```
+
+An unsupported requested protocol version, or a required capability the hub
+does not advertise, fails closed with HTTP `426` and either
+`code: "protocol_incompatible"` or `code: "capability_unsupported"`; the
+response lists supported protocol versions or bounded missing capabilities
+without echoing credentials or task content. Device heartbeats retain
+legacy string flags in `capabilities` and add validated `capabilityDetails`
+records so older agents remain readable while iPhone can render only actions
+the agent has declared.
+
 ### Completion capture convergence
 
 Task records may include `messageId`, `logicalEventId`, and `captureSources`.
