@@ -90,6 +90,9 @@ The repository already proves the core loop, but not the final product.
 - The hub stores recent tasks, replies, events, and device state in local files.
 - Authenticated HTTP endpoints expose recent tasks and devices and accept task
   ingestion and replies.
+- The migration boundary keeps current `/tasks` and `/reply` clients working
+  through an explicit compatibility adapter while translating new writes into
+  versioned records and command receipts.
 - Replies can route to an origin machine. On Mac they can optionally resume a
   CLI or app-server session or paste into the foreground Codex app.
 - Agent enrollment, install reporting, and device coverage checks exist.

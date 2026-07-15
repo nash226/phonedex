@@ -82,28 +82,35 @@ async function main() {
       method: "POST",
       headers: {
         authorization: "Bearer hub-token",
-        "content-type": "application/json"
+        "content-type": "application/x-www-form-urlencoded"
       },
-      body: JSON.stringify({
-        id: "origin-task",
+      body: new URLSearchParams({
+        task_id: "origin-task",
         title: "Needs a reply",
         text: "Please choose the next step.",
-        machineName: "Windows Workstation",
-        deviceId: "windows-workstation",
-        replyUrl: `${originUrl}/reply`,
-        replyToken: "origin-token"
+        machine: "Windows Workstation",
+        machineId: "windows-workstation",
+        reply_url: `${originUrl}/reply`,
+        reply_token: "origin-token"
       })
     });
     assert.equal(task.response.status, 201);
     const taskId = task.json.task.id;
 
+    const legacyTasks = await request(`${hubUrl}/tasks`, {
+      headers: { authorization: "Bearer hub-token" }
+    });
+    assert.equal(legacyTasks.response.status, 200);
+    assert.equal(legacyTasks.json.length, 1);
+    assert.equal(JSON.stringify(legacyTasks.json).includes("origin-token"), false);
+
     const stale = await request(`${hubUrl}/reply`, {
       method: "POST",
       headers: { authorization: "Bearer hub-token", "content-type": "application/json" },
       body: JSON.stringify({
-        taskId,
-        expectedTaskVersion: 2,
-        idempotencyKey: "stale-reply",
+        task_id: taskId,
+        expected_task_version: 2,
+        idempotency_key: "stale-reply",
         prompt: "Do the stale thing"
       })
     });
@@ -115,11 +122,11 @@ async function main() {
       method: "POST",
       headers: { authorization: "Bearer hub-token", "content-type": "application/json" },
       body: JSON.stringify({
-        taskId,
-        expectedTaskVersion: 1,
-        idempotencyKey: "reply-1",
-        commandId: "command-1",
-        prompt: "Continue safely"
+        task_id: taskId,
+        expected_task_version: 1,
+        idempotency_key: "reply-1",
+        command_id: "command-1",
+        reply_text: "Continue safely"
       })
     });
     assert.equal(first.response.status, 200);
