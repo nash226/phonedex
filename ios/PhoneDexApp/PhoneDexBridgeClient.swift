@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 struct PhoneDexSyncResult {
     let tasks: [PhoneDexTask]?
@@ -137,6 +138,25 @@ struct PhoneDexBridgeClient {
         let (data, response) = try await session.data(for: request)
         try validate(response: response, data: data)
         return try JSONDecoder().decode([PhoneDexDevice].self, from: data)
+    }
+
+    func downloadArtifact(_ artifact: PhoneDexArtifact) async throws -> Data {
+        guard artifact.isDownloadable, let downloadId = artifact.downloadId else {
+            throw PhoneDexBridgeClientError.artifactUnavailable
+        }
+        let request = authorizedRequest(url: bridgeURL.appending(path: "artifacts/\(downloadId)"))
+        let (data, response) = try await session.data(for: request)
+        try validate(response: response, data: data)
+        guard let expectedDigest = artifact.sha256?.lowercased() else {
+            throw PhoneDexBridgeClientError.artifactIntegrityFailed
+        }
+        let actualDigest = SHA256.hash(data: data)
+            .map { String(format: "%02x", $0) }
+            .joined()
+        guard actualDigest == expectedDigest else {
+            throw PhoneDexBridgeClientError.artifactIntegrityFailed
+        }
+        return data
     }
 
     func redeemPairing(
@@ -460,6 +480,8 @@ enum PhoneDexBridgeClientError: LocalizedError {
     case protocolIncompatible(String)
     case staleTask(String)
     case pairingFailed(String)
+    case artifactUnavailable
+    case artifactIntegrityFailed
 
     var isCompatibilityFailure: Bool {
         guard case .httpStatus(let status, _) = self else { return false }
@@ -500,6 +522,10 @@ enum PhoneDexBridgeClientError: LocalizedError {
             return message
         case .pairingFailed(let message):
             return message
+        case .artifactUnavailable:
+            return "This artifact is not available for download from the originating agent."
+        case .artifactIntegrityFailed:
+            return "The downloaded artifact failed its integrity check and was not shared."
         }
     }
 }

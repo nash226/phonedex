@@ -1,4 +1,5 @@
 import XCTest
+import CryptoKit
 @testable import PhoneDex
 
 final class PhoneDexBridgeClientTests: XCTestCase {
@@ -549,6 +550,88 @@ final class PhoneDexBridgeClientTests: XCTestCase {
         XCTAssertTrue(PhoneDexBridgeClientError.httpStatus(404, "").isCompatibilityFailure)
         XCTAssertFalse(PhoneDexBridgeClientError.httpStatus(500, "").isCompatibilityFailure)
         XCTAssertTrue(URLError(.notConnectedToInternet).isOffline)
+    }
+
+    func testDownloadArtifactUsesBearerAuthAndVerifiesDigest() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [URLProtocolStub.self]
+        let session = URLSession(configuration: configuration)
+        let bytes = Data("PhoneDex artifact".utf8)
+        let digest = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
+
+        URLProtocolStub.handler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "http://bridge.test/artifacts/artifact_download_1")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "authorization"), "Bearer secret")
+            return (
+                HTTPURLResponse(
+                    url: try XCTUnwrap(request.url),
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: ["content-type": "text/plain"]
+                )!,
+                bytes
+            )
+        }
+
+        let artifact = PhoneDexArtifact(
+            id: "build-log",
+            name: "Build log",
+            kind: "log",
+            sourceRef: "artifacts/build.log",
+            sizeBytes: bytes.count,
+            sha256: digest,
+            downloadId: "artifact_download_1",
+            mediaType: "text/plain"
+        )
+        let downloaded = try await PhoneDexBridgeClient(
+            bridgeURL: URL(string: "http://bridge.test")!,
+            token: "secret",
+            session: session
+        ).downloadArtifact(artifact)
+
+        XCTAssertEqual(downloaded, bytes)
+    }
+
+    func testDownloadArtifactRejectsDigestMismatchBeforeSharing() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [URLProtocolStub.self]
+        let session = URLSession(configuration: configuration)
+        URLProtocolStub.handler = { request in
+            (
+                HTTPURLResponse(
+                    url: try XCTUnwrap(request.url),
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: ["content-type": "text/plain"]
+                )!,
+                Data("tampered".utf8)
+            )
+        }
+
+        let artifact = PhoneDexArtifact(
+            id: "build-log",
+            name: "Build log",
+            kind: "log",
+            sourceRef: "artifacts/build.log",
+            sizeBytes: 5,
+            sha256: String(repeating: "0", count: 64),
+            downloadId: "artifact_download_1",
+            mediaType: "text/plain"
+        )
+        do {
+            _ = try await PhoneDexBridgeClient(
+                bridgeURL: URL(string: "http://bridge.test")!,
+                token: "secret",
+                session: session
+            ).downloadArtifact(artifact)
+            XCTFail("Expected digest mismatch")
+        } catch let error as PhoneDexBridgeClientError {
+            if case .artifactIntegrityFailed = error {
+                // Expected: never offer bytes that fail the declared digest.
+            } else {
+                XCTFail("Unexpected artifact error: \(error)")
+            }
+        }
     }
 }
 
