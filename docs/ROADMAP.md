@@ -80,7 +80,7 @@ device, and command control plane while retaining migration from current data.
 - [x] Define versioned schemas for tasks, events, devices, workspaces,
   capabilities, commands, and command receipts.
 - [x] Introduce a transactional embedded store with migrations and backup.
-- [ ] Add snapshot-plus-cursor sync with pagination, tombstones, and stable
+- [x] Add snapshot-plus-cursor sync with pagination, tombstones, and stable
   ordering.
 - [ ] Converge hook and session-watcher captures into one logical task event.
 - [ ] Separate device reachability, agent health, and Codex adapter health.
@@ -107,6 +107,16 @@ recoverable lock, upgrades older store versions, and imports legacy
 `scripts/test-store.js` covers migration, backup contents, corruption recovery,
 and version upgrades; the bridge uses the store for task deduplication and
 device heartbeat upserts while preserving the legacy file mirror.
+
+Verification evidence for the completed sync slice: `lib/phonedex-sync.js` and
+`lib/phonedex-store.js` define bounded opaque cursors, deterministic snapshot
+pages, revision-checked continuation, ordered replacement changes, and
+tombstones. The authenticated `/sync` endpoint in `bin/codex-watch.js` filters
+credentials and private local paths from responses while retaining `/tasks` and
+`/devices` compatibility. `scripts/test-sync.js` covers pagination, stream
+changes, tombstones, invalid cursors, and snapshot mutation detection. The iOS
+client consumes the paginated contract in `PhoneDexBridgeClient` and its unit
+tests cover bearer-authenticated pagination and decoding.
 
 ## M2: Secure Identity and Pairing
 
