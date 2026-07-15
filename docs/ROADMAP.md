@@ -47,7 +47,7 @@ tests, and a trustworthy small-PR path.
 - [x] Add GitHub Actions for Node checks and all bridge test scripts.
 - [x] Add a reproducible unsigned iOS simulator build job.
 - [x] Add an iOS unit-test target and one smoke test for app launch/model decode.
-- [ ] Add PR templates for validation evidence and human decisions.
+- [x] Add PR templates for validation evidence and human decisions.
 - [ ] Document supported development versions for Node, Xcode, iOS, macOS, and
   Windows.
 
@@ -69,6 +69,13 @@ Verification evidence for the completed iOS simulator build slice:
 pinned `macos-15` runner with a generic iOS Simulator destination and code
 signing disabled, so pull requests and `main` pushes validate the app without
 Apple credentials or a named simulator device.
+
+Verification evidence for the completed PR-template slice:
+`.github/pull_request_template.md` requires each change to name exactly one
+roadmap slice, record Node/iOS/manual validation evidence, review reliability,
+accessibility, appearance, security, privacy, and cross-platform effects, and
+either confirm that no human decision is needed or link a
+`needs-human-decision` issue with the decision record and unblocking condition.
 
 ## M1: Versioned Hub and Durable State
 
