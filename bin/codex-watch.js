@@ -13,7 +13,8 @@ const {
   defaultCapabilities,
   negotiateCapabilities,
   negotiateProtocolVersion,
-  normalizeCaptureSources
+  normalizeCaptureSources,
+  protocolRecord
 } = require("../lib/phonedex-protocol");
 const {
   SYNC_SCHEMA,
@@ -1468,6 +1469,30 @@ async function handleReplyRequest(req, res, requestUrl, cfg) {
   }
 
   const taskId = task.id;
+  const taskVersion = Number.isInteger(task.version) && task.version >= 1 ? task.version : 1;
+  const expectedTaskVersion = parseExpectedTaskVersion(
+    fields.expectedTaskVersion || fields.expected_task_version
+  );
+  if (expectedTaskVersion.error) {
+    return sendJson(res, 400, { ok: false, code: "invalid_task_version", error: expectedTaskVersion.error });
+  }
+  if (expectedTaskVersion.value && expectedTaskVersion.value !== taskVersion) {
+    return sendJson(res, 409, {
+      ok: false,
+      code: "task_stale",
+      error: "The task changed before this reply arrived. Refresh PhoneDex and review the latest context.",
+      currentTaskVersion: taskVersion,
+      task: publicTask(task)
+    });
+  }
+
+  const idempotencyKeyValue = fields.idempotencyKey || fields.idempotency_key || "";
+  if (idempotencyKeyValue && String(idempotencyKeyValue).length > 240) {
+    return sendJson(res, 400, { ok: false, code: "invalid_idempotency_key", error: "The idempotency key is too long." });
+  }
+  const idempotencyKey = String(idempotencyKeyValue || makeId("reply-key"));
+  const commandId = String(fields.commandId || fields.command_id || makeId("reply-command")).slice(0, 160);
+  const actor = String(fields.actor || fields.requestedBy || "iphone").slice(0, 160);
   const choice = normalizeChoice(fields.choice || "okay_whats_next");
   const prompt =
     fields.prompt ||
@@ -1475,9 +1500,45 @@ async function handleReplyRequest(req, res, requestUrl, cfg) {
     fields.replyText ||
     RESPONSE_CHOICES[choice] ||
     choice;
+  const existing = findReplyByIdempotencyKey(cfg.dataDir, idempotencyKey);
+  if (existing) {
+    if (existing.taskId !== taskId) {
+      return sendJson(res, 409, {
+        ok: false,
+        code: "idempotency_conflict",
+        error: "The idempotency key is already bound to another task."
+      });
+    }
+    const delivery = existing.deliveryState === "completed"
+      ? { state: "completed", message: "Reply was already accepted by the originating agent.", originForward: { attempted: false, ok: true } }
+      : await deliverReply(cfg, task, existing);
+    const receipt = appendReplyReceipt(cfg, existing, delivery.state === "completed" ? "duplicate" : "failed", delivery.message, delivery.state === "completed" ? existing.id : undefined);
+    if (delivery.state === "completed" && existing.deliveryState !== "completed") {
+      appendJsonl(cfg.dataDir, "events.jsonl", {
+        at: new Date().toISOString(),
+        type: "reply-delivery-retried",
+        commandId: existing.commandId,
+        idempotencyKey,
+        taskId: existing.taskId,
+        deliveryState: delivery.state
+      });
+    }
+    return sendJson(res, 200, {
+      ok: true,
+      duplicate: true,
+      duplicateOf: existing.id,
+      recorded: { ...existing, deliveryState: delivery.state },
+      receipt
+    });
+  }
+
   const reply = {
     id: makeId("reply"),
     at: new Date().toISOString(),
+    commandId,
+    idempotencyKey,
+    expectedTaskVersion: expectedTaskVersion.value || taskVersion,
+    taskVersion,
     taskId,
     choice,
     prompt,
@@ -1490,42 +1551,101 @@ async function handleReplyRequest(req, res, requestUrl, cfg) {
     userAgent: req.headers["user-agent"] || ""
   };
 
-  const duplicate = findRecentDuplicateReply(cfg.dataDir, reply);
-  if (duplicate) {
-    appendJsonl(cfg.dataDir, "events.jsonl", {
-      at: new Date().toISOString(),
-      type: "duplicate-reply-ignored",
-      duplicateOf: duplicate.id,
-      taskId: reply.taskId,
-      choice: reply.choice,
-      action: reply.action,
-      prompt: reply.prompt.slice(0, 200)
-    });
-
-    return sendJson(res, 200, {
-      ok: true,
-      duplicate: true,
-      duplicateOf: duplicate.id,
-      recorded: duplicate,
-      autoResumeQueued: false
-    });
-  }
-
+  appendJsonl(cfg.dataDir, "commands.jsonl", createReplyCommand(reply, actor, "sent"));
   appendJsonl(cfg.dataDir, "replies.jsonl", reply);
 
-  const originForward = await maybeForwardReplyToOrigin(cfg, task, reply);
+  const delivery = await deliverReply(cfg, task, reply);
+  reply.deliveryState = delivery.state;
+  reply.deliveryMessage = delivery.message;
+  appendJsonl(cfg.dataDir, "commands.jsonl", createReplyCommand(reply, actor, delivery.state === "completed" ? "acknowledged" : "failed"));
+  const receipt = appendReplyReceipt(cfg, reply, delivery.state, delivery.message);
 
-  if (cfg.autoResume && !originForward.attempted) {
+  if (cfg.autoResume && !delivery.originForward.attempted) {
     attemptAutoResume(cfg, task, reply);
   }
 
   sendJson(res, 200, {
     ok: true,
     recorded: reply,
-    forwardedToOrigin: originForward.ok,
-    originForwardAttempted: originForward.attempted,
-    autoResumeQueued: Boolean(cfg.autoResume && !originForward.attempted && task?.sessionId)
+    receipt,
+    forwardedToOrigin: delivery.originForward.ok,
+    originForwardAttempted: delivery.originForward.attempted,
+    autoResumeQueued: Boolean(cfg.autoResume && !delivery.originForward.attempted && task?.sessionId)
   });
+}
+
+function parseExpectedTaskVersion(value) {
+  if (value === undefined || value === null || value === "") return { value: undefined };
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    return { error: "expectedTaskVersion must be a positive integer." };
+  }
+  return { value: parsed };
+}
+
+function findReplyByIdempotencyKey(dataDir, idempotencyKey) {
+  const reply = readJsonl(dataDir, "replies.jsonl")
+    .slice()
+    .reverse()
+    .find((candidate) => candidate?.idempotencyKey === idempotencyKey);
+  if (!reply) return undefined;
+
+  const latestReceipt = readJsonl(dataDir, "command-receipts.jsonl")
+    .slice()
+    .reverse()
+    .find((candidate) => candidate?.idempotencyKey === idempotencyKey);
+  if (latestReceipt?.state === "completed" || latestReceipt?.state === "duplicate") {
+    return { ...reply, deliveryState: "completed" };
+  }
+  return reply;
+}
+
+function createReplyCommand(reply, actor, state) {
+  return protocolRecord("command", {
+    commandId: reply.commandId,
+    createdAt: reply.at,
+    kind: "reply",
+    target: { taskId: reply.taskId },
+    idempotencyKey: reply.idempotencyKey,
+    state,
+    payload: {
+      choice: reply.choice,
+      prompt: reply.prompt,
+      replyText: reply.replyText || ""
+    },
+    requestedBy: actor,
+    actor,
+    expectedTaskVersion: reply.expectedTaskVersion,
+    expiresAt: new Date(Date.parse(reply.at) + 24 * 60 * 60 * 1000).toISOString(),
+    requestedCapability: "task.reply.v1"
+  });
+}
+
+function appendReplyReceipt(cfg, reply, state, message, duplicateOf) {
+  const receipt = protocolRecord("commandReceipt", {
+    commandId: reply.commandId,
+    createdAt: new Date().toISOString(),
+    state,
+    taskId: reply.taskId,
+    taskVersion: reply.taskVersion,
+    idempotencyKey: reply.idempotencyKey,
+    ...(message ? { message } : {}),
+    ...(duplicateOf ? { duplicateOf } : {})
+  });
+  appendJsonl(cfg.dataDir, "command-receipts.jsonl", receipt);
+  return receipt;
+}
+
+async function deliverReply(cfg, task, reply) {
+  const originForward = await maybeForwardReplyToOrigin(cfg, task, reply);
+  if (originForward.attempted && !originForward.ok) {
+    return {
+      state: "failed",
+      message: "PhoneDex saved the reply, but the originating agent did not accept it. Retry when that device is reachable.",
+      originForward
+    };
+  }
+  return { state: "completed", message: "Reply accepted by the originating agent.", originForward };
 }
 
 async function maybeForwardReplyToOrigin(cfg, task, reply) {
@@ -1549,6 +1669,10 @@ async function maybeForwardReplyToOrigin(cfg, task, reply) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         token: task.originToken || task.replyToken || "",
+        commandId: reply.commandId,
+        idempotencyKey: reply.idempotencyKey,
+        expectedTaskVersion: reply.expectedTaskVersion,
+        actor: "phonedex-hub",
         taskId: task.originTaskId || task.id,
         choice: reply.choice,
         prompt: reply.prompt,
@@ -1572,24 +1696,6 @@ async function maybeForwardReplyToOrigin(cfg, task, reply) {
     });
     return { attempted: true, ok: false };
   }
-}
-
-function findRecentDuplicateReply(dataDir, reply) {
-  const replyAt = Date.parse(reply.at);
-  return readJsonl(dataDir, "replies.jsonl")
-    .slice(-20)
-    .find((candidate) => {
-      if (!candidate?.at || Number.isNaN(replyAt)) return false;
-      const candidateAt = Date.parse(candidate.at);
-      return (
-        !Number.isNaN(candidateAt) &&
-        Math.abs(replyAt - candidateAt) <= 3000 &&
-        candidate.taskId === reply.taskId &&
-        candidate.choice === reply.choice &&
-        candidate.action === reply.action &&
-        candidate.prompt === reply.prompt
-      );
-    });
 }
 
 async function recordReplyFromCli(args) {

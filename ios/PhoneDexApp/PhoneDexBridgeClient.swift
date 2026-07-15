@@ -18,6 +18,38 @@ struct PhoneDexSyncResult {
     }
 }
 
+struct PhoneDexReplyReceipt: Codable, Equatable {
+    let schema: String?
+    let protocolVersion: Int?
+    let commandId: String
+    let createdAt: String?
+    let state: String
+    let taskId: String?
+    let taskVersion: Int?
+    let idempotencyKey: String?
+    let message: String?
+    let duplicateOf: String?
+
+    var isSuccessful: Bool {
+        ["accepted", "completed", "duplicate"].contains(state)
+    }
+
+    static func legacy(commandId: String, idempotencyKey: String, taskId: String) -> Self {
+        Self(
+            schema: nil,
+            protocolVersion: nil,
+            commandId: commandId,
+            createdAt: nil,
+            state: "accepted",
+            taskId: taskId,
+            taskVersion: nil,
+            idempotencyKey: idempotencyKey,
+            message: "Reply accepted by the legacy bridge.",
+            duplicateOf: nil
+        )
+    }
+}
+
 struct PhoneDexBridgeClient {
     var bridgeURL: URL
     var token: String
@@ -174,8 +206,11 @@ struct PhoneDexBridgeClient {
         prompt: String,
         taskId: String,
         sessionId: String?,
-        machineName: String?
-    ) async throws {
+        machineName: String?,
+        commandId: String,
+        idempotencyKey: String,
+        expectedTaskVersion: Int
+    ) async throws -> PhoneDexReplyReceipt {
         let url = bridgeURL.appending(path: "reply")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -189,11 +224,21 @@ struct PhoneDexBridgeClient {
             "choice": choice.rawValue,
             "prompt": prompt,
             "reply_text": choice == .custom ? prompt : "",
-            "machineName": machineName ?? ""
+            "machineName": machineName ?? "",
+            "commandId": commandId,
+            "idempotencyKey": idempotencyKey,
+            "expectedTaskVersion": expectedTaskVersion,
+            "actor": "iphone",
+            "requestedCapability": "task.reply.v1"
         ])
 
         let (data, response) = try await session.data(for: request)
         try validate(response: response, data: data)
+        if let envelope = try? JSONDecoder().decode(PhoneDexReplyEnvelope.self, from: data),
+           let receipt = envelope.receipt {
+            return receipt
+        }
+        return .legacy(commandId: commandId, idempotencyKey: idempotencyKey, taskId: taskId)
     }
 
     private func authorizedRequest(url: URL) -> URLRequest {
@@ -225,6 +270,13 @@ struct PhoneDexBridgeClient {
 
         guard (200..<300).contains(httpResponse.statusCode) else {
             let body = String(data: data, encoding: .utf8) ?? ""
+            if httpResponse.statusCode == 409,
+               let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               payload["code"] as? String == "task_stale" {
+                throw PhoneDexBridgeClientError.staleTask(
+                    payload["error"] as? String ?? "The task changed before this reply arrived."
+                )
+            }
             if httpResponse.statusCode == 426,
                let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                ["protocol_incompatible", "capability_unsupported"].contains(payload["code"] as? String) {
@@ -242,6 +294,7 @@ enum PhoneDexBridgeClientError: LocalizedError {
     case invalidResponse
     case httpStatus(Int, String)
     case protocolIncompatible(String)
+    case staleTask(String)
 
     var isCompatibilityFailure: Bool {
         guard case .httpStatus(let status, _) = self else { return false }
@@ -263,6 +316,11 @@ enum PhoneDexBridgeClientError: LocalizedError {
         return status == 401 || status == 403
     }
 
+    var isStaleTask: Bool {
+        if case .staleTask = self { return true }
+        return false
+    }
+
     var errorDescription: String? {
         switch self {
         case .invalidURL:
@@ -273,8 +331,14 @@ enum PhoneDexBridgeClientError: LocalizedError {
             return "Bridge returned HTTP \(status)."
         case .protocolIncompatible(let message):
             return message
+        case .staleTask(let message):
+            return message
         }
     }
+}
+
+private struct PhoneDexReplyEnvelope: Decodable {
+    let receipt: PhoneDexReplyReceipt?
 }
 
 extension Error {
@@ -288,6 +352,10 @@ extension Error {
 
     var isProtocolIncompatible: Bool {
         (self as? PhoneDexBridgeClientError)?.isProtocolIncompatible ?? false
+    }
+
+    var isStaleTask: Bool {
+        (self as? PhoneDexBridgeClientError)?.isStaleTask ?? false
     }
 
     var isRestartableSyncCursor: Bool {
