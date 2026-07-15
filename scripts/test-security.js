@@ -63,6 +63,11 @@ async function main() {
   assert.match(redacted, /Bearer \[redacted\]/);
   assert.match(redacted, /token: \[redacted\]/);
   assert.match(redacted, /[?&]token=\[redacted\]/);
+  const urlRedacted = redactSensitiveText(
+    `https://support-user:${secret}@bridge.test/reply#token=${secret}&access_token=${secret}`
+  );
+  assert.equal(urlRedacted.includes(secret), false);
+  assert.match(urlRedacted, /https:\/\/\[redacted\]@bridge\.test/);
 
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "phonedex-security-"));
   const store = createPhoneDexStore(dataDir);
@@ -103,16 +108,24 @@ async function main() {
       WATCH_BRIDGE_DATA_DIR: dataDir,
       WATCH_BRIDGE_HOST: "127.0.0.1",
       WATCH_BRIDGE_PORT: String(port),
-      WATCH_BRIDGE_PUBLIC_URL: hubUrl,
+      WATCH_BRIDGE_PUBLIC_URL: `http://support-user:${secret}@127.0.0.1:${port}?token=${secret}`,
       WATCH_BRIDGE_TOKEN: "hub-token",
       PUSHCUT_WEBHOOK_URL: ""
     }
   });
+  let stdout = "";
   let stderr = "";
+  hub.stdout.on("data", (chunk) => { stdout += chunk.toString("utf8"); });
   hub.stderr.on("data", (chunk) => { stderr += chunk.toString("utf8"); });
 
   try {
     await waitForHealth(`${hubUrl}/health`);
+    const health = await request(`${hubUrl}/health`);
+    assert.equal(health.response.status, 200);
+    assert.equal(JSON.stringify(health.json).includes(secret), false);
+    assert.equal(health.json.publicUrl, `http://127.0.0.1:${port}`);
+    assert.equal(health.json.replyUrl, `${hubUrl}/reply`);
+    assert.equal(stdout.includes(secret), false);
     const headers = { authorization: "Bearer hub-token" };
 
     const tasks = await request(`${hubUrl}/tasks?limit=all`, { headers });
