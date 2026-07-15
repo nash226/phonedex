@@ -62,6 +62,20 @@ cannot be sent instead of presenting a false control. Mac and Windows share
 the same adapter contract; platform-specific behavior is selected by the
 adapter, not inferred by the iPhone.
 
+The macOS adapter matrix is intentionally narrow:
+
+| Mode | Supported contract | Managed lifecycle | Desktop handoff | Release posture |
+| --- | --- | --- | --- | --- |
+| `cli` | PhoneDex-supported CLI continuation | Only with an allowlisted workspace | Yes | Supported |
+| `app-server` | PhoneDex-supported app-server continuation | Only with an allowlisted workspace | Yes | Supported |
+| `foreground` | macOS foreground paste fallback | No | No | Experimental |
+
+Foreground paste can reply to a task when selected, but it must never inherit
+create, cancel, retry, or desktop-handoff capabilities from workspace
+configuration. The agent advertises those capabilities only from the CLI or
+app-server rows, and the iPhone renders the resulting limitation instead of
+assuming parity.
+
 ### Approval response contract
 
 Approval responses use the common `POST /command` envelope with `kind` set to

@@ -431,7 +431,7 @@ across Mac and Windows.
 - [x] Export changed files, source-linked patches, artifacts, and validation
   receipts.
 - [x] Implement desktop handoff using stable supported task/session identity.
-- [ ] Build and validate the macOS adapter matrix.
+- [x] Build and validate the macOS adapter matrix.
 - [ ] Build and validate the Windows adapter matrix.
 - [ ] Keep foreground macOS paste as an explicitly experimental fallback.
 - [ ] Hide or explain every unsupported action based on negotiated capability.
@@ -448,6 +448,15 @@ does not queue auto-resume when the selected adapter cannot support
 `task.reply.v1`. `scripts/test-adapter.js` covers supported Mac and Windows
 continuation modes, unavailable Windows foreground handoff, unknown platforms,
 unsupported lifecycle controls, and descriptor validation.
+
+Verification evidence for the completed macOS adapter-matrix slice:
+`lib/phonedex-adapter.js` now encodes the mode policy in the runtime descriptor
+and marks foreground paste experimental. A macOS foreground adapter can retain
+the explicitly experimental reply fallback, but cannot advertise managed task
+lifecycle or desktop-handoff capabilities even when workspace roots are
+configured. `scripts/test-adapter.js` covers macOS CLI, app-server, foreground,
+and missing-executable cases, including capability and limitation assertions;
+the same fixture continues to cover the Windows fail-closed foreground case.
 
 Verification evidence for the completed structured question-response slice:
 `lib/phonedex-protocol.js` validates bounded task questions with unique choice
