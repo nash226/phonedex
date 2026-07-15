@@ -2,6 +2,7 @@
 
 const assert = require("node:assert/strict");
 const {
+  adapterModePolicy,
   assertAdapterDescriptor,
   createCodexAdapter,
   supportsAdapterCapability
@@ -14,6 +15,7 @@ const macCli = createCodexAdapter({
 });
 assert.equal(macCli.state, "ready");
 assert.equal(macCli.id, "codex.cli");
+assert.equal(macCli.experimental, false);
 assert.equal(supportsAdapterCapability(macCli, "task.reply"), true);
 assert.equal(supportsAdapterCapability(macCli, "desktop.handoff"), true);
 assert.equal(supportsAdapterCapability(macCli, "task.cancel"), false);
@@ -30,6 +32,47 @@ const managedMac = createCodexAdapter({
 assert.equal(supportsAdapterCapability(managedMac, "task.create"), true);
 assert.equal(supportsAdapterCapability(managedMac, "task.cancel"), true);
 assert.equal(supportsAdapterCapability(managedMac, "task.retry"), true);
+
+const macAppServer = createCodexAdapter({
+  platform: "darwin",
+  mode: "app-server",
+  appServerBin: "/usr/local/bin/codex",
+  workspaceRoots: ["/Users/example/Projects"]
+});
+assert.equal(macAppServer.state, "ready");
+assert.equal(supportsAdapterCapability(macAppServer, "task.reply"), true);
+assert.equal(supportsAdapterCapability(macAppServer, "task.create"), true);
+assert.equal(supportsAdapterCapability(macAppServer, "desktop.handoff"), true);
+assert.equal(macAppServer.experimental, false);
+assertAdapterDescriptor(macAppServer);
+
+const macForeground = createCodexAdapter({
+  platform: "macos",
+  mode: "foreground",
+  workspaceRoots: ["/Users/example/Projects"]
+});
+assert.equal(macForeground.state, "ready");
+assert.equal(macForeground.experimental, true);
+assert.equal(supportsAdapterCapability(macForeground, "task.reply"), true);
+assert.equal(supportsAdapterCapability(macForeground, "task.create"), false);
+assert.equal(supportsAdapterCapability(macForeground, "task.cancel"), false);
+assert.equal(supportsAdapterCapability(macForeground, "task.retry"), false);
+assert.equal(supportsAdapterCapability(macForeground, "desktop.handoff"), false);
+assert.match(macForeground.limitations.join(" "), /experimental.*cannot manage task lifecycle/i);
+assert.doesNotMatch(macForeground.limitations.join(" "), /Configure PHONEDEX_WORKSPACE_ROOTS/);
+assertAdapterDescriptor(macForeground);
+
+const macCliWithoutExecutable = createCodexAdapter({
+  platform: "macos",
+  mode: "cli",
+  workspaceRoots: ["/Users/example/Projects"]
+});
+assert.equal(macCliWithoutExecutable.state, "unavailable");
+assert.equal(supportsAdapterCapability(macCliWithoutExecutable, "task.reply"), false);
+assert.equal(supportsAdapterCapability(macCliWithoutExecutable, "task.create"), false);
+
+assert.deepEqual(adapterModePolicy("darwin"), adapterModePolicy("cli"));
+assert.equal(adapterModePolicy("foreground").supportsLifecycle, false);
 
 const windowsAppServer = createCodexAdapter({
   platform: "win32",
