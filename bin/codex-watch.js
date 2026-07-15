@@ -69,6 +69,11 @@ const {
   appendSecurityAudit,
   createRequestRateLimiter
 } = require("../lib/phonedex-security");
+const {
+  CORRELATION_HEADER,
+  createCorrelationId,
+  createPhoneDexObservability
+} = require("../lib/phonedex-observability");
 
 const ROOT = path.resolve(__dirname, "..");
 const DATA_DIR_DEFAULT = path.join(ROOT, "data");
@@ -705,6 +710,7 @@ function appendTaskEvent(cfg, task, event) {
   const existing = durableStore(cfg.dataDir).listEvents(task.id);
   const record = protocolRecord("event", {
     id: String(event.id || `${task.id}:event:${existing.length + 1}`).slice(0, 160),
+    correlationId: createCorrelationId(event.correlationId),
     taskId: task.id,
     createdAt: event.createdAt || new Date().toISOString(),
     sequence: Number.isInteger(event.sequence) && event.sequence > 0
@@ -1024,6 +1030,7 @@ function formatPhoneNotificationMessage(task) {
 async function startServer(providedCfg) {
   const cfg = providedCfg || config();
   ensureDataDir(cfg.dataDir);
+  const observability = createPhoneDexObservability({ version: "0.1.0" });
   const lifecycle = createPhoneDexLifecycleManager({
     cfg,
     recordTask: (task) => recordTaskAndDispatch(cfg, task, { notify: false }),
@@ -1055,6 +1062,12 @@ async function startServer(providedCfg) {
   const server = http.createServer(async (req, res) => {
     try {
       const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+      res.phoneDexCorrelationId = createCorrelationId(req.headers[CORRELATION_HEADER]);
+      res.phoneDexObservability = observability;
+      res.phoneDexRequestStartedAt = process.hrtime.bigint();
+      res.phoneDexMethod = req.method;
+      res.phoneDexRoute = requestUrl.pathname;
+      res.setHeader(CORRELATION_HEADER, res.phoneDexCorrelationId);
 
       if (requestUrl.pathname === "/health") {
         return sendJson(res, 200, {
@@ -1071,8 +1084,28 @@ async function startServer(providedCfg) {
           capabilities: cfg.agentMode
             ? advertisedAgentCapabilities(cfg)
             : defaultCapabilities("hub"),
-          adapter: cfg.adapter
+          adapter: cfg.adapter,
+          components: observability.snapshot({
+            components: {
+              agent: cfg.agentMode ? "healthy" : "unknown",
+              adapter: cfg.agentMode ? (cfg.adapter.state === "ready" ? "healthy" : "degraded") : "unknown",
+              originTask: "unknown"
+            }
+          }).components
         });
+      }
+
+      if (requestUrl.pathname === "/diagnostics") {
+        if (!isRequestAuthorized(req, requestUrl, cfg, "tasks.read")) {
+          return sendJson(res, 401, { ok: false, error: "Invalid token" });
+        }
+        return sendJson(res, 200, observability.snapshot({
+          components: {
+            agent: cfg.agentMode ? "healthy" : "unknown",
+            adapter: cfg.agentMode ? (cfg.adapter.state === "ready" ? "healthy" : "degraded") : "unknown",
+            originTask: "unknown"
+          }
+        }));
       }
 
       if (requestUrl.pathname === "/pair") {
@@ -2341,6 +2374,7 @@ async function handleReplyRequest(req, res, requestUrl, cfg) {
     id: makeId("reply"),
     at: new Date().toISOString(),
     commandId,
+    correlationId: res.phoneDexCorrelationId,
     idempotencyKey,
     expectedTaskVersion: expectedTaskVersion.value || taskVersion,
     taskVersion,
@@ -2413,6 +2447,7 @@ async function handleLifecycleCommandRequest(req, res, requestUrl, cfg, lifecycl
   let command;
   try {
     command = normalizeLifecycleCommand(raw, cfg);
+    command.correlationId = res.phoneDexCorrelationId;
   } catch (error) {
     return sendJson(res, error.statusCode || 400, {
       ok: false,
@@ -2479,6 +2514,7 @@ async function handleLifecycleCommandRequest(req, res, requestUrl, cfg, lifecycl
 
   const commandRecord = protocolRecord("command", {
     commandId: command.commandId,
+    correlationId: command.correlationId,
     createdAt: command.createdAt,
     kind: command.kind,
     target: command.target,
@@ -2719,6 +2755,7 @@ function appendApprovalAudit(cfg, command, outcome, reason) {
 function appendLifecycleReceipt(cfg, command, state, message, duplicateOf, task, approvalDecision) {
   const receipt = protocolRecord("commandReceipt", {
     commandId: command.commandId,
+    ...(command.correlationId ? { correlationId: command.correlationId } : {}),
     createdAt: new Date().toISOString(),
     state,
     taskId: command.target.taskId || task?.id,
@@ -2932,6 +2969,7 @@ function requestRateLimitKey(req, cfg) {
 function createReplyCommand(reply, actor, state) {
   return protocolRecord("command", {
     commandId: reply.commandId,
+    ...(reply.correlationId ? { correlationId: reply.correlationId } : {}),
     createdAt: reply.at,
     kind: "reply",
     target: { taskId: reply.taskId },
@@ -2956,6 +2994,7 @@ function createReplyCommand(reply, actor, state) {
 function appendReplyReceipt(cfg, reply, state, message, duplicateOf) {
   const receipt = protocolRecord("commandReceipt", {
     commandId: reply.commandId,
+    ...(reply.correlationId ? { correlationId: reply.correlationId } : {}),
     createdAt: new Date().toISOString(),
     state,
     taskId: reply.taskId,
@@ -3960,7 +3999,11 @@ function ensureDataDir(dataDir) {
 
 function appendJsonl(dataDir, fileName, value) {
   ensureDataDir(dataDir);
-  fs.appendFileSync(path.join(dataDir, fileName), `${JSON.stringify(value)}\n`);
+  const correlationFiles = new Set(["events.jsonl", "commands.jsonl", "command-receipts.jsonl"]);
+  const record = correlationFiles.has(fileName) && value && typeof value === "object" && !value.correlationId
+    ? { ...value, correlationId: createCorrelationId() }
+    : value;
+  fs.appendFileSync(path.join(dataDir, fileName), `${JSON.stringify(record)}\n`);
 }
 
 function readJsonl(dataDir, fileName) {
@@ -6078,10 +6121,23 @@ function sendHtml(res, status, body, extraHeaders = {}) {
 }
 
 function sendJson(res, status, value, extraHeaders = {}) {
+  if (res.phoneDexObservability && res.phoneDexRequestStartedAt) {
+    const durationMs = Number(process.hrtime.bigint() - res.phoneDexRequestStartedAt) / 1e6;
+    res.phoneDexObservability.record({
+      method: res.phoneDexMethod,
+      route: res.phoneDexRoute,
+      status,
+      durationMs
+    });
+    if (value && typeof value === "object" && !Array.isArray(value) && !value.correlationId) {
+      value = { ...value, correlationId: res.phoneDexCorrelationId };
+    }
+  }
   const body = JSON.stringify(value, null, 2);
   res.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
     "content-length": Buffer.byteLength(body),
+    ...(res.phoneDexCorrelationId ? { [CORRELATION_HEADER]: res.phoneDexCorrelationId } : {}),
     ...extraHeaders
   });
   res.end(body);

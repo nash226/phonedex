@@ -707,7 +707,7 @@ Outcome: turn the complete system into an operable public product.
 - [ ] Reproducible signing, entitlements, semantic versioning, and build
   provenance.
 - [ ] Staged migration, backup, rollback, and disaster-recovery drills.
-- [ ] Content-free observability with correlation IDs and component health.
+- [x] Content-free observability with correlation IDs and component health.
 - [ ] Privacy manifest, App Store privacy answers, privacy policy, retention,
   deletion, security contact, and incident-response process.
 - [ ] TestFlight cohorts and real-device iOS/macOS/Windows matrix.
@@ -715,6 +715,16 @@ Outcome: turn the complete system into an operable public product.
   gates.
 - [ ] App Review notes and customer support runbooks.
 - [ ] Final pass of all production gates and 15 acceptance scenarios.
+
+Verification evidence for the completed observability slice: `lib/phonedex-observability.js`
+generates or preserves bounded `X-PhoneDex-Correlation-Id` values and records
+content-free request counts, error counts, and latency summaries. The bridge
+returns the correlation id on JSON responses, includes it in versioned command
+records and receipts, exposes authenticated `/diagnostics`, and reports app,
+hub, push, agent, adapter, and origin-task component states without task text,
+credentials, or local paths. `scripts/test-observability.js` covers id
+validation, aggregation, error counting, latency summarization, and explicit
+unknown states for components that are not yet supported.
 
 Exit gate: the release owner records a go decision with known limitations,
 metrics, rollback plan, and verification evidence.
