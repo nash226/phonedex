@@ -45,7 +45,7 @@ tests, and a trustworthy small-PR path.
 - [x] Canonical product requirements and production acceptance scenarios.
 - [x] Ordered delivery roadmap suitable for autonomous small PRs.
 - [x] Add GitHub Actions for Node checks and all bridge test scripts.
-- [ ] Add a reproducible unsigned iOS simulator build job.
+- [x] Add a reproducible unsigned iOS simulator build job.
 - [x] Add an iOS unit-test target and one smoke test for app launch/model decode.
 - [ ] Add PR templates for validation evidence and human decisions.
 - [ ] Document supported development versions for Node, Xcode, iOS, macOS, and
@@ -63,6 +63,12 @@ defines the `PhoneDexTests` simulator unit-test target and `PhoneDex` scheme;
 `ios/PhoneDexTests/PhoneDexSmokeTests.swift` initializes the app entry point and
 decodes a representative `/tasks` payload. On 2026-07-15, Xcode 26.3 passed
 the scheme on an iPhone 17 iOS 26.3.1 simulator with 1/1 tests passing.
+
+Verification evidence for the completed iOS simulator build slice:
+`.github/workflows/ios-ci.yml` builds the committed `PhoneDex` scheme on the
+pinned `macos-15` runner with a generic iOS Simulator destination and code
+signing disabled, so pull requests and `main` pushes validate the app without
+Apple credentials or a named simulator device.
 
 ## M1: Versioned Hub and Durable State
 
