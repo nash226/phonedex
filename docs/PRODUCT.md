@@ -108,7 +108,8 @@ The repository already proves the core loop, but not the final product.
 - Notification actions post canned or typed/dictated replies to the bridge.
 - Task detail shows the latest response, lifecycle summary, capture provenance,
   repository/branch context when supplied, honest evidence availability, and a
-  keyboard-safe composer with encrypted draft restoration.
+  keyboard-safe composer with encrypted draft and logical reading-position
+  restoration.
 - Configuration and preview actions can be invoked through a custom URL scheme.
 - The project targets iOS 17 and includes an iOS unit-test target.
 
