@@ -93,8 +93,10 @@ The repository already proves the core loop, but not the final product.
 
 ### Current iOS prototype
 
-- A SwiftUI utility screen stores one bridge URL and token and fetches the
-  latest task.
+- A native SwiftUI shell provides Chats, Workspaces, Browser, Devices, and
+  Settings, with read-only workspace and device detail surfaces for machine
+  context, task counts, heartbeat health, and actionable diagnostics.
+- The app stores one bridge URL and token and fetches the latest task.
 - The app schedules a local notification and registers three reply actions.
 - A notification content extension renders a long, scrollable result.
 - Notification actions post canned or typed/dictated replies to the bridge.
@@ -106,8 +108,10 @@ The repository already proves the core loop, but not the final product.
 
 - There is no APNs provider path, remote push registration, durable foreground
   sync, or reliable background refresh.
-- The iOS app has no task inbox, lifecycle model, live progress, approval UI,
-  artifact review, command queue, search, or offline outbox.
+- The iOS app has no durable lifecycle model, live progress, approval UI,
+  artifact review, command queue, or offline outbox; its current task inbox,
+  search, and read-only device/workspace details remain bridge-contract
+  surfaces.
 - The shared token remains included in local notification metadata and can be
   accepted in URLs by the current bridge; the iOS settings token is now stored
   in device-only Keychain storage, with legacy `UserDefaults` migration.
