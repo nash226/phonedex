@@ -72,6 +72,35 @@ final class PhoneDexChatFilteringTests: XCTestCase {
         XCTAssertEqual(filter.workspaceOptions(from: tasks), ["a", "z"])
     }
 
+    func testConversationListKeepsSideChatsSeparateAndUsesLatestCompletion() {
+        let parentOlder = task(
+            "parent-old",
+            status: "completed",
+            text: "Older parent result",
+            sessionId: "thread-parent",
+            at: "2026-07-15T11:00:00.000Z"
+        )
+        let parentLatest = task(
+            "parent-new",
+            status: "completed",
+            text: "Latest parent result",
+            sessionId: "thread-parent",
+            at: "2026-07-15T12:00:00.000Z"
+        )
+        let sideChat = task(
+            "side-chat",
+            status: "completed",
+            text: "Side chat result",
+            sessionId: "thread-side",
+            at: "2026-07-15T11:30:00.000Z"
+        )
+
+        let conversations = PhoneDexTask.latestPerConversation([parentOlder, sideChat, parentLatest])
+
+        XCTAssertEqual(Set(conversations.map(\.id)), ["parent-new", "side-chat"])
+        XCTAssertEqual(conversations.count, 2)
+    }
+
     private func task(
         _ id: String,
         status: String?,
@@ -80,17 +109,19 @@ final class PhoneDexChatFilteringTests: XCTestCase {
         cwd: String = "/work/project",
         machineName: String = "Mac",
         branch: String? = nil,
-        repository: String? = nil
+        repository: String? = nil,
+        sessionId: String? = nil,
+        at: String = "2026-07-15T12:00:00.000Z"
     ) -> PhoneDexTask {
         PhoneDexTask(
             id: id,
-            at: "2026-07-15T12:00:00.000Z",
+            at: at,
             source: "codex",
             title: title ?? id,
             text: text,
             cwd: cwd,
             machineName: machineName,
-            sessionId: nil,
+            sessionId: sessionId,
             status: status,
             branch: branch,
             repository: repository
