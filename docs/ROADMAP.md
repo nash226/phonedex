@@ -297,7 +297,7 @@ covers compatibility fallback, partial data, and transport classification;
 the iOS test target also retains its smoke and diagnostics coverage.
 
 Verification evidence for the completed encrypted cache slice:
-`ios/PhoneDexApp/PhoneDexLocalCache.swift` encrypts the cached task/device
+`ios/PhoneDexApp/PhoneDexLocalCache.swift` encrypts the cached task/device/event
 snapshot and opaque cursor with AES-GCM, stores its 256-bit key in a device-only
 Keychain item, and writes the file with iOS data protection and atomic replacement.
 `PhoneDexAppModel` restores cached conversations before foreground sync, applies
@@ -311,12 +311,12 @@ stale-cursor recovery.
 Verification evidence for the completed task-detail slice: `PhoneDexTask` now
 decodes lifecycle timestamps, task version, and capture provenance from the
 supported bridge contract. `PhoneDexTaskDetailView` presents the latest
-response as a readable transcript, a normalized activity timeline, machine /
+response as a readable transcript, a durable lifecycle-event timeline, machine /
 workspace / branch context, and an explicit empty state when the agent has not
 exported diffs or validation results. Its composer restores per-task drafts
 from the encrypted cache and offers a "Show new activity" affordance instead
-of moving the reader when refreshed task metadata changes. Full session-event,
-diff, and validation exports remain gated on later agent contracts.
+of moving the reader when refreshed task metadata changes. Changed-file, diff,
+and validation exports remain gated on later agent contracts.
 
 Verification evidence for the completed reading-position slice:
 `ios/PhoneDexApp/PhoneDexLocalCache.swift` stores the selected task-detail
@@ -399,7 +399,7 @@ across Mac and Windows.
 - [x] Define the adapter boundary and capability test suite.
 - [x] Implement structured task reply and question-response commands.
 - [ ] Implement task create, cancel, and retry where supported.
-- [ ] Export live lifecycle events without parsing desktop UI.
+- [x] Export live lifecycle events without parsing desktop UI.
 - [ ] Export changed files, source-linked patches, artifacts, and validation
   receipts.
 - [ ] Implement desktop handoff using stable supported task/session identity.
@@ -432,6 +432,22 @@ its encrypted outbox retries the exact response identity. `scripts/test-question
 `scripts/test-protocol.js`,
 `PhoneDexBridgeClientTests`, and `PhoneDexSmokeTests` cover validation,
 forwarding, receipt persistence, decoding, and the iOS request shape.
+
+Verification evidence for the completed lifecycle-event export slice:
+`bin/codex-watch.js` consumes supported Codex session JSONL lifecycle records
+at the local agent boundary, converges hook and watcher updates into stable
+task ids, and appends deduplicated `phonedex.event.v1` records for starts,
+progress, questions, approvals, failures, cancellations, and completions.
+`lib/phonedex-store.js` includes events in migration-safe snapshot pagination
+and ordered cursor changes; `publicSyncPage` removes credentials and private
+local strings before returning event data. `PhoneDexBridgeClient` applies event
+snapshots and changes into the encrypted iOS cache, and task detail renders a
+Dynamic-Type-friendly lifecycle timeline. `scripts/test-session-watch.js`,
+`scripts/test-sync.js`, `scripts/test-sync-server.js`,
+`PhoneDexLocalCacheTests`, and `PhoneDexSmokeTests` cover emission, pagination,
+deduplication, persistence, and bounded decoding. This uses the documented
+local session JSONL boundary and does not claim private Codex Desktop API or UI
+automation parity.
 
 ## M5: Approvals and High-Risk Actions
 

@@ -255,6 +255,78 @@ struct PhoneDexTaskActivity: Equatable, Identifiable {
     let date: Date
 }
 
+struct PhoneDexEvent: Codable, Equatable, Identifiable {
+    let id: String
+    let taskId: String
+    let createdAt: String
+    let sequence: Int
+    let type: String
+    let data: [String: String]
+
+    var displayTitle: String {
+        switch type {
+        case "task_started": return "Task started"
+        case "task_completed": return "Task completed"
+        case "task_failed": return "Task failed"
+        case "task_cancelled": return "Task cancelled"
+        case "needs_input": return "Needs your input"
+        case "approval_requested": return "Approval requested"
+        case "progress": return "Progress"
+        default: return type.replacingOccurrences(of: "_", with: " ").capitalized
+        }
+    }
+
+    var symbol: String {
+        switch type {
+        case "task_started", "progress": return "arrow.triangle.2.circlepath"
+        case "task_completed": return "checkmark.circle.fill"
+        case "task_failed": return "exclamationmark.triangle.fill"
+        case "needs_input": return "questionmark.circle.fill"
+        case "approval_requested": return "checkmark.shield.fill"
+        case "task_cancelled": return "xmark.circle.fill"
+        default: return "circle.fill"
+        }
+    }
+
+    var displayDate: Date? {
+        ISO8601DateFormatter.phoneDex.date(from: createdAt)
+    }
+
+    var summary: String? {
+        data["summary"]
+    }
+
+    init(
+        id: String,
+        taskId: String,
+        createdAt: String,
+        sequence: Int,
+        type: String,
+        data: [String: String] = [:]
+    ) {
+        self.id = id
+        self.taskId = taskId
+        self.createdAt = createdAt
+        self.sequence = sequence
+        self.type = type
+        self.data = data
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        taskId = try container.decode(String.self, forKey: .taskId)
+        createdAt = try container.decode(String.self, forKey: .createdAt)
+        sequence = try container.decode(Int.self, forKey: .sequence)
+        type = try container.decode(String.self, forKey: .type)
+        data = try container.decodeIfPresent([String: String].self, forKey: .data) ?? [:]
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, taskId, createdAt, sequence, type, data
+    }
+}
+
 struct PhoneDexProject: Identifiable, Equatable {
     let id: String
     let name: String
@@ -547,6 +619,18 @@ struct PhoneDexSyncPage: Decodable {
 struct PhoneDexSyncSnapshot: Decodable {
     let tasks: [PhoneDexTask]
     let devices: [PhoneDexDevice]
+    let events: [PhoneDexEvent]
+
+    private enum CodingKeys: String, CodingKey {
+        case tasks, devices, events
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        tasks = try container.decodeIfPresent([PhoneDexTask].self, forKey: .tasks) ?? []
+        devices = try container.decodeIfPresent([PhoneDexDevice].self, forKey: .devices) ?? []
+        events = try container.decodeIfPresent([PhoneDexEvent].self, forKey: .events) ?? []
+    }
 }
 
 struct PhoneDexSyncChange: Decodable {
@@ -556,6 +640,7 @@ struct PhoneDexSyncChange: Decodable {
     let deleted: Bool
     let task: PhoneDexTask?
     let device: PhoneDexDevice?
+    let event: PhoneDexEvent?
 
     private enum CodingKeys: String, CodingKey {
         case position, kind, id, deleted, record
@@ -571,6 +656,7 @@ struct PhoneDexSyncChange: Decodable {
         guard !deleted else {
             task = nil
             device = nil
+            event = nil
             return
         }
 
@@ -578,12 +664,19 @@ struct PhoneDexSyncChange: Decodable {
         case "task":
             task = try container.decode(PhoneDexTask.self, forKey: .record)
             device = nil
+            event = nil
         case "device":
             task = nil
             device = try container.decode(PhoneDexDevice.self, forKey: .record)
+            event = nil
+        case "event":
+            task = nil
+            device = nil
+            event = try container.decode(PhoneDexEvent.self, forKey: .record)
         default:
             task = nil
             device = nil
+            event = nil
         }
     }
 }
