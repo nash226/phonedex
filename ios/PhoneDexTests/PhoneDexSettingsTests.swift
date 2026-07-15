@@ -100,12 +100,11 @@ final class PhoneDexSettingsTests: XCTestCase {
             repository: nil
         )
 
-        let metadata = PhoneDexNotificationScheduler.taskNotificationUserInfo(
-            task,
-            bridgeURL: try XCTUnwrap(URL(string: "https://bridge.test"))
-        )
+        let metadata = PhoneDexNotificationScheduler.taskNotificationUserInfo(task)
 
         XCTAssertNil(metadata["token"])
+        XCTAssertNil(metadata["replyUrl"])
+        XCTAssertNil(metadata["bridgeUrl"])
         XCTAssertFalse(metadata.values.contains { String(describing: $0).contains("secret") })
     }
 

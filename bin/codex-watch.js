@@ -909,10 +909,10 @@ async function startServer(providedCfg) {
           service: "watchdex",
           machineName: cfg.machineName,
           deviceId: cfg.deviceId,
-          publicUrl: cfg.publicUrl,
-          replyUrl: cfg.replyUrl,
+          publicUrl: safeSupportURL(cfg.publicUrl),
+          replyUrl: `${safeSupportURL(cfg.publicUrl)}/reply`,
           role: cfg.agentMode ? "agent" : "hub",
-          hubUrl: cfg.hubUrl || "",
+          hubUrl: safeSupportURL(cfg.hubUrl),
           protocolVersion: 1,
           supportedProtocolVersions: [1],
           capabilities: defaultCapabilities(cfg.agentMode ? "agent" : "hub"),
@@ -1085,9 +1085,9 @@ async function startServer(providedCfg) {
 
   await new Promise((resolve) => server.listen(cfg.port, cfg.host, resolve));
   console.log(`PhoneDex listening on http://${cfg.host}:${cfg.port}`);
-  console.log(`Phone reply callback public URL should be: ${cfg.publicUrl}/reply`);
+  console.log(`Phone reply callback public URL should be: ${safeSupportURL(cfg.publicUrl)}/reply`);
   if (cfg.hubUrl) {
-    console.log(`Forwarding local Codex completions to PhoneDex hub: ${cfg.hubUrl}`);
+    console.log(`Forwarding local Codex completions to PhoneDex hub: ${safeSupportURL(cfg.hubUrl)}`);
   }
 
   return server;
@@ -1681,7 +1681,7 @@ function publicAgentInvite(cfg, invite) {
     lastEventType: invite.lastEventType || "",
     lastFileName: invite.lastFileName || "",
     events: Array.isArray(invite.events) ? invite.events : [],
-    setupUrl: `${cfg.publicUrl}/agent-bootstrap/invite/${encodeURIComponent(invite.code)}`
+    setupUrl: `${safeSupportURL(cfg.publicUrl)}/agent-bootstrap/invite/${encodeURIComponent(invite.code)}`
   };
 }
 
@@ -1820,7 +1820,7 @@ function readAgentBootstrapSetup(cfg, options = {}) {
 
   return {
     generatedAt: manifest.generatedAt || "",
-    hubUrl,
+    hubUrl: safeSupportURL(hubUrl),
     setupUrl: options.inviteCode
       ? `${hubUrl}/agent-bootstrap/invite/${encodeURIComponent(options.inviteCode)}`
       : `${hubUrl}/agent-bootstrap/setup?token=${encodeURIComponent(cfg.token)}`,
@@ -3908,8 +3908,8 @@ async function runAgentSelfTest(cfg) {
     checkedAt: new Date().toISOString(),
     deviceId: cfg.deviceId,
     machineName: cfg.machineName,
-    hubUrl: cfg.hubUrl || "",
-    publicUrl: cfg.publicUrl,
+    hubUrl: safeSupportURL(cfg.hubUrl),
+    publicUrl: safeSupportURL(cfg.publicUrl),
     heartbeatForward,
     taskForward,
     sessionWatch,
@@ -4200,7 +4200,7 @@ function writeAgentBundle(bundle) {
 
   const manifest = {
     generatedAt: bundle.generatedAt,
-    hubUrl: bundle.hubUrl,
+    hubUrl: safeSupportURL(bundle.hubUrl),
     expectedDevices: bundle.expectedDevices,
     targets: manifestTargets
   };
@@ -4215,7 +4215,7 @@ function publicAgentBundle(bundle) {
   return {
     outputDir: bundle.outputDir,
     generatedAt: bundle.generatedAt,
-    hubUrl: bundle.hubUrl,
+    hubUrl: safeSupportURL(bundle.hubUrl),
     expectedDevices: bundle.expectedDevices,
     manifestPath: bundle.manifestPath,
     readmePath: bundle.readmePath,
@@ -4252,12 +4252,12 @@ function renderAgentBundleReadme(manifest) {
     "PhoneDex agent bootstrap bundle",
     "",
     `Generated: ${manifest.generatedAt}`,
-    `Hub URL: ${manifest.hubUrl}`,
+    `Hub URL: ${safeSupportURL(manifest.hubUrl)}`,
     `Expected devices: ${manifest.expectedDevices || "(none)"}`,
     "",
     "Download or copy each script to its matching target device and run it there.",
     "The hub serves these private files from /agent-bootstrap/<file>?token=HUB_TOKEN.",
-    `Setup page: ${manifest.hubUrl}/agent-bootstrap/setup?token=HUB_TOKEN`,
+    `Setup page: ${safeSupportURL(manifest.hubUrl)}/agent-bootstrap/setup?token=HUB_TOKEN`,
     "Each script contains local tokens from this hub. Treat the files as private.",
     ""
   ];
@@ -4265,7 +4265,7 @@ function renderAgentBundleReadme(manifest) {
   for (const target of manifest.targets) {
     lines.push(`${target.machineName} [${target.deviceId}]`);
     lines.push(`  Script: ${target.fileName}`);
-    lines.push(`  Hub download: ${manifest.hubUrl}/agent-bootstrap/${target.fileName}?token=HUB_TOKEN`);
+    lines.push(`  Hub download: ${safeSupportURL(manifest.hubUrl)}/agent-bootstrap/${target.fileName}?token=HUB_TOKEN`);
     lines.push(
       target.platform === "windows"
         ? `  Run on Windows PowerShell: powershell -ExecutionPolicy Bypass -File .\\${target.fileName}`
@@ -5025,12 +5025,13 @@ function findFirstKey(value, keys) {
 
 function redactSensitiveText(value) {
   return String(value)
+    .replace(/([a-z][a-z0-9+.-]*:\/\/)[^\/\s?#]*@/gi, "$1[redacted]@")
     .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [redacted]")
     .replace(
-      /\b(password|token|secret|api[_ -]?key)\b(?:\s*:\s*|\s+)([^\s`"'<>]{8,})/gi,
+      /\b(password|token|secret|api[_ -]?key|credential|access[_ -]?token|refresh[_ -]?token|reply[_ -]?token)\b(?:\s*:\s*|\s+)([^\s`"'<>]{4,})/gi,
       "$1: [redacted]"
     )
-    .replace(/([?&](?:token|secret|password|api[_-]?key)=)[^&#\s]+/gi, "$1[redacted]");
+    .replace(/([#?&](?:token|secret|password|api[_-]?key|credential|access[_-]?token|refresh[_-]?token|reply[_-]?token)=)[^&#\s]+/gi, "$1[redacted]");
 }
 
 function normalizeNotificationText(value, maxLength = PHONE_NOTIFICATION_TEXT_MAX) {
@@ -5324,6 +5325,20 @@ function parseExpectedDevices(value) {
 
 function trimTrailingSlash(value) {
   return String(value).replace(/\/+$/, "");
+}
+
+function safeSupportURL(value) {
+  if (!value) return "";
+  try {
+    const url = new URL(String(value));
+    url.username = "";
+    url.password = "";
+    url.search = "";
+    url.hash = "";
+    return trimTrailingSlash(url.toString());
+  } catch {
+    return redactSensitiveText(value);
+  }
 }
 
 function logError(error) {
