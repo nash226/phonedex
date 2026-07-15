@@ -195,7 +195,7 @@ Status: **Queued**
 
 Outcome: remove shared bearer-token setup from the production path.
 
-- [ ] Create revocable identities for phone, hub, and computer agents.
+- [x] Create revocable identities for phone, hub, and computer agents.
 - [x] Implement short-lived, single-use pairing grants with verification codes.
 - [ ] Add scoped permissions for read, reply, approve, and administration.
 - [x] Move iOS credentials from `UserDefaults` to Keychain.
@@ -245,8 +245,16 @@ iPhone Settings flow redeems the grant and stores the returned credential in
 Keychain. `scripts/test-pairing.js` and
 `PhoneDexBridgeClientTests.testRedeemPairingUsesOneTimeGrantWithoutCredentialInRequest`
 cover the end-to-end contract, failed verification, one-time use, scoped
-authorization, and secret redaction. Revocation, rotation, and TLS remain
-separate M2 slices.
+authorization, and secret redaction.
+
+Verification evidence for the completed identity-revocation slice:
+`lib/phonedex-store.js` persists an idempotent revoked state for a paired phone
+or agent identity and marks its device reachability revoked. `pair:list` shows
+only public identity metadata, while `pair:revoke --identity ID` or
+`--device-id DEVICE_ID` immediately makes the credential fail closed on the
+next request. `scripts/test-pairing.js` covers listing without credential
+disclosure, revocation, rejected post-revoke sync, and revoked device state.
+Credential rotation and TLS remain separate M2 slices.
 
 Verification evidence for the completed Chats scope slice: the native SwiftUI
 Chats surface in `ios/PhoneDexApp/ContentView.swift` provides Needs You,
