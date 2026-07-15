@@ -53,7 +53,7 @@ final class PhoneDexAppModel: ObservableObject {
         connectionState = .syncing
         do {
             let (fetchedTasks, fetchedDevices) = try await client.fetchSync()
-            tasks = fetchedTasks.sorted { lhs, rhs in
+            tasks = PhoneDexTask.latestPerConversation(fetchedTasks).sorted { lhs, rhs in
                 (lhs.displayDate ?? .distantPast) > (rhs.displayDate ?? .distantPast)
             }
             devices = fetchedDevices.sorted { lhs, rhs in
@@ -86,6 +86,7 @@ final class PhoneDexAppModel: ObservableObject {
                 choice: choice,
                 prompt: text,
                 taskId: task.id,
+                sessionId: task.sessionId,
                 machineName: task.machineName
             )
             replyState = .sent(text)

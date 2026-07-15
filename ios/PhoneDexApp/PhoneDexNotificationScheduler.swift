@@ -68,6 +68,7 @@ enum PhoneDexNotificationScheduler {
         content.sound = .default
         content.userInfo = [
             "taskId": task.id,
+            "sessionId": task.sessionId ?? "",
             "machineName": task.machineName ?? "",
             "replyUrl": bridgeURL.appending(path: "reply").absoluteString,
             "bridgeUrl": bridgeURL.absoluteString,
