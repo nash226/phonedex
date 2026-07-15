@@ -21,6 +21,10 @@ const {
   normalizeSyncLimit
 } = require("../lib/phonedex-sync");
 const {
+  createCodexAdapter,
+  supportsAdapterCapability
+} = require("../lib/phonedex-adapter");
+const {
   DELETE_CONFIRMATION,
   RETENTION_CONFIRMATION,
   createPhoneDexPrivacy,
@@ -218,6 +222,15 @@ function config() {
   const deviceId = env.PHONEDEX_DEVICE_ID || env.WATCHDEX_DEVICE_ID || os.hostname();
   const provider = env.WATCH_BRIDGE_PROVIDER || "pushcut";
   const hubUrl = trimTrailingSlash(env.PHONEDEX_HUB_URL || "");
+  const codexBin = env.CODEX_BIN || defaultCodexBin();
+  const codexAppServerBin = env.CODEX_APP_SERVER_BIN || codexBin || defaultAppServerCodexBin();
+  const adapterMode = env.PHONEDEX_ADAPTER_MODE || env.WATCH_BRIDGE_AUTO_RESUME_MODE || "cli";
+  const adapter = createCodexAdapter({
+    platform: env.PHONEDEX_ADAPTER_PLATFORM || process.platform,
+    mode: adapterMode,
+    codexBin,
+    appServerBin: codexAppServerBin
+  });
 
   return {
     provider,
@@ -257,16 +270,13 @@ function config() {
     pushcutSound: env.PUSHCUT_SOUND || "jobDone",
     pushcutTimeSensitive: parseBoolean(env.PUSHCUT_TIME_SENSITIVE, true),
     autoResume: parseBoolean(env.WATCH_BRIDGE_AUTO_RESUME, false),
-    autoResumeMode: env.WATCH_BRIDGE_AUTO_RESUME_MODE || "cli",
+    autoResumeMode: adapter.mode,
+    adapter,
     codexHome: env.CODEX_HOME || path.join(os.homedir(), ".codex"),
     sessionWatchIntervalMs: Number(env.WATCHDEX_SESSION_WATCH_INTERVAL_MS || "5000"),
     sessionWatchDebounceMs: Number(env.WATCHDEX_SESSION_WATCH_DEBOUNCE_MS || "8000"),
-    codexBin:
-      env.CODEX_BIN || "/Applications/Codex.app/Contents/Resources/codex",
-    codexAppServerBin:
-      env.CODEX_APP_SERVER_BIN ||
-      env.CODEX_BIN ||
-      defaultAppServerCodexBin(),
+    codexBin,
+    codexAppServerBin,
     sessionWatchLookbackHours: Number(
       env.WATCHDEX_SESSION_WATCH_LOOKBACK_HOURS || DEFAULT_SESSION_WATCH_LOOKBACK_HOURS
     ),
@@ -277,9 +287,15 @@ function config() {
   };
 }
 
+function defaultCodexBin() {
+  if (process.platform === "win32") return "codex.exe";
+  return "/Applications/Codex.app/Contents/Resources/codex";
+}
+
 function defaultAppServerCodexBin() {
   const standaloneBin = path.join(os.homedir(), ".local", "bin", "codex");
   if (fs.existsSync(standaloneBin)) return standaloneBin;
+  if (process.platform === "win32") return "codex.exe";
   return "/Applications/Codex.app/Contents/Resources/codex";
 }
 
@@ -772,7 +788,8 @@ async function startServer(providedCfg) {
           hubUrl: cfg.hubUrl || "",
           protocolVersion: 1,
           supportedProtocolVersions: [1],
-          capabilities: defaultCapabilities(cfg.agentMode ? "agent" : "hub")
+          capabilities: defaultCapabilities(cfg.agentMode ? "agent" : "hub"),
+          adapter: cfg.adapter
         });
       }
 
@@ -1979,6 +1996,17 @@ function attemptAutoResume(cfg, task, reply) {
     return;
   }
 
+  if (!supportsAdapterCapability(cfg.adapter, "task.reply")) {
+    appendJsonl(cfg.dataDir, "events.jsonl", {
+      at: new Date().toISOString(),
+      type: "auto-resume-skipped",
+      reason: "Adapter does not support task replies",
+      adapter: cfg.adapter,
+      taskId: reply.taskId
+    });
+    return;
+  }
+
   if (cfg.autoResumeMode === "app-server") {
     attemptAppServerAutoResume(cfg, task, reply);
     return;
@@ -2949,6 +2977,11 @@ function publicDevice(device) {
     lastSeenAt: device.lastSeenAt,
     agentVersion: device.agentVersion || device.version,
     adapterVersion: device.adapterVersion,
+    adapterId: device.adapterId,
+    adapterMode: device.adapterMode,
+    adapterState: device.adapterState,
+    adapterLimitations: Array.isArray(device.adapterLimitations) ? device.adapterLimitations : [],
+    adapter: device.adapter,
     capabilities: Array.isArray(device.capabilities) ? device.capabilities : [],
     capabilityDetails: Array.isArray(device.capabilityDetails) ? device.capabilityDetails : [],
     health: device.health
@@ -2972,6 +3005,10 @@ async function startDeviceHeartbeat(cfg) {
 }
 
 function buildLocalDeviceHeartbeat(cfg) {
+  const capabilities = defaultCapabilities("agent").map((capability) => {
+    const adapterCapability = cfg.adapter.capabilities.find((candidate) => candidate.id === capability.id);
+    return adapterCapability || capability;
+  });
   return addDeviceProtocolFields({
     deviceId: cfg.deviceId,
     machineName: cfg.machineName,
@@ -2986,11 +3023,16 @@ function buildLocalDeviceHeartbeat(cfg) {
     version: "0.1.0",
     health: {
       agent: "healthy",
-      // The current bridge has no supported adapter health signal yet.
-      adapter: "unknown"
+      adapter: cfg.adapter.state === "ready" ? "healthy" : "degraded"
     },
-    capabilities: defaultCapabilities("agent").map((capability) => `${capability.id}.v${capability.version}`),
-    capabilityDetails: defaultCapabilities("agent"),
+    adapterId: cfg.adapter.id,
+    adapterVersion: cfg.adapter.version,
+    adapterMode: cfg.adapter.mode,
+    adapterState: cfg.adapter.state,
+    adapterLimitations: cfg.adapter.limitations,
+    adapter: cfg.adapter,
+    capabilities: capabilities.map((capability) => `${capability.id}.v${capability.version}`),
+    capabilityDetails: capabilities,
     lastSeenAt: new Date().toISOString()
   });
 }
@@ -3071,6 +3113,12 @@ function normalizeDeviceHeartbeat(fields, req) {
     },
     capabilities: fields.capabilities,
     capabilityDetails: fields.capabilityDetails || fields.capability_details,
+    adapterId: fields.adapterId || fields.adapter_id,
+    adapterVersion: fields.adapterVersion || fields.adapter_version,
+    adapterMode: fields.adapterMode || fields.adapter_mode,
+    adapterState: fields.adapterState || fields.adapter_state,
+    adapterLimitations: fields.adapterLimitations || fields.adapter_limitations,
+    adapter: fields.adapter,
     lastSeenAt: fields.lastSeenAt || fields.at || now,
     receivedAt: now,
     receivedFrom: req?.socket?.remoteAddress || ""
