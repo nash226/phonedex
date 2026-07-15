@@ -313,16 +313,6 @@ async function recordTaskAndDispatch(cfg, task, options = {}) {
   );
   if (!result.created) {
     const duplicate = result.task;
-    appendJsonl(cfg.dataDir, "events.jsonl", {
-      at: new Date().toISOString(),
-      type: "duplicate-task-ignored",
-      duplicateOf: duplicate.id,
-      taskId: task.id,
-      originTaskId: task.originTaskId || "",
-      sessionId: task.sessionId || "",
-      machineName: task.machineName || ""
-    });
-
     return { task: duplicate, created: false };
   }
 
@@ -3538,16 +3528,44 @@ async function scanSessionsCommand(args) {
 async function scanSessions({ cfg, notify }) {
   const state = readJsonFile(cfg.dataDir, SESSION_WATCH_STATE, { seen: {} });
   state.seen ||= {};
+  const migratingLegacyState = !state.files && Object.keys(state.seen).length > 0;
+  state.files ||= {};
 
   const now = Date.now();
   let notified = 0;
 
   for (const filePath of recentSessionFiles(cfg)) {
-    for (const item of readFinalSessionMessages(filePath)) {
-      if (state.seen[item.id]) continue;
-      if (now - Date.parse(item.at) < cfg.sessionWatchDebounceMs) continue;
+    const items = readFinalSessionMessages(filePath);
+    const fileState = state.files[filePath];
+
+    // Older releases tracked only a globally capped id set. Treat every
+    // message currently in those files as processed during migration so ids
+    // that fell out of the cap cannot replay forever.
+    if (migratingLegacyState && !fileState) {
+      state.files[filePath] = {
+        messageCount: items.length,
+        updatedAt: new Date().toISOString()
+      };
+      continue;
+    }
+
+    const previousCount = Number(fileState?.messageCount);
+    const startIndex =
+      Number.isInteger(previousCount) && previousCount >= 0 && previousCount <= items.length
+        ? previousCount
+        : 0;
+
+    let processedCount = startIndex;
+    for (let index = startIndex; index < items.length; index += 1) {
+      const item = items[index];
+      if (state.seen[item.id]) {
+        processedCount = index + 1;
+        continue;
+      }
+      if (now - Date.parse(item.at) < cfg.sessionWatchDebounceMs) break;
 
       state.seen[item.id] = new Date().toISOString();
+      processedCount = index + 1;
 
       if (!notify || hasMatchingTask(readJsonl(cfg.dataDir, "tasks.jsonl"), item)) continue;
 
@@ -3568,9 +3586,19 @@ async function scanSessions({ cfg, notify }) {
       const result = await recordTaskAndDispatch(cfg, task);
       if (result.created) notified += 1;
     }
+
+    state.files[filePath] = {
+      messageCount: processedCount,
+      updatedAt: new Date().toISOString()
+    };
   }
 
-  state.seen = Object.fromEntries(Object.entries(state.seen).slice(-1000));
+  state.seen = Object.fromEntries(Object.entries(state.seen).slice(-5000));
+  state.files = Object.fromEntries(
+    Object.entries(state.files)
+      .sort(([, a], [, b]) => Date.parse(a.updatedAt || "") - Date.parse(b.updatedAt || ""))
+      .slice(-1000)
+  );
   writeJsonFile(cfg.dataDir, SESSION_WATCH_STATE, state);
   return notified;
 }
