@@ -64,7 +64,7 @@ async function run() {
     const exact = await postReply(port, {
       taskId: task.id,
       sessionId: task.sessionId
-    });
+    }, { useHeader: true, omitBodyToken: true });
     assert.equal(exact.status, 200);
     assert.equal(exact.body.recorded.taskId, task.id);
     assert.equal(exact.body.recorded.sessionId, task.sessionId);
@@ -82,16 +82,21 @@ async function run() {
   }
 }
 
-async function postReply(port, fields) {
+async function postReply(port, fields, options = {}) {
+  const body = {
+    choice: "custom",
+    prompt: "Route this exactly",
+    ...fields
+  };
+  if (!options.omitBodyToken) body.token = token;
+
   const response = await fetch(`http://127.0.0.1:${port}/reply`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      token,
-      choice: "custom",
-      prompt: "Route this exactly",
-      ...fields
-    })
+    headers: {
+      "content-type": "application/json",
+      ...(options.useHeader ? { authorization: `Bearer ${token}` } : {})
+    },
+    body: JSON.stringify(body)
   });
   return { status: response.status, body: await response.json() };
 }

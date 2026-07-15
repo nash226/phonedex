@@ -99,8 +99,7 @@ struct PhoneDexApp: App {
 
             try await PhoneDexNotificationScheduler.scheduleTaskNotification(
                 task,
-                bridgeURL: bridgeURL,
-                token: settings.token
+                bridgeURL: bridgeURL
             )
             await recordDeepLinkResult(action: "notify-latest")
         } catch {

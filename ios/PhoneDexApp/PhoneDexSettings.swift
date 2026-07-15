@@ -58,7 +58,16 @@ final class PhoneDexSettings: ObservableObject {
         if raw.hasSuffix("/") {
             raw.removeLast()
         }
-        return URL(string: raw)
+        guard let url = URL(string: raw),
+              ["http", "https"].contains(url.scheme?.lowercased()),
+              url.user == nil,
+              url.password == nil,
+              url.query == nil,
+              url.fragment == nil
+        else {
+            return nil
+        }
+        return url
     }
 
     @discardableResult
@@ -74,14 +83,14 @@ final class PhoneDexSettings: ObservableObject {
         if let bridgeURL = components.value(forQueryItem: "bridgeUrl") ??
             components.value(forQueryItem: "bridgeURL") ??
             components.value(forQueryItem: "bridge_url"),
+            let candidate = URL(string: bridgeURL),
+            candidate.user == nil,
+            candidate.password == nil,
+            candidate.query == nil,
+            candidate.fragment == nil,
+            ["http", "https"].contains(candidate.scheme?.lowercased()),
             !bridgeURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            self.bridgeURL = bridgeURL
-            updated = true
-        }
-
-        if let token = components.value(forQueryItem: "token"),
-           !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            self.token = token
+            self.bridgeURL = candidate.absoluteString
             updated = true
         }
 

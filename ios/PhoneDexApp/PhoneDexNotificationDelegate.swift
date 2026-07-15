@@ -2,6 +2,13 @@ import Foundation
 import UserNotifications
 
 final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
+    private let tokenStore: any PhoneDexTokenStoring
+
+    init(tokenStore: any PhoneDexTokenStoring = PhoneDexKeychainTokenStore()) {
+        self.tokenStore = tokenStore
+        super.init()
+    }
+
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
@@ -35,10 +42,15 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
             return
         }
 
-        let client = PhoneDexBridgeClient(
-            bridgeURL: bridgeURL,
-            token: userInfo["token"] as? String ?? ""
-        )
+        let token: String
+        do {
+            token = try tokenStore.readToken() ?? ""
+        } catch {
+            NotificationReplyResult.record(.failed("Secure credential storage is unavailable. Try again."))
+            return
+        }
+
+        let client = PhoneDexBridgeClient(bridgeURL: bridgeURL, token: token)
 
         do {
             try await client.sendReply(

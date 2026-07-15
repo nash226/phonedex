@@ -52,7 +52,15 @@ enum PhoneDexNotificationScheduler {
         try await center.add(request)
     }
 
-    static func scheduleTaskNotification(_ task: PhoneDexTask, bridgeURL: URL, token: String) async throws {
+    static func scheduleTaskNotification(_ task: PhoneDexTask, bridgeURL: URL) async throws {
+        guard bridgeURL.user == nil,
+              bridgeURL.password == nil,
+              bridgeURL.query == nil,
+              bridgeURL.fragment == nil
+        else {
+            throw PhoneDexNotificationError.credentialBearingBridgeURL
+        }
+
         registerCategories()
         let identifier = "phonedex-task-\(task.id)"
         let center = UNUserNotificationCenter.current()
@@ -66,14 +74,7 @@ enum PhoneDexNotificationScheduler {
         content.categoryIdentifier = categoryIdentifier
         content.threadIdentifier = "phonedex"
         content.sound = .default
-        content.userInfo = [
-            "taskId": task.id,
-            "sessionId": task.sessionId ?? "",
-            "machineName": task.machineName ?? "",
-            "replyUrl": bridgeURL.appending(path: "reply").absoluteString,
-            "bridgeUrl": bridgeURL.absoluteString,
-            "token": token
-        ]
+        content.userInfo = taskNotificationUserInfo(task, bridgeURL: bridgeURL)
 
         let request = UNNotificationRequest(
             identifier: identifier,
@@ -82,6 +83,16 @@ enum PhoneDexNotificationScheduler {
         )
 
         try await center.add(request)
+    }
+
+    static func taskNotificationUserInfo(_ task: PhoneDexTask, bridgeURL: URL) -> [AnyHashable: Any] {
+        [
+            "taskId": task.id,
+            "sessionId": task.sessionId ?? "",
+            "machineName": task.machineName ?? "",
+            "replyUrl": bridgeURL.appending(path: "reply").absoluteString,
+            "bridgeUrl": bridgeURL.absoluteString
+        ]
     }
 
     static func registerCategories() {
@@ -111,5 +122,16 @@ enum PhoneDexNotificationScheduler {
         )
 
         UNUserNotificationCenter.current().setNotificationCategories([category])
+    }
+}
+
+enum PhoneDexNotificationError: LocalizedError, Equatable {
+    case credentialBearingBridgeURL
+
+    var errorDescription: String? {
+        switch self {
+        case .credentialBearingBridgeURL:
+            return "The bridge URL must not contain credentials or query parameters."
+        }
     }
 }

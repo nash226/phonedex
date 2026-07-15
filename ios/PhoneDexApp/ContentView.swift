@@ -734,8 +734,7 @@ private struct PhoneDexSettingsView: View {
             }
             try await PhoneDexNotificationScheduler.scheduleTaskNotification(
                 task,
-                bridgeURL: bridgeURL,
-                token: settings.token
+                bridgeURL: bridgeURL
             )
             notificationStatus = "Notification scheduled."
         } catch {
