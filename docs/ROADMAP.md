@@ -708,8 +708,10 @@ Outcome: turn the complete system into an operable public product.
   provenance.
 - [x] Staged migration, backup, rollback, and disaster-recovery drills.
 - [ ] Content-free observability with correlation IDs and component health.
-- [ ] Privacy manifest, App Store privacy answers, privacy policy, retention,
-  deletion, security contact, and incident-response process.
+- [x] Add an implementation-based iOS privacy manifest and App Store privacy
+  answer draft grounded in the local-first client behavior.
+- [ ] Publish the privacy policy, retention/deletion disclosures, security
+  contact, and incident-response process after release-owner/legal review.
 - [ ] TestFlight cohorts and real-device iOS/macOS/Windows matrix.
 - [ ] Performance, battery, accessibility, localization readiness, and crash
   gates.
