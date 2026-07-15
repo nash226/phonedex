@@ -12,6 +12,7 @@ const {
   RETENTION_CONFIRMATION,
   createPhoneDexPrivacy
 } = require("../lib/phonedex-privacy");
+const { storeArtifact, findArtifact, readVerifiedArtifact } = require("../lib/phonedex-artifacts");
 
 const root = path.resolve(__dirname, "..");
 const bridge = path.join(root, "bin", "codex-watch.js");
@@ -82,6 +83,16 @@ async function main() {
   const recentAt = new Date().toISOString();
   store.appendTask(task("old", oldAt), () => false);
   store.appendTask(task("recent", recentAt), () => false);
+  const oldArtifact = storeArtifact(dataDir, {
+    taskId: "old",
+    artifact: { id: "old-log", name: "old.log", kind: "log", downloadId: "artifact_old_123" },
+    contentBase64: Buffer.from("old sensitive output").toString("base64")
+  });
+  const recentArtifact = storeArtifact(dataDir, {
+    taskId: "recent",
+    artifact: { id: "recent-log", name: "recent.log", kind: "log", downloadId: "artifact_recent_123" },
+    contentBase64: Buffer.from("recent sensitive output").toString("base64")
+  });
   store.upsertDevice({
     deviceId: "windows-workstation",
     machineName: "Windows Workstation",
@@ -103,10 +114,16 @@ async function main() {
   assert.equal(JSON.stringify(exported).includes("super-secret-value"), false);
   assert.equal(JSON.stringify(exported).includes("C:\\Users\\private"), false);
   assert.equal(JSON.stringify(exported).includes("diff --git"), false);
+  assert.equal(JSON.stringify(exported).includes("old sensitive output"), false);
 
   const retention = privacy.applyRetention(1);
   assert.equal(retention.deletedTaskCount, 1);
   assert.equal(retention.deletedActivityCount, 1);
+  assert.equal(retention.deletedArtifactCount, 1);
+  assert.ok(retention.deletedArtifactBytes > 0);
+  assert.equal(findArtifact(dataDir, oldArtifact.downloadId), null);
+  assert.equal(readVerifiedArtifact(dataDir, oldArtifact.downloadId), null);
+  assert.ok(readVerifiedArtifact(dataDir, recentArtifact.downloadId));
   assert.deepEqual(createPhoneDexStore(dataDir).listTasks().map((entry) => entry.id), ["recent"]);
   assert.equal(privacy.summary().policy.retentionDays, 1);
 
@@ -161,6 +178,8 @@ async function main() {
     });
     assert.equal(deleted.response.status, 200);
     assert.equal(deleted.json.deletedTaskCount, 1);
+    assert.equal(deleted.json.deletedArtifactCount, 1);
+    assert.equal(findArtifact(dataDir, recentArtifact.downloadId), null);
     const clearedStore = createPhoneDexStore(dataDir);
     assert.equal(clearedStore.listDevices().length, 1);
     assert.deepEqual(clearedStore.read().changes, []);

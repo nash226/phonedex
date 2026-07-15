@@ -645,7 +645,7 @@ Outcome: let users evaluate completed work without returning to a computer.
 - [x] Build a virtualized native text diff viewer with file navigation,
   context expansion, copy, and share.
 - [x] Add integrity-checked artifact metadata and explicit downloads.
-- [ ] Enforce retention and export policy for sensitive review content.
+- [x] Enforce retention and export policy for sensitive review content.
 - [ ] Meet the 5,000-line diff performance target on the oldest supported
   iPhone.
 
@@ -685,6 +685,18 @@ explicit. `scripts/test-artifacts.js` and `PhoneDexBridgeClientTests` cover
 authentication, forwarding storage, headers, tamper rejection, and native
 digest failure. Retention policy for artifact bytes remains a separate release
 gate.
+
+Verification evidence for the completed review-retention and export-policy
+slice: `lib/phonedex-privacy.js` applies the configured bounded retention
+window to verified artifact bytes and their opaque index records, removes
+orphaned artifact payloads during confirmed history deletion, and reports
+bounded deletion counts and bytes in content-free privacy results. The
+existing redacted export remains metadata-only and never includes artifact
+bytes, patches, credentials, or local paths. `scripts/test-privacy.js` covers
+expired and recent artifact behavior, confirmed history deletion, unavailable
+expired downloads, and sensitive-content absence from exports. Artifact
+retention is local to the user-owned hub; no hosted relay or new credential
+scope is introduced.
 
 ## M8: Beta, Operations, and App Store Release
 
