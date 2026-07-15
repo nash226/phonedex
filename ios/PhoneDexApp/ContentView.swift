@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct ContentView: View {
     @StateObject private var model: PhoneDexAppModel
@@ -388,6 +389,7 @@ struct PhoneDexTaskDetailView: View {
     @State private var draft: String
     @State private var showNewActivity = false
     @State private var draftSaveTask: Task<Void, Never>?
+    @State private var hasRestoredReadingPosition = false
     @FocusState private var composerFocused: Bool
 
     init(task: PhoneDexTask, model: PhoneDexAppModel) {
@@ -400,27 +402,29 @@ struct PhoneDexTaskDetailView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 20) {
-                    taskHeader
-                    statusSummary
-                    transcript
-                    activity
-                    evidence
+                    detailSection(.header) { taskHeader }
+                    detailSection(.status) { statusSummary }
+                    detailSection(.transcript) { transcript }
+                    detailSection(.activity) { activity }
+                    detailSection(.evidence) { evidence }
                     replyStatus
 
                     Color.clear
                         .frame(height: 1)
-                        .id("task-detail-bottom")
+                        .id(PhoneDexTaskDetailAnchor.bottom.rawValue)
+                        .background(anchorPreference(.bottom))
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
                 .padding(.bottom, 24)
             }
+            .coordinateSpace(name: "task-detail-scroll")
             .background(Color(uiColor: .systemBackground))
             .overlay(alignment: .bottom) {
                 if showNewActivity {
                     Button {
                         withAnimation(.default) {
-                            proxy.scrollTo("task-detail-bottom", anchor: .bottom)
+                            proxy.scrollTo(PhoneDexTaskDetailAnchor.bottom.rawValue, anchor: .bottom)
                         }
                         showNewActivity = false
                     } label: {
@@ -438,6 +442,27 @@ struct PhoneDexTaskDetailView: View {
             }
             .onChange(of: task.updatedAt) { _, _ in
                 showNewActivity = true
+                UIAccessibility.post(
+                    notification: .announcement,
+                    argument: "New activity available in \(task.title)."
+                )
+            }
+            .onPreferenceChange(PhoneDexTaskDetailAnchorPreferenceKey.self) { values in
+                guard hasRestoredReadingPosition else { return }
+                model.updateReadingPosition(currentAnchor(in: values), for: task.id)
+            }
+            .task(id: task.id) {
+                hasRestoredReadingPosition = false
+                guard let position = model.readingPosition(for: task.id) else {
+                    hasRestoredReadingPosition = true
+                    return
+                }
+                await Task.yield()
+                guard !Task.isCancelled else { return }
+                withAnimation(.none) {
+                    proxy.scrollTo(position, anchor: .top)
+                }
+                hasRestoredReadingPosition = true
             }
         }
         .navigationTitle(task.displayWorkspace)
@@ -464,6 +489,29 @@ struct PhoneDexTaskDetailView: View {
                 .accessibilityLabel("Conversation actions")
             }
         }
+    }
+
+    private func detailSection<Content: View>(
+        _ anchor: PhoneDexTaskDetailAnchor,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        content()
+            .id(anchor.rawValue)
+            .background(anchorPreference(anchor))
+    }
+
+    private func anchorPreference(_ anchor: PhoneDexTaskDetailAnchor) -> some View {
+        GeometryReader { proxy in
+            Color.clear.preference(
+                key: PhoneDexTaskDetailAnchorPreferenceKey.self,
+                value: [anchor.rawValue: proxy.frame(in: .named("task-detail-scroll")).minY]
+            )
+        }
+    }
+
+    private func currentAnchor(in values: [String: CGFloat]) -> String? {
+        let visible = values.filter { $0.value <= 80 }
+        return (visible.max { lhs, rhs in lhs.value < rhs.value } ?? values.min { lhs, rhs in lhs.value < rhs.value })?.key
     }
 
     private var taskHeader: some View {
@@ -742,6 +790,23 @@ struct PhoneDexTaskDetailView: View {
         case "failed", "awaiting_approval", "needs_input", "needs_review": return .orange
         default: return .blue
         }
+    }
+}
+
+private enum PhoneDexTaskDetailAnchor: String {
+    case header
+    case status
+    case transcript
+    case activity
+    case evidence
+    case bottom
+}
+
+private struct PhoneDexTaskDetailAnchorPreferenceKey: PreferenceKey {
+    static var defaultValue: [String: CGFloat] = [:]
+
+    static func reduce(value: inout [String: CGFloat], nextValue: () -> [String: CGFloat]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, latest in latest })
     }
 }
 

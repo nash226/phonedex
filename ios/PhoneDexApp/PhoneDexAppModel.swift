@@ -50,6 +50,7 @@ final class PhoneDexAppModel: ObservableObject {
     @Published private(set) var tasks: [PhoneDexTask] = []
     @Published private(set) var devices: [PhoneDexDevice] = []
     @Published private(set) var drafts: [PhoneDexTask.ID: String] = [:]
+    @Published private(set) var readingPositions: [PhoneDexTask.ID: String] = [:]
     @Published var selectedTaskID: PhoneDexTask.ID?
     @Published var connectionState: ConnectionState = .idle
     @Published var replyState: ReplyState = .idle
@@ -220,6 +221,22 @@ final class PhoneDexAppModel: ObservableObject {
         persistCachedState(lastSyncAt: lastSuccessfulSync)
     }
 
+    func readingPosition(for taskID: PhoneDexTask.ID) -> String? {
+        readingPositions[taskID]
+    }
+
+    func updateReadingPosition(_ position: String?, for taskID: PhoneDexTask.ID) {
+        let normalizedPosition = position?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard readingPositions[taskID] != normalizedPosition else { return }
+
+        if let normalizedPosition, !normalizedPosition.isEmpty {
+            readingPositions[taskID] = normalizedPosition
+        } else {
+            readingPositions.removeValue(forKey: taskID)
+        }
+        persistCachedState(lastSyncAt: lastSuccessfulSync)
+    }
+
     private var bridgeClient: PhoneDexBridgeClient? {
         guard let bridgeURL = settings.normalizedBridgeURL else { return nil }
         return PhoneDexBridgeClient(bridgeURL: bridgeURL, token: settings.token)
@@ -234,6 +251,7 @@ final class PhoneDexAppModel: ObservableObject {
             }
             devices = cached.devices
             drafts = cached.drafts
+            readingPositions = cached.readingPositions
             syncCursor = cached.cursor
             lastSuccessfulSync = cached.lastSyncAt
             connectionState = .offline(cached.lastSyncAt)
@@ -250,7 +268,8 @@ final class PhoneDexAppModel: ObservableObject {
                 tasks: syncTasks,
                 devices: devices,
                 lastSyncAt: lastSyncAt,
-                drafts: drafts
+                drafts: drafts,
+                readingPositions: readingPositions
             )
         )
     }
