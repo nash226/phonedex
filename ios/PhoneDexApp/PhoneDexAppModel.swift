@@ -49,6 +49,7 @@ final class PhoneDexAppModel: ObservableObject {
 
     @Published private(set) var tasks: [PhoneDexTask] = []
     @Published private(set) var devices: [PhoneDexDevice] = []
+    @Published private(set) var drafts: [PhoneDexTask.ID: String] = [:]
     @Published var selectedTaskID: PhoneDexTask.ID?
     @Published var connectionState: ConnectionState = .idle
     @Published var replyState: ReplyState = .idle
@@ -205,6 +206,20 @@ final class PhoneDexAppModel: ObservableObject {
         }
     }
 
+    func draft(for taskID: PhoneDexTask.ID) -> String {
+        drafts[taskID] ?? ""
+    }
+
+    func updateDraft(_ draft: String, for taskID: PhoneDexTask.ID) {
+        let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            drafts.removeValue(forKey: taskID)
+        } else {
+            drafts[taskID] = draft
+        }
+        persistCachedState(lastSyncAt: lastSuccessfulSync)
+    }
+
     private var bridgeClient: PhoneDexBridgeClient? {
         guard let bridgeURL = settings.normalizedBridgeURL else { return nil }
         return PhoneDexBridgeClient(bridgeURL: bridgeURL, token: settings.token)
@@ -218,6 +233,7 @@ final class PhoneDexAppModel: ObservableObject {
                 (lhs.displayDate ?? .distantPast) > (rhs.displayDate ?? .distantPast)
             }
             devices = cached.devices
+            drafts = cached.drafts
             syncCursor = cached.cursor
             lastSuccessfulSync = cached.lastSyncAt
             connectionState = .offline(cached.lastSyncAt)
@@ -228,13 +244,13 @@ final class PhoneDexAppModel: ObservableObject {
     }
 
     private func persistCachedState(lastSyncAt: Date?) {
-        guard let lastSyncAt else { return }
         try? cache.save(
             PhoneDexCachedState(
                 cursor: syncCursor,
                 tasks: syncTasks,
                 devices: devices,
-                lastSyncAt: lastSyncAt
+                lastSyncAt: lastSyncAt,
+                drafts: drafts
             )
         )
     }

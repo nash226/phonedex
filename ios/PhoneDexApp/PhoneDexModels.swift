@@ -3,6 +3,9 @@ import Foundation
 struct PhoneDexTask: Codable, Identifiable, Equatable {
     let id: String
     let at: String?
+    let createdAt: String?
+    let updatedAt: String?
+    let version: Int?
     let source: String?
     let title: String
     let text: String
@@ -13,6 +16,68 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
     let status: String?
     let branch: String?
     let repository: String?
+    let captureSources: [PhoneDexCaptureSource]
+
+    private enum CodingKeys: String, CodingKey {
+        case id, at, createdAt, updatedAt, version, source, title, text, cwd, workspaceName
+        case machineName, sessionId, status, branch, repository, captureSources
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        at = try container.decodeIfPresent(String.self, forKey: .at)
+        createdAt = try container.decodeIfPresent(String.self, forKey: .createdAt)
+        updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt)
+        version = try container.decodeIfPresent(Int.self, forKey: .version)
+        source = try container.decodeIfPresent(String.self, forKey: .source)
+        title = try container.decodeIfPresent(String.self, forKey: .title) ?? "Codex task"
+        text = try container.decodeIfPresent(String.self, forKey: .text) ?? ""
+        cwd = try container.decodeIfPresent(String.self, forKey: .cwd)
+        workspaceName = try container.decodeIfPresent(String.self, forKey: .workspaceName)
+        machineName = try container.decodeIfPresent(String.self, forKey: .machineName)
+        sessionId = try container.decodeIfPresent(String.self, forKey: .sessionId)
+        status = try container.decodeIfPresent(String.self, forKey: .status)
+        branch = try container.decodeIfPresent(String.self, forKey: .branch)
+        repository = try container.decodeIfPresent(String.self, forKey: .repository)
+        captureSources = try container.decodeIfPresent([PhoneDexCaptureSource].self, forKey: .captureSources) ?? []
+    }
+
+    init(
+        id: String,
+        at: String?,
+        source: String?,
+        title: String,
+        text: String,
+        cwd: String?,
+        workspaceName: String?,
+        machineName: String?,
+        sessionId: String?,
+        status: String?,
+        branch: String?,
+        repository: String?,
+        createdAt: String? = nil,
+        updatedAt: String? = nil,
+        version: Int? = nil,
+        captureSources: [PhoneDexCaptureSource] = []
+    ) {
+        self.id = id
+        self.at = at
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.version = version
+        self.source = source
+        self.title = title
+        self.text = text
+        self.cwd = cwd
+        self.workspaceName = workspaceName
+        self.machineName = machineName
+        self.sessionId = sessionId
+        self.status = status
+        self.branch = branch
+        self.repository = repository
+        self.captureSources = captureSources
+    }
 
     var displayWorkspace: String {
         if let workspaceName, !workspaceName.isEmpty { return workspaceName }
@@ -54,8 +119,58 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
     }
 
     var displayDate: Date? {
-        guard let at else { return nil }
-        return ISO8601DateFormatter.phoneDex.date(from: at)
+        date(from: at ?? createdAt)
+    }
+
+    var lastUpdatedDate: Date? {
+        date(from: updatedAt) ?? displayDate
+    }
+
+    var activity: [PhoneDexTaskActivity] {
+        var items = [PhoneDexTaskActivity]()
+        if let date = displayDate {
+            items.append(PhoneDexTaskActivity(
+                id: "created",
+                title: "Task recorded",
+                detail: "PhoneDex received this task from " + displaySource,
+                symbol: "arrow.down.circle",
+                date: date
+            ))
+        }
+        for (index, capture) in captureSources.enumerated() {
+            guard let captureDate = capture.displayDate ?? displayDate else { continue }
+            items.append(PhoneDexTaskActivity(
+                id: "capture-\(index)-\(capture.id)",
+                title: capture.displayName,
+                detail: capture.messageId.map { "Message \($0)" },
+                symbol: "arrow.triangle.merge",
+                date: captureDate
+            ))
+        }
+        if let date = lastUpdatedDate, date != displayDate {
+            items.append(PhoneDexTaskActivity(
+                id: "updated",
+                title: displayStatus,
+                detail: "Latest known task state",
+                symbol: statusSymbol,
+                date: date
+            ))
+        }
+        return items.sorted { $0.date < $1.date }
+    }
+
+    var displaySource: String {
+        switch source {
+        case "stop-hook": return "Stop hook"
+        case "session-watcher": return "session watcher"
+        case "remote-agent": return "remote agent"
+        default: return source?.replacingOccurrences(of: "-", with: " ") ?? "bridge"
+        }
+    }
+
+    private func date(from value: String?) -> Date? {
+        guard let value else { return nil }
+        return ISO8601DateFormatter.phoneDex.date(from: value)
     }
 
     var projectID: String {
@@ -80,6 +195,33 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
         }
         return Array(latest.values)
     }
+}
+
+struct PhoneDexCaptureSource: Codable, Equatable, Identifiable {
+    let source: String
+    let messageId: String?
+    let observedAt: String?
+
+    var id: String { "\(source)-\(messageId ?? "unknown")" }
+    var displayDate: Date? {
+        guard let observedAt else { return nil }
+        return ISO8601DateFormatter.phoneDex.date(from: observedAt)
+    }
+    var displayName: String {
+        switch source {
+        case "stop-hook": return "Captured by Stop hook"
+        case "session-watcher": return "Captured by session watcher"
+        default: return "Captured by \(source.replacingOccurrences(of: "-", with: " "))"
+        }
+    }
+}
+
+struct PhoneDexTaskActivity: Equatable, Identifiable {
+    let id: String
+    let title: String
+    let detail: String?
+    let symbol: String
+    let date: Date
 }
 
 struct PhoneDexProject: Identifiable, Equatable {
