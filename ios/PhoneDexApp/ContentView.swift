@@ -513,6 +513,9 @@ struct PhoneDexTaskDetailView: View {
                 LazyVStack(alignment: .leading, spacing: 20) {
                     detailSection(.header) { taskHeader }
                     detailSection(.status) { statusSummary }
+                    if task.approvalRequest != nil {
+                        detailSection(.approval) { approvalReview }
+                    }
                     if task.question != nil {
                         detailSection(.question) { questionPrompt }
                     }
@@ -736,6 +739,77 @@ struct PhoneDexTaskDetailView: View {
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .accessibilityElement(children: .contain)
         )
+    }
+
+    @ViewBuilder
+    private var approvalReview: some View {
+        if let request = task.approvalRequest {
+            VStack(alignment: .leading, spacing: 12) {
+                Label("Approval review", systemImage: "checkmark.shield")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(request.isExpired ? Color.secondary : Color.orange)
+
+                Text(request.displayState)
+                    .font(.headline)
+
+                approvalRow("Operation", request.operation, symbol: "bolt")
+                approvalRow("Scope", request.scope, symbol: "scope")
+                approvalRow("Origin", approvalOriginText(request), symbol: "desktopcomputer")
+                approvalRow("Why", request.reason, symbol: "questionmark.circle")
+                approvalRow("Risk", request.risk, symbol: "exclamationmark.triangle")
+
+                if let expiryDate = request.expiryDate {
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(request.isExpired ? "Expired" : "Expires")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(expiryDate, style: .relative)
+                                .font(.subheadline)
+                        }
+                    } icon: {
+                        Image(systemName: "hourglass")
+                            .foregroundStyle(request.isExpired ? Color.secondary : Color.orange)
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+
+                if request.state == "pending" && !request.isExpired {
+                    Text("Approval response controls are unavailable until the originating agent advertises approval.respond.v1. Refresh before relying on this request.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel("Approval response controls are not available from this agent yet. Refresh before relying on this request.")
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .background(Color(uiColor: .secondarySystemBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .accessibilityElement(children: .contain)
+        }
+    }
+
+    private func approvalOriginText(_ request: PhoneDexApprovalRequest) -> String {
+        let workspace = request.origin.workspaceName.map { " · \($0)" } ?? ""
+        return "\(request.origin.machineName) (\(request.origin.deviceId))\(workspace)"
+    }
+
+    private func approvalRow(_ title: String, _ value: String, symbol: String) -> some View {
+        Label {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(value)
+                    .font(.subheadline)
+                    .textSelection(.enabled)
+            }
+        } icon: {
+            Image(systemName: symbol)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 
     private var transcript: some View {
@@ -1160,6 +1234,7 @@ struct PhoneDexTaskDetailView: View {
 private enum PhoneDexTaskDetailAnchor: String {
     case header
     case status
+    case approval
     case question
     case transcript
     case liveEvents

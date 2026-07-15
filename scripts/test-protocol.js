@@ -45,6 +45,57 @@ assert.equal(task.question.choices[0].id, "tests");
 assert.equal(task.evidence.changedFiles[0].sourceRef, "Sources/App.swift#L1-L8");
 assert.equal(task.evidence.validations[0].status, "passed");
 
+const approvalTask = addTaskProtocolFields({
+  id: "task_approval",
+  at: now,
+  title: "Review a file operation",
+  text: "The task is ready for a consequential workspace change.",
+  machineName: "Build Mac",
+  deviceId: "mac_1",
+  version: 4,
+  status: "awaiting_approval",
+  approvalRequest: {
+    id: "approval_1",
+    taskVersion: 4,
+    operation: "Write generated files",
+    scope: "PhoneDex workspace",
+    origin: {
+      deviceId: "mac_1",
+      machineName: "Build Mac",
+      workspaceName: "PhoneDex",
+      path: "/Users/example/PhoneDex"
+    },
+    reason: "The task is ready to update the generated project.",
+    risk: "Changes files in the selected workspace.",
+    requestedAt: now,
+    expiresAt: "2026-07-15T12:15:00.000Z",
+    state: "pending"
+  }
+});
+assert.equal(validateProtocolRecord("task", approvalTask).valid, true);
+assert.equal(approvalTask.approvalRequest.origin.deviceId, "mac_1");
+assert.equal(approvalTask.approvalRequest.origin.path, undefined);
+assert.throws(
+  () => addTaskProtocolFields({
+    ...approvalTask,
+    id: "task_invalid_approval",
+    approvalRequest: { ...approvalTask.approvalRequest, taskVersion: 3 }
+  }),
+  /approvalRequest\.taskVersion/
+);
+assert.throws(
+  () => addTaskProtocolFields({
+    ...approvalTask,
+    id: "task_expired_approval",
+    approvalRequest: {
+      ...approvalTask.approvalRequest,
+      requestedAt: now,
+      expiresAt: now
+    }
+  }),
+  /expiresAt must be after requestedAt/
+);
+
 assert.throws(
   () => addTaskProtocolFields({
     id: "task_invalid_question",
@@ -212,6 +263,31 @@ const fixtures = {
     taskVersion: 1
   })
 };
+
+const approvalCommand = protocolRecord("command", {
+  commandId: "approval_command_fixture",
+  createdAt: now,
+  kind: "approve",
+  target: { taskId: approvalTask.id, deviceId: "mac_1" },
+  idempotencyKey: "phone-approval-1",
+  state: "pending",
+  payload: { approvalId: "approval_1", taskVersion: 4 },
+  expectedTaskVersion: 4,
+  requestedCapability: "approval.respond.v1",
+  requestedBy: "phone_fixture"
+});
+const approvalReceipt = protocolRecord("commandReceipt", {
+  commandId: "approval_command_fixture",
+  createdAt: now,
+  state: "accepted",
+  taskId: approvalTask.id,
+  taskVersion: 4,
+  approvalId: "approval_1",
+  approvalState: "approved",
+  approvalExpiresAt: "2026-07-15T12:15:00.000Z"
+});
+assert.equal(validateProtocolRecord("command", approvalCommand).valid, true);
+assert.equal(validateProtocolRecord("commandReceipt", approvalReceipt).valid, true);
 
 for (const [kind, fixture] of Object.entries(fixtures)) {
   assert.equal(validateProtocolRecord(kind, fixture).valid, true, `${kind} fixture should validate`);
