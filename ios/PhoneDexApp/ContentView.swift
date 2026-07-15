@@ -1229,9 +1229,23 @@ struct PhoneDexTaskDetailView: View {
     private var replyStatus: some View {
         switch model.replyState {
         case .sent(let prompt):
-            Label("Sent: \(prompt)", systemImage: "checkmark.circle.fill")
-                .foregroundStyle(.green)
-                .font(.subheadline)
+            if let receipt = model.latestReplyReceipt(for: task.id) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Label("\(receipt.displayState): \(receipt.prompt)", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                        .font(.subheadline)
+                    if let message = receipt.message, !message.isEmpty {
+                        Text(message)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .accessibilityElement(children: .combine)
+            } else {
+                Label("Sent: \(prompt)", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                    .font(.subheadline)
+            }
         case .queued(let prompt):
             HStack(spacing: 10) {
                 Label("Queued offline: \(prompt)", systemImage: "clock.arrow.circlepath")
@@ -1267,7 +1281,27 @@ struct PhoneDexTaskDetailView: View {
             .font(.subheadline)
             .foregroundStyle(.secondary)
         case .idle:
-            EmptyView()
+            if let receipt = model.latestReplyReceipt(for: task.id) {
+                HStack(spacing: 10) {
+                    Label(receipt.displayState, systemImage: receipt.isSuccessful ? "checkmark.circle" : "exclamationmark.circle")
+                        .foregroundStyle(receipt.isSuccessful ? .green : .red)
+                        .font(.subheadline)
+                    Text(receipt.prompt)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                    Spacer(minLength: 0)
+                    if model.pendingReply(for: task.id) != nil {
+                        Button("Retry") {
+                            Task { _ = await model.retryPendingReply(for: task) }
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
+                .accessibilityElement(children: .contain)
+            } else {
+                EmptyView()
+            }
         }
     }
 
