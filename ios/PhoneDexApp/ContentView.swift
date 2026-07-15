@@ -40,32 +40,44 @@ struct ContentView: View {
 
 private struct PhoneDexChatsView: View {
     @ObservedObject var model: PhoneDexAppModel
+    @State private var filter = PhoneDexTaskFilter()
+
+    private var filteredTasks: [PhoneDexTask] {
+        filter.filteredTasks(model.tasks)
+    }
 
     var body: some View {
         NavigationSplitView {
-            List(selection: $model.selectedTaskID) {
-                Section {
-                    ForEach(model.tasks) { task in
-                        NavigationLink(value: task.id) {
-                            PhoneDexTaskRow(task: task)
-                        }
+            VStack(spacing: 0) {
+                Picker("Conversation scope", selection: $filter.scope) {
+                    ForEach(PhoneDexChatScope.allCases) { scope in
+                        Text(scope.title).tag(scope)
                     }
-                } header: {
-                    PhoneDexConnectionHeader(state: model.connectionState)
                 }
+                .pickerStyle(.segmented)
+                .accessibilityLabel("Conversation scope")
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(.bar)
+
+                Divider()
+
+                List(selection: $model.selectedTaskID) {
+                    Section {
+                        ForEach(filteredTasks) { task in
+                            NavigationLink(value: task.id) {
+                                PhoneDexTaskRow(task: task)
+                            }
+                        }
+                    } header: {
+                        PhoneDexConnectionHeader(state: model.connectionState)
+                    }
+                }
+                .listStyle(.plain)
+                .overlay { emptyState }
+                .refreshable { await model.refresh() }
             }
-            .listStyle(.plain)
             .navigationTitle("PhoneDex")
-            .overlay {
-                if model.tasks.isEmpty {
-                    ContentUnavailableView(
-                        "No conversations yet",
-                        systemImage: "bubble.left.and.bubble.right",
-                        description: Text("Completed Codex work will appear here.")
-                    )
-                }
-            }
-            .refreshable { await model.refresh() }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -75,7 +87,14 @@ private struct PhoneDexChatsView: View {
                     }
                     .accessibilityLabel("Refresh conversations")
                 }
+
+                ToolbarItem(placement: .topBarTrailing) {
+                    filterMenu
+                }
             }
+            .searchable(text: $filter.searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search conversations")
+            .onChange(of: filter) { _, _ in keepSelectionVisible() }
+            .onChange(of: model.tasks) { _, _ in keepSelectionVisible() }
         } detail: {
             if let task = model.selectedTask {
                 PhoneDexTaskDetailView(task: task, model: model)
@@ -87,6 +106,68 @@ private struct PhoneDexChatsView: View {
                     description: Text("Select Codex work from the sidebar.")
                 )
             }
+        }
+    }
+
+    @ViewBuilder
+    private var emptyState: some View {
+        if filteredTasks.isEmpty {
+            ContentUnavailableView {
+                Label(filter.scope.emptyTitle, systemImage: "bubble.left.and.bubble.right")
+            } description: {
+                Text(filter.hasFilters ? "Try a different search or filter." : filter.scope.emptyDescription)
+            } actions: {
+                if filter.hasFilters {
+                    Button("Clear filters") { clearFilters() }
+                }
+            }
+        }
+    }
+
+    private var filterMenu: some View {
+        Menu {
+            Section("Machine") {
+                Picker("Machine", selection: $filter.machineName) {
+                    Text("All machines").tag(nil as String?)
+                    ForEach(filter.machineOptions(from: model.tasks), id: \.self) { machine in
+                        Text(machine).tag(machine as String?)
+                    }
+                }
+            }
+
+            Section("Workspace") {
+                Picker("Workspace", selection: $filter.workspaceName) {
+                    Text("All workspaces").tag(nil as String?)
+                    ForEach(filter.workspaceOptions(from: model.tasks), id: \.self) { workspace in
+                        Text(workspace).tag(workspace as String?)
+                    }
+                }
+            }
+
+            if filter.hasFilters {
+                Divider()
+                Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
+                    clearFilters()
+                }
+            }
+        } label: {
+            Image(systemName: filter.hasFilters ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+        }
+        .accessibilityLabel(filter.hasFilters ? "Conversation filters active" : "Filter conversations")
+    }
+
+    private func clearFilters() {
+        filter.searchText = ""
+        filter.machineName = nil
+        filter.workspaceName = nil
+    }
+
+    private func keepSelectionVisible() {
+        guard let selectedTaskID = model.selectedTaskID,
+              filteredTasks.contains(where: { $0.id == selectedTaskID })
+        else {
+            model.selectedTaskID = filteredTasks.first?.id
+            return
         }
     }
 }
@@ -121,6 +202,10 @@ private struct PhoneDexTaskRow: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
+
+                Label(task.displayStatus, systemImage: task.statusSymbol)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
                 Label("\(task.displayWorkspace) · \(task.displayMachine)", systemImage: "desktopcomputer")
                     .font(.caption)

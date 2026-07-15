@@ -23,6 +23,9 @@ The iOS app scaffold includes:
   and Settings tabs.
 - A task conversation view with quick actions, a persistent custom composer,
   and visible reply delivery errors.
+- Chats scopes for Needs You, Running, and Recent, with searchable title,
+  transcript, workspace, machine, branch, and repository context plus machine
+  and workspace filters. Unknown legacy task statuses remain visible in Recent.
 - A native WebKit browser for documentation, pull requests, and research
   without leaving PhoneDex.
 
