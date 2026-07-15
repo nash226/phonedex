@@ -423,7 +423,7 @@ across Mac and Windows.
 - [x] Export live lifecycle events without parsing desktop UI.
 - [ ] Export changed files, source-linked patches, artifacts, and validation
   receipts.
-- [ ] Implement desktop handoff using stable supported task/session identity.
+- [x] Implement desktop handoff using stable supported task/session identity.
 - [ ] Build and validate the macOS adapter matrix.
 - [ ] Build and validate the Windows adapter matrix.
 - [ ] Keep foreground macOS paste as an explicitly experimental fallback.
@@ -483,6 +483,17 @@ Dynamic-Type-friendly lifecycle timeline. `scripts/test-session-watch.js`,
 deduplication, persistence, and bounded decoding. This uses the documented
 local session JSONL boundary and does not claim private Codex Desktop API or UI
 automation parity.
+
+Verification evidence for the completed desktop-handoff slice: `desktop.handoff.v1`
+is advertised only by ready Mac and Windows CLI/app-server adapters. `POST
+/command` accepts an idempotent, task-version-bound `handoff` command and returns
+an auditable receipt plus a bounded handoff manifest containing the exact task and
+Codex session identity, machine, workspace, platform, and adapter mode. The
+manifest excludes local paths, credentials, prompts, and private desktop state;
+the native task detail exposes it through an accessible copy/share sheet. Adapter
+and lifecycle fixtures cover Mac/Windows capability negotiation, missing-session
+rejection, duplicate delivery, and secret/path redaction. This is a supported
+context handoff, not private Codex Desktop UI automation.
 
 ## M5: Approvals and High-Risk Actions
 

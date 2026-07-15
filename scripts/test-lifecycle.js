@@ -123,6 +123,89 @@ else console.log("completed: " + prompt);
     const completed = await waitForTask(url, created.json.task.id, "completed");
     assert.match(completed.text, /completed: finish this small task/);
 
+    const handoffTask = await request(`${url}/tasks`, {
+      method: "POST",
+      headers: { authorization: "Bearer phone-token", "content-type": "application/json" },
+      body: JSON.stringify({
+        token: "phone-token",
+        task: {
+          id: "origin-handoff-task",
+          title: "Review the desktop task",
+          text: "The desktop task is ready.",
+          machineName: "MacBook Air",
+          deviceId: health.json.deviceId,
+          workspaceName: path.basename(workspace),
+          sessionId: "session-handoff-123",
+          lifecycleCapabilities: ["desktop.handoff.v1"],
+          status: "completed"
+        }
+      })
+    });
+    assert.equal(handoffTask.response.status, 201);
+    const handoff = await request(`${url}/command`, {
+      method: "POST",
+      headers: { authorization: "Bearer phone-token", "content-type": "application/json" },
+      body: JSON.stringify({
+        kind: "handoff",
+        taskId: handoffTask.json.task.id,
+        expectedTaskVersion: handoffTask.json.task.version,
+        commandId: "lifecycle-handoff-1",
+        idempotencyKey: "lifecycle-handoff-key"
+      })
+    });
+    assert.equal(handoff.response.status, 200);
+    assert.equal(handoff.json.receipt.state, "completed");
+    assert.equal(handoff.json.handoff.capability, "desktop.handoff.v1");
+    assert.equal(handoff.json.handoff.sessionId, "session-handoff-123");
+    assert.equal(Object.hasOwn(handoff.json.handoff, "cwd"), false);
+    assert.equal(JSON.stringify(handoff.json).includes("phone-token"), false);
+
+    const handoffDuplicate = await request(`${url}/command`, {
+      method: "POST",
+      headers: { authorization: "Bearer phone-token", "content-type": "application/json" },
+      body: JSON.stringify({
+        kind: "handoff",
+        taskId: handoffTask.json.task.id,
+        expectedTaskVersion: handoffTask.json.task.version,
+        commandId: "lifecycle-handoff-1",
+        idempotencyKey: "lifecycle-handoff-key"
+      })
+    });
+    assert.equal(handoffDuplicate.response.status, 200);
+    assert.equal(handoffDuplicate.json.duplicate, true);
+    assert.equal(handoffDuplicate.json.handoff.sessionId, "session-handoff-123");
+
+    const missingSessionTask = await request(`${url}/tasks`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        token: "phone-token",
+        task: {
+          id: "origin-missing-session",
+          title: "Missing session",
+          text: "This cannot be handed off.",
+          machineName: "MacBook Air",
+          deviceId: health.json.deviceId,
+          workspaceName: path.basename(workspace),
+          lifecycleCapabilities: ["desktop.handoff.v1"],
+          status: "completed"
+        }
+      })
+    });
+    const missingSessionHandoff = await request(`${url}/command`, {
+      method: "POST",
+      headers: { authorization: "Bearer phone-token", "content-type": "application/json" },
+      body: JSON.stringify({
+        kind: "handoff",
+        taskId: missingSessionTask.json.task.id,
+        expectedTaskVersion: missingSessionTask.json.task.version,
+        commandId: "lifecycle-handoff-missing-session",
+        idempotencyKey: "lifecycle-handoff-missing-session-key"
+      })
+    });
+    assert.equal(missingSessionHandoff.response.status, 409);
+    assert.equal(missingSessionHandoff.json.code, "task_handoff_unavailable");
+
     const duplicate = await request(`${url}/command`, {
       method: "POST",
       headers: { authorization: "Bearer phone-token", "content-type": "application/json" },

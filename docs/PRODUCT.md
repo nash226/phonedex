@@ -117,6 +117,9 @@ The repository already proves the core loop, but not the final product.
   surface: choose an advertised workspace to create a run, then cancel or
   retry that PhoneDex-owned run when the negotiated capability is present.
   Existing desktop-captured tasks remain read-only from the iPhone.
+- Agents with a ready CLI or app-server adapter can prepare a bounded desktop
+  handoff that preserves the exact task and Codex session identity without
+  invoking private desktop UI or exposing local paths and credentials.
 - Configuration and preview actions can be invoked through a custom URL scheme.
 - The project targets iOS 17 and includes unit and UI test targets for the
   native shell.
@@ -177,7 +180,7 @@ supported command path on the originating machine.
 | Review an approval | Show exact operation, scope, risk, and origin before approve/reject | **Target.** Only available when the adapter exposes a valid, expiring approval. |
 | Review changes | Mobile diff summary, file list, patch detail, and validation results | **Target.** Requires structured artifact and diff export from the agent. |
 | Cancel, retry, or queue | Issue idempotent lifecycle commands with visible receipts | **Current, bounded.** Cancel/retry apply to PhoneDex-owned runs when advertised; general queueing remains Target. |
-| Open on desktop | Deep-link or hand off to the exact supported task/session | **Target where the desktop integration exposes a stable identifier.** |
+| Open on desktop | Deep-link or hand off to the exact supported task/session | **Current, bounded.** A ready Mac or Windows CLI/app-server adapter can prepare a redacted handoff manifest; private desktop UI automation is not promised. |
 | Reproduce all desktop tools | Exact private UI, terminal, extensions, and local integrations | **Not promised.** Use explicit mobile workflows or hand off to the computer. |
 
 Unsupported actions must be absent or disabled with a specific explanation.
@@ -424,7 +427,9 @@ Task detail is the primary working surface:
 5. A bottom composer remains reachable above the keyboard and supports typing,
    system dictation, draft preservation, and task-specific suggestions.
 6. An action menu contains only supported lifecycle commands. Consequential
-   commands open a confirmation sheet with scope and expected effect.
+   commands open a confirmation sheet with scope and expected effect. A
+   capability-gated desktop handoff preserves the exact task/session identity
+   and clearly states that the user continues on the named computer.
 
 The view preserves reading position when new events arrive. It shows a "new
 activity" affordance instead of jumping the user to the bottom.

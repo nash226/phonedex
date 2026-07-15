@@ -510,6 +510,7 @@ async function handleHook() {
     cwd,
     sessionId,
     messageId,
+    lifecycleCapabilities: taskLifecycleCapabilities(cfg.adapter),
     hookPayload: summarizePayload(payload),
     rawHookInputBytes: Buffer.byteLength(rawInput || "")
   });
@@ -526,7 +527,8 @@ async function handleNotify(args) {
     title: flags.title || "Codex done",
     text: flags.text || flags.body || "Task completed",
     cwd: flags.cwd || process.cwd(),
-    sessionId: flags.session || flags.sessionId || ""
+    sessionId: flags.session || flags.sessionId || "",
+    lifecycleCapabilities: taskLifecycleCapabilities(cfg.adapter)
   });
 
   await recordTaskAndDispatch(cfg, task);
@@ -938,7 +940,9 @@ async function startServer(providedCfg) {
           hubUrl: safeSupportURL(cfg.hubUrl),
           protocolVersion: 1,
           supportedProtocolVersions: [1],
-          capabilities: defaultCapabilities(cfg.agentMode ? "agent" : "hub"),
+          capabilities: cfg.agentMode
+            ? advertisedAgentCapabilities(cfg)
+            : defaultCapabilities("hub"),
           adapter: cfg.adapter
         });
       }
@@ -2155,6 +2159,7 @@ async function handleLifecycleCommandRequest(req, res, requestUrl, cfg, lifecycl
       ok: true,
       duplicate: true,
       recorded: existing,
+      handoff: existing.handoff,
       receipt
     });
   }
@@ -2184,18 +2189,20 @@ async function handleLifecycleCommandRequest(req, res, requestUrl, cfg, lifecycl
     const receipt = appendLifecycleReceipt(cfg, command, state, result.message, undefined, result.task);
     appendJsonl(cfg.dataDir, "commands.jsonl", protocolRecord("command", {
       ...commandRecord,
-      state: "acknowledged"
+      state: "acknowledged",
+      ...(result.handoff ? { handoff: result.handoff } : {})
     }));
     return sendJson(res, 200, {
       ok: true,
       commandId: command.commandId,
       state: result.state,
       task: result.task ? publicTask(result.task) : undefined,
+      handoff: result.handoff,
       receipt
     });
   } catch (error) {
     const status = error.statusCode || 500;
-    const receiptState = ["task_stale", "capability_unsupported", "task_not_managed", "task_running"].includes(error.code)
+    const receiptState = ["task_stale", "capability_unsupported", "task_not_managed", "task_running", "task_handoff_unavailable"].includes(error.code)
       ? "rejected"
       : "failed";
     const receipt = appendLifecycleReceipt(cfg, command, receiptState, error.message, undefined, error.task);
@@ -2257,7 +2264,9 @@ function normalizeLifecycleCommand(raw, cfg) {
     actor: String(raw.actor || raw.requestedBy || "iphone").slice(0, 160),
     ...(expectedTaskVersion.value ? { expectedTaskVersion: expectedTaskVersion.value } : {}),
     expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
-    requestedCapability: `task.${kind === "create_task" ? "create" : kind}.v1`
+    requestedCapability: kind === "handoff"
+      ? "desktop.handoff.v1"
+      : `task.${kind === "create_task" ? "create" : kind}.v1`
   };
   command.commandFingerprint = hashSecret(JSON.stringify({
     kind: command.kind,
@@ -3160,11 +3169,20 @@ function createTask(fields) {
     sessionId: fields.sessionId || "",
     messageId: fields.messageId || "",
     status: fields.status,
+    lifecycleCapabilities: Array.isArray(fields.lifecycleCapabilities)
+      ? fields.lifecycleCapabilities
+      : undefined,
     updatedAt: fields.updatedAt,
     hookPayload: fields.hookPayload,
     rawHookInputBytes: fields.rawHookInputBytes,
     ...(fields.question ? { question: normalizeTaskQuestion(fields.question) } : {})
   });
+}
+
+function taskLifecycleCapabilities(adapter) {
+  return supportsAdapterCapability(adapter, "desktop.handoff")
+    ? ["desktop.handoff.v1"]
+    : [];
 }
 
 function createIngestedTask(fields, cfg, req) {
@@ -3696,10 +3714,7 @@ async function startDeviceHeartbeat(cfg) {
 }
 
 function buildLocalDeviceHeartbeat(cfg) {
-  const capabilities = defaultCapabilities("agent").map((capability) => {
-    const adapterCapability = cfg.adapter.capabilities.find((candidate) => candidate.id === capability.id);
-    return adapterCapability || capability;
-  });
+  const capabilities = advertisedAgentCapabilities(cfg);
   return addDeviceProtocolFields({
     deviceId: cfg.deviceId,
     machineName: cfg.machineName,
@@ -3728,6 +3743,13 @@ function buildLocalDeviceHeartbeat(cfg) {
     capabilities: capabilities.map((capability) => `${capability.id}.v${capability.version}`),
     capabilityDetails: capabilities,
     lastSeenAt: new Date().toISOString()
+  });
+}
+
+function advertisedAgentCapabilities(cfg) {
+  return defaultCapabilities("agent").map((capability) => {
+    const adapterCapability = cfg.adapter.capabilities.find((candidate) => candidate.id === capability.id);
+    return adapterCapability || capability;
   });
 }
 
@@ -4109,7 +4131,8 @@ async function runAgentSelfTest(cfg) {
     title: "PhoneDex agent self-test",
     text: `Agent self-test from ${cfg.machineName} at ${startedAt}`,
     cwd: process.cwd(),
-    sessionId: `agent-self-test-${cfg.deviceId}-${Date.now()}`
+    sessionId: `agent-self-test-${cfg.deviceId}-${Date.now()}`,
+    lifecycleCapabilities: taskLifecycleCapabilities(cfg.adapter)
   });
   const taskResult = await recordTaskAndDispatch(cfg, task, { notify: false });
   const taskForward = taskResult.forward || {
@@ -5037,6 +5060,7 @@ async function scanSessions({ cfg, notify }) {
           sessionId: item.sessionId,
           status: "running",
           messageId: item.messageId,
+          lifecycleCapabilities: taskLifecycleCapabilities(cfg.adapter),
           hookPayload: { session_file: filePath, message_id: item.messageId, fallback: true }
         });
         await recordTaskAndDispatch(cfg, task, { notify: false, events: [item.event] });
@@ -5059,6 +5083,7 @@ async function scanSessions({ cfg, notify }) {
         sessionId: item.sessionId,
         status: "completed",
         messageId: item.messageId,
+        lifecycleCapabilities: taskLifecycleCapabilities(cfg.adapter),
         hookPayload: {
           session_file: filePath,
           message_id: item.messageId,
