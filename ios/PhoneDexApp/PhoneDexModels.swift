@@ -7,6 +7,7 @@ struct PhoneDexTask: Decodable, Identifiable, Equatable {
     let title: String
     let text: String
     let cwd: String?
+    let workspaceName: String?
     let machineName: String?
     let sessionId: String?
     let status: String?
@@ -14,6 +15,7 @@ struct PhoneDexTask: Decodable, Identifiable, Equatable {
     let repository: String?
 
     var displayWorkspace: String {
+        if let workspaceName, !workspaceName.isEmpty { return workspaceName }
         guard let cwd, !cwd.isEmpty else { return "Unknown workspace" }
         return URL(fileURLWithPath: cwd).lastPathComponent
     }
@@ -134,13 +136,13 @@ struct PhoneDexTaskFilter: Equatable {
 
     func machineOptions(from tasks: [PhoneDexTask]) -> [String] {
         Set(tasks.map(\.displayMachine)).sorted {
-            $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+            stableOptionOrder($0, $1)
         }
     }
 
     func workspaceOptions(from tasks: [PhoneDexTask]) -> [String] {
         Set(tasks.map(\.displayWorkspace)).sorted {
-            $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+            stableOptionOrder($0, $1)
         }
     }
 
@@ -168,6 +170,17 @@ struct PhoneDexTaskFilter: Equatable {
             task.repository ?? ""
         ].contains { $0.localizedCaseInsensitiveContains(query) }
     }
+
+    private func stableOptionOrder(_ lhs: String, _ rhs: String) -> Bool {
+        switch lhs.localizedCaseInsensitiveCompare(rhs) {
+        case .orderedAscending:
+            return true
+        case .orderedDescending:
+            return false
+        case .orderedSame:
+            return lhs < rhs
+        }
+    }
 }
 
 struct PhoneDexDevice: Decodable, Identifiable, Equatable {
@@ -189,6 +202,57 @@ struct PhoneDexDevice: Decodable, Identifiable, Equatable {
     }
 
     var isOnline: Bool { status == "online" }
+}
+
+struct PhoneDexSyncPage: Decodable {
+    let snapshot: PhoneDexSyncSnapshot?
+    let changes: [PhoneDexSyncChange]
+    let cursor: String
+    let hasMore: Bool
+}
+
+struct PhoneDexSyncSnapshot: Decodable {
+    let tasks: [PhoneDexTask]
+    let devices: [PhoneDexDevice]
+}
+
+struct PhoneDexSyncChange: Decodable {
+    let position: Int
+    let kind: String
+    let id: String
+    let deleted: Bool
+    let task: PhoneDexTask?
+    let device: PhoneDexDevice?
+
+    private enum CodingKeys: String, CodingKey {
+        case position, kind, id, deleted, record
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        position = try container.decode(Int.self, forKey: .position)
+        kind = try container.decode(String.self, forKey: .kind)
+        id = try container.decode(String.self, forKey: .id)
+        deleted = try container.decode(Bool.self, forKey: .deleted)
+
+        guard !deleted else {
+            task = nil
+            device = nil
+            return
+        }
+
+        switch kind {
+        case "task":
+            task = try container.decode(PhoneDexTask.self, forKey: .record)
+            device = nil
+        case "device":
+            task = nil
+            device = try container.decode(PhoneDexDevice.self, forKey: .record)
+        default:
+            task = nil
+            device = nil
+        }
+    }
 }
 
 enum PhoneDexReplyChoice: String {

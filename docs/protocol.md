@@ -39,12 +39,37 @@ response. URLs and local paths are optional metadata and must be filtered
 according to the retention and privacy policy before leaving the user's
 devices.
 
-This slice defines the shared shape and compatibility rules. Pagination,
-cursor storage, command delivery, and adapter-specific capability
-implementations remain separate roadmap slices. The hub now persists task and
-device records through a versioned transactional snapshot. The snapshot is
-replaced atomically, the prior version is retained as a backup, and existing
-JSONL/device files are imported on first start and kept as a compatibility
-mirror for local tooling. A failed or corrupt current snapshot is recovered
-from the backup only when the backup validates; future store versions fail
-closed instead of being silently downgraded.
+The hub exposes `GET /sync` as the versioned snapshot-plus-cursor contract.
+Clients send an authenticated bearer token and an optional opaque `v1.` cursor
+with a bounded `limit` (1–100, default 50). A fresh request returns a stable,
+deterministically ordered snapshot page of tasks and devices. The returned
+cursor continues snapshot pagination; the hub rejects a page request with
+`409 sync_snapshot_changed` if the durable store changed between pages. Once
+the snapshot is complete, the same cursor advances through ordered changes.
+Each change identifies its kind, stable id, position, and replacement record;
+deletions are represented by a record-free tombstone. A client can apply a
+change more than once by position/id without treating duplicate delivery as a
+new task.
+
+Sync responses use this envelope:
+
+```json
+{
+  "schema": "phonedex.sync.v1",
+  "protocolVersion": 1,
+  "snapshot": { "complete": true, "tasks": [], "devices": [] },
+  "changes": [],
+  "cursor": "v1.opaque-value",
+  "hasMore": false
+}
+```
+
+The legacy `/tasks` and `/devices` endpoints remain available to older agents
+and notification clients during migration. The hub persists task and device
+records through a versioned transactional snapshot, including the durable
+change journal. The snapshot is replaced atomically, the prior version is
+retained as a backup, and existing JSONL/device files are imported on first
+start and kept as a compatibility mirror for local tooling. A failed or
+corrupt current snapshot is recovered from the backup only when the backup
+validates; future store versions fail closed instead of being silently
+downgraded.

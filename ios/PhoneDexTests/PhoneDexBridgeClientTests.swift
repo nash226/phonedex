@@ -82,6 +82,56 @@ final class PhoneDexBridgeClientTests: XCTestCase {
         let tasks = try await client.fetchTasks()
         XCTAssertTrue(tasks.isEmpty)
     }
+
+    func testFetchSyncReadsPaginatedSnapshotWithBearerAuth() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [URLProtocolStub.self]
+        let session = URLSession(configuration: configuration)
+        var requestCount = 0
+
+        URLProtocolStub.handler = { request in
+            requestCount += 1
+            XCTAssertEqual(request.value(forHTTPHeaderField: "authorization"), "Bearer secret")
+            if requestCount == 1 {
+                XCTAssertEqual(request.url?.absoluteString, "http://bridge.test/sync?limit=1")
+                return (
+                    HTTPURLResponse(
+                        url: try XCTUnwrap(request.url),
+                        statusCode: 200,
+                        httpVersion: nil,
+                        headerFields: ["content-type": "application/json"]
+                    )!,
+                    Data("""
+                    {"schema":"phonedex.sync.v1","protocolVersion":1,"revision":1,"position":1,"snapshot":{"complete":false,"revision":1,"position":1,"tasks":[{"id":"task_123","title":"Build passed","text":"All good","cwd":"/tmp/PhoneDex","machineName":"Studio Mac","status":"completed"}],"devices":[]},"changes":[],"cursor":"v1.next","hasMore":true,"updatedAt":"2026-07-15T12:00:00.000Z"}
+                    """.utf8)
+                )
+            }
+
+            XCTAssertEqual(request.url?.absoluteString, "http://bridge.test/sync?limit=1&cursor=v1.next")
+            return (
+                HTTPURLResponse(
+                    url: try XCTUnwrap(request.url),
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: ["content-type": "application/json"]
+                )!,
+                Data("""
+                {"schema":"phonedex.sync.v1","protocolVersion":1,"revision":1,"position":1,"snapshot":{"complete":true,"revision":1,"position":1,"tasks":[],"devices":[]},"changes":[],"cursor":"v1.done","hasMore":false,"updatedAt":"2026-07-15T12:00:00.000Z"}
+                """.utf8)
+            )
+        }
+
+        let client = PhoneDexBridgeClient(
+            bridgeURL: URL(string: "http://bridge.test")!,
+            token: "secret",
+            session: session
+        )
+
+        let result = try await client.fetchSync(limit: 1)
+        XCTAssertEqual(requestCount, 2)
+        XCTAssertEqual(result.tasks.map(\.id), ["task_123"])
+        XCTAssertTrue(result.devices.isEmpty)
+    }
 }
 
 private extension InputStream {

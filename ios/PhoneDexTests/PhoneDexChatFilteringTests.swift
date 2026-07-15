@@ -89,6 +89,7 @@ final class PhoneDexChatFilteringTests: XCTestCase {
             title: title ?? id,
             text: text,
             cwd: cwd,
+            workspaceName: nil,
             machineName: machineName,
             sessionId: nil,
             status: status,
