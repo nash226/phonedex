@@ -8,6 +8,13 @@ The versioned hub record contract is documented in
 schema identity while the current JSONL endpoints continue to accept legacy
 records during migration.
 
+The `/sync` contract negotiates protocol version 1 through an explicit request
+header and returns the hub capability set. A device heartbeat carries both
+legacy capability flags and versioned `capabilityDetails`; the iPhone uses the
+latter to explain supported and unavailable actions rather than assuming Mac
+and Windows adapters have the same controls. Unsupported protocol versions
+return a visible compatibility error instead of being guessed or downgraded.
+
 Task and device state is persisted through the versioned transactional store
 in [`lib/phonedex-store.js`](../lib/phonedex-store.js). It atomically replaces
 `phonedex-store.json`, retains the previous snapshot as
