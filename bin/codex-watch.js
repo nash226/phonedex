@@ -42,6 +42,10 @@ const {
   publicIdentity,
   secretsMatch
 } = require("../lib/phonedex-identity");
+const {
+  appendSecurityAudit,
+  createRequestRateLimiter
+} = require("../lib/phonedex-security");
 
 const ROOT = path.resolve(__dirname, "..");
 const DATA_DIR_DEFAULT = path.join(ROOT, "data");
@@ -62,6 +66,8 @@ const DEFAULT_AGENT_INVITE_TTL_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_AGENT_INVITE_MAX_ACTIVE = 5;
 const DEFAULT_PAIRING_ATTEMPTS = 5;
 const PAIRING_ATTEMPT_WINDOW_MS = 60 * 1000;
+const DEFAULT_AUTH_RATE_LIMIT = 120;
+const DEFAULT_AUTH_RATE_WINDOW_MS = 60 * 1000;
 const DURABLE_STORE_CACHE = new Map();
 
 const RESPONSE_CHOICES = {
@@ -176,6 +182,11 @@ async function main() {
     return;
   }
 
+  if (command === "pair:rotate") {
+    rotatePairingIdentityCommand(args);
+    return;
+  }
+
   if (command === "agent-installs") {
     printAgentInstalls(args);
     return;
@@ -266,6 +277,10 @@ function config() {
       DEFAULT_AGENT_INVITE_MAX_ACTIVE
     ),
     pairingTtlMs: positiveNumber(env.PHONEDEX_PAIRING_TTL_MS, DEFAULT_PAIRING_TTL_MS),
+    authRateLimit: Math.floor(positiveNumber(env.PHONEDEX_AUTH_RATE_LIMIT, DEFAULT_AUTH_RATE_LIMIT)),
+    authRateLimitWindowMs: Math.floor(
+      positiveNumber(env.PHONEDEX_AUTH_RATE_WINDOW_MS, DEFAULT_AUTH_RATE_WINDOW_MS)
+    ),
     host,
     port,
     dataDir: env.WATCH_BRIDGE_DATA_DIR || DATA_DIR_DEFAULT,
@@ -396,6 +411,13 @@ function revokePairingIdentityCommand(args) {
     changed: result.changed,
     identity: publicIdentity(result.identity)
   };
+  appendSecurityAudit(cfg.dataDir, {
+    action: "identity.revoke",
+    outcome: result.changed ? "success" : "already-revoked",
+    identityId: result.identity.id,
+    role: result.identity.role,
+    reason: flags.reason || "hub-owner-revoked"
+  });
   if (flags.json) {
     console.log(JSON.stringify(output, null, 2));
     return;
@@ -404,6 +426,48 @@ function revokePairingIdentityCommand(args) {
   console.log(result.changed
     ? `Revoked PhoneDex identity ${result.identity.id} (${result.identity.name}).`
     : `PhoneDex identity ${result.identity.id} is already revoked.`);
+}
+
+function rotatePairingIdentityCommand(args) {
+  const cfg = config();
+  ensureDataDir(cfg.dataDir);
+  const flags = parseFlags(args);
+  const identityId = String(flags.identity || flags["identity-id"] || "").trim();
+  const deviceId = String(flags.device || flags["device-id"] || "").trim();
+  if (!identityId && !deviceId) {
+    throw new Error("Pass --identity ID or --device-id DEVICE_ID to rotate a paired identity.");
+  }
+
+  const result = durableStore(cfg.dataDir).rotateIdentity({
+    identityId: identityId || undefined,
+    deviceId: deviceId || undefined
+  });
+  if (!result.found) {
+    throw new Error(`No paired identity matched ${identityId || deviceId}.`);
+  }
+  if (!result.changed) {
+    throw new Error("Revoked PhoneDex identities cannot be rotated; pair the device again.");
+  }
+
+  appendSecurityAudit(cfg.dataDir, {
+    action: "identity.rotate",
+    outcome: "success",
+    identityId: result.identity.id,
+    role: result.identity.role
+  });
+  const output = {
+    ok: true,
+    credential: result.credential,
+    identity: publicIdentity(result.identity),
+    instructions: "Store this credential in the paired client now. It will not be shown again."
+  };
+  if (flags.json) {
+    console.log(JSON.stringify(output, null, 2));
+    return;
+  }
+  console.log(`Rotated PhoneDex identity ${result.identity.id}.`);
+  console.log(`New credential: ${result.credential}`);
+  console.log(output.instructions);
 }
 
 async function handleHook() {
@@ -760,6 +824,10 @@ async function startServer(providedCfg) {
   const cfg = providedCfg || config();
   ensureDataDir(cfg.dataDir);
   const pairingAttempts = new Map();
+  const requestRateLimiter = createRequestRateLimiter({
+    limit: cfg.authRateLimit,
+    windowMs: cfg.authRateLimitWindowMs
+  });
 
   if (cfg.retentionDays > 0) {
     try {
@@ -796,6 +864,24 @@ async function startServer(providedCfg) {
 
       if (requestUrl.pathname === "/pair") {
         return handlePairRequest(req, res, cfg, pairingAttempts);
+      }
+
+      if (requestUrl.pathname !== "/health") {
+        const rateLimit = requestRateLimiter.consume(requestRateLimitKey(req, cfg));
+        if (!rateLimit.allowed) {
+          appendSecurityAudit(cfg.dataDir, {
+            action: "request.rate-limit",
+            outcome: "blocked",
+            identityId: findIdentityForRequest(req, cfg)?.id,
+            route: requestUrl.pathname,
+            reason: "authenticated request window exceeded"
+          });
+          return sendJson(res, 429, {
+            ok: false,
+            code: "rate_limited",
+            error: "Too many PhoneDex requests. Wait briefly and try again."
+          }, { "retry-after": String(Math.max(1, Math.ceil(rateLimit.retryAfterMs / 1000))) });
+        }
       }
 
       if (
@@ -1094,6 +1180,13 @@ async function handlePairRequest(req, res, cfg, pairingAttempts) {
     health: { agent: "unknown", adapter: "unknown" },
     lastSeenAt: nowISO
   }));
+  appendSecurityAudit(cfg.dataDir, {
+    action: "identity.pair",
+    outcome: "success",
+    identityId: credentials.identity.id,
+    role: credentials.identity.role,
+    route: "/pair"
+  });
 
   return sendJson(res, 201, {
     ok: true,
@@ -1790,6 +1883,29 @@ async function handleReplyRequest(req, res, requestUrl, cfg) {
     fields.replyText ||
     RESPONSE_CHOICES[choice] ||
     choice;
+  const replyText = fields.reply_text || fields.replyText || "";
+  const requestFingerprint = hashSecret(JSON.stringify({
+    taskId,
+    sessionId: requestedSessionId,
+    expectedTaskVersion: expectedTaskVersion.value || taskVersion,
+    choice,
+    prompt,
+    replyText
+  }));
+  const existingByCommand = findReplyByCommandId(cfg.dataDir, commandId);
+  if (existingByCommand && existingByCommand.idempotencyKey !== idempotencyKey) {
+    appendSecurityAudit(cfg.dataDir, {
+      action: "reply.replay",
+      outcome: "blocked",
+      route: "/reply",
+      reason: "command id reused with a different idempotency key"
+    });
+    return sendJson(res, 409, {
+      ok: false,
+      code: "command_replay_conflict",
+      error: "The command id was already used for another reply. Create a new command."
+    });
+  }
   const existing = findReplyByIdempotencyKey(cfg.dataDir, idempotencyKey);
   if (existing) {
     if (existing.taskId !== taskId) {
@@ -1797,6 +1913,20 @@ async function handleReplyRequest(req, res, requestUrl, cfg) {
         ok: false,
         code: "idempotency_conflict",
         error: "The idempotency key is already bound to another task."
+      });
+    }
+    const existingFingerprint = existing.requestFingerprint || fingerprintReply(existing);
+    if (existingFingerprint !== requestFingerprint) {
+      appendSecurityAudit(cfg.dataDir, {
+        action: "reply.replay",
+        outcome: "blocked",
+        route: "/reply",
+        reason: "idempotency key reused with a different payload"
+      });
+      return sendJson(res, 409, {
+        ok: false,
+        code: "replay_conflict",
+        error: "The idempotency key was already used for different reply content. Create a new command."
       });
     }
     const delivery = existing.deliveryState === "completed"
@@ -1833,7 +1963,8 @@ async function handleReplyRequest(req, res, requestUrl, cfg) {
     choice,
     prompt,
     action: fields.action || "",
-    replyText: fields.reply_text || fields.replyText || "",
+    replyText,
+    requestFingerprint,
     ...(questionResponse.value
       ? {
           questionId: questionResponse.value.questionId,
@@ -1855,6 +1986,11 @@ async function handleReplyRequest(req, res, requestUrl, cfg) {
   reply.deliveryMessage = delivery.message;
   appendJsonl(cfg.dataDir, "commands.jsonl", createReplyCommand(reply, actor, delivery.state === "completed" ? "acknowledged" : "failed"));
   const receipt = appendReplyReceipt(cfg, reply, delivery.state, delivery.message);
+  appendSecurityAudit(cfg.dataDir, {
+    action: "reply.accept",
+    outcome: delivery.state,
+    route: "/reply"
+  });
 
   if (cfg.autoResume && !delivery.originForward.attempted) {
     attemptAutoResume(cfg, task, reply);
@@ -2012,6 +2148,34 @@ function findReplyByIdempotencyKey(dataDir, idempotencyKey) {
     return { ...reply, deliveryState: "completed" };
   }
   return reply;
+}
+
+function findReplyByCommandId(dataDir, commandId) {
+  if (!commandId) return undefined;
+  return readJsonl(dataDir, "replies.jsonl")
+    .slice()
+    .reverse()
+    .find((candidate) => candidate?.commandId === commandId);
+}
+
+function fingerprintReply(reply) {
+  return hashSecret(JSON.stringify({
+    taskId: reply.taskId || "",
+    sessionId: reply.sessionId || "",
+    expectedTaskVersion: reply.expectedTaskVersion || reply.taskVersion || 1,
+    choice: reply.choice || "",
+    prompt: reply.prompt || "",
+    replyText: reply.replyText || reply.reply_text || ""
+  }));
+}
+
+function requestRateLimitKey(req, cfg) {
+  const identity = findIdentityForRequest(req, cfg);
+  if (identity) return `identity:${identity.id}`;
+  const authHeader = req.headers.authorization || "";
+  const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
+  if (bearerMatch) return `credential:${hashSecret(bearerMatch[1].trim())}`;
+  return `network:${hashSecret(req.socket.remoteAddress || "unknown")}`;
 }
 
 function createReplyCommand(reply, actor, state) {
@@ -2934,6 +3098,7 @@ Usage:
   phonedex pair:create --name "My iPhone"
   phonedex pair:list
   phonedex pair:revoke --identity ID
+  phonedex pair:rotate --identity ID
   phonedex enroll-agent --device-id macbook-air --name "MacBook Air" --platform macos
   phonedex enroll-agent --device-id windows-desktop --name "Windows Desktop" --platform windows --script
   phonedex agent-self-test
