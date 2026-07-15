@@ -139,6 +139,14 @@ round trip is skipped only when an unsigned simulator reports its expected
 missing entitlement. Notification payload credential removal and scoped
 pairing remain separate M2 slices.
 
+Verification evidence for the completed Chats scope slice: the native SwiftUI
+Chats surface in `ios/PhoneDexApp/ContentView.swift` provides Needs You,
+Running, and Recent scopes, searchable conversation context, machine and
+workspace filters, stable selection, and contextual empty states. The
+`PhoneDexTaskFilter` model and `ios/PhoneDexTests/PhoneDexChatFilteringTests.swift`
+cover status partitioning, legacy records, context search, combined filters,
+and stable filter options.
+
 ## M3: Native iPhone Core
 
 Status: **Queued**
@@ -149,7 +157,7 @@ Outcome: replace the utility screen with a polished, offline-aware native app.
   Dynamic Type, stable spacing, motion, and accessibility primitives.
 - [x] Build the adaptive Chats, Workspaces, Browser, Devices, and Settings shell.
 - [x] Add an embedded WebKit browser with native navigation and sharing controls.
-- [ ] Build Chats scopes for Needs You, Running, and Recent with search and
+- [x] Build Chats scopes for Needs You, Running, and Recent with search and
   filters.
 - [ ] Add a durable encrypted local cache, cursor sync, and freshness state.
 - [ ] Build task detail with transcript, structured events, evidence, and a
