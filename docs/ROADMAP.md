@@ -46,7 +46,7 @@ tests, and a trustworthy small-PR path.
 - [x] Ordered delivery roadmap suitable for autonomous small PRs.
 - [x] Add GitHub Actions for Node checks and all bridge test scripts.
 - [ ] Add a reproducible unsigned iOS simulator build job.
-- [ ] Add an iOS unit-test target and one smoke test for app launch/model decode.
+- [x] Add an iOS unit-test target and one smoke test for app launch/model decode.
 - [ ] Add PR templates for validation evidence and human decisions.
 - [ ] Document supported development versions for Node, Xcode, iOS, macOS, and
   Windows.
@@ -57,6 +57,12 @@ the bridge and iOS prototype build from a clean checkout.
 Verification evidence for the completed Node CI slice: `.github/workflows/node-ci.yml`
 runs `npm run check` and `npm test` on Node 18 and 22 for pull requests and
 `main` pushes. `npm test` covers all seven bridge fixture scripts.
+
+Verification evidence for the completed iOS test-target slice: `ios/project.yml`
+defines the `PhoneDexTests` simulator unit-test target and `PhoneDex` scheme;
+`ios/PhoneDexTests/PhoneDexSmokeTests.swift` initializes the app entry point and
+decodes a representative `/tasks` payload. On 2026-07-15, Xcode 26.3 passed
+the scheme on an iPhone 17 iOS 26.3.1 simulator with 1/1 tests passing.
 
 ## M1: Versioned Hub and Durable State
 
