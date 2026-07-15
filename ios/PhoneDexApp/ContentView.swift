@@ -13,8 +13,8 @@ struct ContentView: View {
             PhoneDexChatsView(model: model)
                 .tabItem { Label("Chats", systemImage: "bubble.left.and.bubble.right") }
 
-            PhoneDexWorkspacesView(model: model)
-                .tabItem { Label("Workspaces", systemImage: "folder") }
+            PhoneDexProjectsView(model: model)
+                .tabItem { Label("Projects", systemImage: "folder") }
 
             PhoneDexBrowserView()
                 .tabItem { Label("Browser", systemImage: "safari") }
@@ -412,41 +412,47 @@ private struct PhoneDexTaskDetailView: View {
     }
 }
 
-private struct PhoneDexWorkspacesView: View {
+private struct PhoneDexProjectsView: View {
     @ObservedObject var model: PhoneDexAppModel
-
-    private var groups: [(name: String, tasks: [PhoneDexTask])] {
-        Dictionary(grouping: model.tasks, by: \.displayWorkspace)
-            .map { ($0.key, $0.value) }
-            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-    }
 
     var body: some View {
         NavigationStack {
-            List(groups, id: \.name) { group in
+            List(model.projects) { project in
                 NavigationLink {
-                    List(group.tasks) { task in
-                        PhoneDexTaskRow(task: task)
+                    List(project.tasks) { task in
+                        NavigationLink {
+                            PhoneDexTaskDetailView(task: task, model: model)
+                        } label: {
+                            PhoneDexTaskRow(task: task)
+                        }
                     }
-                    .navigationTitle(group.name)
+                    .navigationTitle(project.name)
+                    .navigationBarTitleDisplayMode(.inline)
                 } label: {
                     HStack(spacing: 12) {
                         Image(systemName: "folder.fill")
                             .foregroundStyle(.purple)
                             .frame(width: 32)
                         VStack(alignment: .leading, spacing: 3) {
-                            Text(group.name).font(.headline)
-                            Text("\(group.tasks.count) conversation\(group.tasks.count == 1 ? "" : "s")")
+                            Text(project.name).font(.headline)
+                            Text("\(project.machineName) · \(project.tasks.count) conversation\(project.tasks.count == 1 ? "" : "s")")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                            if let path = project.path {
+                                Text(path)
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                                    .lineLimit(1)
+                            }
                         }
                     }
                 }
             }
-            .navigationTitle("Workspaces")
+            .navigationTitle("Projects")
+            .refreshable { await model.refresh() }
             .overlay {
-                if groups.isEmpty {
-                    ContentUnavailableView("No workspaces", systemImage: "folder")
+                if model.projects.isEmpty {
+                    ContentUnavailableView("No projects", systemImage: "folder")
                 }
             }
         }

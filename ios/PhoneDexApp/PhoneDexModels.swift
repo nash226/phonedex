@@ -55,6 +55,29 @@ struct PhoneDexTask: Decodable, Identifiable, Equatable {
         guard let at else { return nil }
         return ISO8601DateFormatter.phoneDex.date(from: at)
     }
+
+    var projectID: String {
+        "\(machineName ?? "")\u{1F}\(cwd ?? "")"
+    }
+}
+
+struct PhoneDexProject: Identifiable, Equatable {
+    let id: String
+    let name: String
+    let path: String?
+    let machineName: String
+    let tasks: [PhoneDexTask]
+
+    init(tasks: [PhoneDexTask]) {
+        let first = tasks[0]
+        id = first.projectID
+        name = first.displayWorkspace
+        path = first.cwd
+        machineName = first.displayMachine
+        self.tasks = tasks.sorted {
+            ($0.displayDate ?? .distantPast) > ($1.displayDate ?? .distantPast)
+        }
+    }
 }
 
 enum PhoneDexChatScope: String, CaseIterable, Identifiable {
