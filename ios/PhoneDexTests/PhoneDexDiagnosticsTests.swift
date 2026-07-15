@@ -47,6 +47,29 @@ final class PhoneDexDiagnosticsTests: XCTestCase {
         XCTAssertTrue(device.adapterHealth.isActionable)
     }
 
+    func testDeviceCapabilitiesExplainAvailableAndUnavailableActions() {
+        let device = PhoneDexDevice(
+            deviceId: "windows",
+            machineName: "Windows Workstation",
+            platform: "windows",
+            role: "agent",
+            status: "online",
+            lastSeenAt: "2026-07-15T12:00:00Z",
+            version: "0.1.0",
+            publicUrl: nil,
+            expected: true,
+            capabilityDetails: [
+                PhoneDexCapability(capabilityId: "task.reply", version: "1", scope: "task", supported: true),
+                PhoneDexCapability(capabilityId: "task.cancel", version: "1", scope: "task", supported: false)
+            ]
+        )
+
+        XCTAssertEqual(device.capabilityDetails.map(\.identity), ["task.reply.v1", "task.cancel.v1"])
+        XCTAssertEqual(device.capabilityDetails.map(\.displayName), ["Task Reply", "Task Cancel"])
+        XCTAssertFalse(device.capabilityDetails[0].isActionable)
+        XCTAssertTrue(device.capabilityDetails[1].isActionable)
+    }
+
     private func makeDevice(status: String) -> PhoneDexDevice {
         PhoneDexDevice(
             deviceId: "macbook",
