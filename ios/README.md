@@ -36,6 +36,9 @@ The iOS app scaffold includes:
   task id and session id so side chats cannot silently cross-route.
 - A task conversation view with quick actions, a persistent custom composer,
   and visible reply delivery errors.
+- A native diff review surface for bounded agent-exported patches, with file
+  navigation, lazy line rendering, line numbers, copy, share, and truncation
+  guidance.
 - Chats scopes for Needs You, Running, and Recent, with searchable title,
   transcript, workspace, machine, branch, and repository context plus machine
   and workspace filters. Unknown legacy task statuses remain visible in Recent.

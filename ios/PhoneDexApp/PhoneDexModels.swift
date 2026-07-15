@@ -345,8 +345,15 @@ struct PhoneDexChangedFile: Codable, Equatable, Identifiable {
     let summary: String?
     let additions: Int?
     let deletions: Int?
+    let patch: String?
+    let patchTruncated: Bool?
 
     var id: String { path }
+
+    var hasPatch: Bool {
+        guard let patch else { return false }
+        return !patch.isEmpty
+    }
 
     var displayStatus: String {
         status.capitalized
