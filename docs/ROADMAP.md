@@ -588,7 +588,7 @@ Status: **Queued**
 Outcome: let users evaluate completed work without returning to a computer.
 
 - [ ] Build file-level change summaries and validation-result views.
-- [ ] Build a virtualized native text diff viewer with file navigation,
+- [x] Build a virtualized native text diff viewer with file navigation,
   context expansion, copy, and share.
 - [ ] Add integrity-checked artifact metadata and explicit downloads.
 - [ ] Enforce retention and export policy for sensitive review content.
@@ -597,6 +597,16 @@ Outcome: let users evaluate completed work without returning to a computer.
 
 Exit gate: acceptance scenario 10 passes with source-linked evidence and
 accessible navigation.
+
+Verification evidence for the completed native diff review slice:
+`lib/phonedex-evidence.js` accepts an optional bounded unified `patch` per
+changed file and records truncation honestly; `ios/PhoneDexApp/PhoneDexDiffViewer.swift`
+renders the exported patch with a `LazyVStack`, hunk-aware line numbers, file
+navigation, dynamic-type monospaced text, accessibility labels, copy, share,
+and incomplete-patch guidance. `scripts/test-evidence.js` covers line-ending
+normalization and size bounds, while `ios/PhoneDexTests/PhoneDexDiffTests.swift`
+covers line classification, hunk numbering, and the mobile line limit. Source
+references remain metadata only; the iPhone does not read desktop files.
 
 ## M8: Beta, Operations, and App Store Release
 

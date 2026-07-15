@@ -234,7 +234,8 @@ final class PhoneDexSmokeTests: XCTestCase {
                     "status": "modified",
                     "sourceRef": "ios/PhoneDexApp/ContentView.swift#L10-L30",
                     "additions": 12,
-                    "deletions": 3
+                    "deletions": 3,
+                    "patch": "@@ -10,1 +10,2 @@\\n-old\\n+new\\n"
                   }
                 ],
                 "artifacts": [
@@ -261,6 +262,7 @@ final class PhoneDexSmokeTests: XCTestCase {
 
         XCTAssertEqual(task.evidence?.changedFiles.first?.path, "ios/PhoneDexApp/ContentView.swift")
         XCTAssertEqual(task.evidence?.changedFiles.first?.additions, 12)
+        XCTAssertTrue(task.evidence?.changedFiles.first?.hasPatch == true)
         XCTAssertEqual(task.evidence?.artifacts.first?.displaySize, "1 KB")
         XCTAssertEqual(task.evidence?.validations.first?.displayStatus, "Passed")
     }
