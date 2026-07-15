@@ -41,7 +41,7 @@ implementation.
 | A compromised or stale agent receives a command | Wrong-machine action or silent loss | Device health is separate from adapter health; reply commands carry task version and idempotency identity with receipts. Revocable agent identity and scoped permissions remain M2 work. |
 | Hub data is copied from a device or backup | Source and conversation disclosure | iPhone cache uses device-only Keychain-backed AES-GCM; hub retention, redacted export, and confirmed deletion are available. Hub filesystem encryption and backup policy remain operator responsibilities. |
 | TLS is absent on a reachable network | Credential and task interception | HTTPS is accepted and documented for production intent, but arbitrary HTTP is still supported for local development. Release TLS enforcement remains a release-blocking M2 item. |
-| Replay, brute force, or token sharing | Unauthorized reads or duplicate commands | Current shared-token compatibility has bounded request parsing and idempotent reply receipts, but rotation, rate limiting, replay defense, and per-principal scopes remain unimplemented. |
+| Replay, brute force, or token sharing | Unauthorized reads or duplicate commands | Paired identities rotate with immediate old-credential invalidation; replies are bounded per principal/IP, command IDs are payload-bound, and content-free security audits record pairing, rotation, replay, revoke, and throttling decisions. Legacy shared-token compatibility remains a migration risk. |
 
 ## Security invariants
 
@@ -66,7 +66,6 @@ The following are not silently waived by this document:
 
 - revocable phone, hub, and agent identities with scoped permissions;
 - single-use pairing and verification-code recovery;
-- rotation, replay defense, rate limiting, and audit events for principals;
 - TLS enforcement and App Transport Security policy for release builds;
 - the APNs provider, hosted relay, residency, and cost/privacy operating model;
 - signing, App Store Connect, and real-device release configuration.

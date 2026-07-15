@@ -39,6 +39,7 @@ const {
   hashSecret,
   normalizeRole,
   publicIdentity,
+  rotateIdentityCredential,
   secretsMatch
 } = require("../lib/phonedex-identity");
 
@@ -61,6 +62,11 @@ const DEFAULT_AGENT_INVITE_TTL_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_AGENT_INVITE_MAX_ACTIVE = 5;
 const DEFAULT_PAIRING_ATTEMPTS = 5;
 const PAIRING_ATTEMPT_WINDOW_MS = 60 * 1000;
+const DEFAULT_REPLY_ATTEMPTS = 60;
+const REPLY_ATTEMPT_WINDOW_MS = 60 * 1000;
+const DEFAULT_ROTATION_ATTEMPTS = 5;
+const ROTATION_ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
+const SECURITY_AUDIT_FILE = "security-audit.jsonl";
 const DURABLE_STORE_CACHE = new Map();
 
 const RESPONSE_CHOICES = {
@@ -172,6 +178,11 @@ async function main() {
 
   if (command === "pair:revoke") {
     revokePairingIdentityCommand(args);
+    return;
+  }
+
+  if (command === "pair:rotate") {
+    rotatePairingIdentityCommand(args);
     return;
   }
 
@@ -390,6 +401,13 @@ function revokePairingIdentityCommand(args) {
     throw new Error(`No paired identity matched ${identityId || deviceId}.`);
   }
 
+  recordSecurityAudit(cfg, {
+    action: result.changed ? "identity-revoked" : "identity-revoke-repeated",
+    identityId: result.identity.id,
+    deviceId: result.identity.deviceId,
+    reason: result.identity.revocationReason || "hub-owner-revoked"
+  });
+
   const output = {
     ok: true,
     changed: result.changed,
@@ -403,6 +421,49 @@ function revokePairingIdentityCommand(args) {
   console.log(result.changed
     ? `Revoked PhoneDex identity ${result.identity.id} (${result.identity.name}).`
     : `PhoneDex identity ${result.identity.id} is already revoked.`);
+}
+
+function rotatePairingIdentityCommand(args) {
+  const cfg = config();
+  ensureDataDir(cfg.dataDir);
+  const flags = parseFlags(args);
+  const identityId = String(flags.identity || flags["identity-id"] || "").trim();
+  const deviceId = String(flags.device || flags["device-id"] || "").trim();
+  if (!identityId && !deviceId) {
+    throw new Error("Pass --identity ID or --device-id DEVICE_ID to rotate a paired identity.");
+  }
+
+  const store = durableStore(cfg.dataDir);
+  const current = identityId
+    ? store.findIdentityById(identityId)
+    : store.listIdentities().find((identity) => identity.deviceId === deviceId);
+  if (!current) throw new Error(`No paired identity matched ${identityId || deviceId}.`);
+  if (current.status !== "active") {
+    throw new Error(`Cannot rotate ${current.status} PhoneDex identity ${current.id}.`);
+  }
+
+  const rotated = rotateIdentityCredential(current);
+  const result = store.rotateIdentity({
+    identityId: current.id,
+    credentialHash: hashSecret(rotated.credential),
+    now: rotated.identity.credentialRotatedAt
+  });
+  if (!result.changed) throw new Error(`PhoneDex identity ${current.id} changed before rotation completed.`);
+
+  recordSecurityAudit(cfg, {
+    action: "credential-rotated",
+    identityId: result.identity.id,
+    deviceId: result.identity.deviceId,
+    credentialVersion: result.identity.credentialVersion,
+    actor: "hub-owner-cli"
+  });
+
+  console.log(JSON.stringify({
+    ok: true,
+    credential: rotated.credential,
+    identity: publicIdentity(result.identity),
+    instructions: "Replace the stored credential now. The previous credential is invalid."
+  }, null, 2));
 }
 
 async function handleHook() {
@@ -711,9 +772,7 @@ function buildPushcutBody(cfg, task) {
 
 function isScopedBearerAuthorized(req, cfg, scope) {
   if (!cfg.token) return true;
-  const authHeader = req.headers.authorization || "";
-  const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
-  const bearerToken = bearerMatch ? bearerMatch[1].trim() : "";
+  const bearerToken = bearerTokenFromRequest(req);
   if (bearerToken === cfg.token) return true;
 
   return hasScope(findIdentityForRequest(req, cfg), scope);
@@ -723,9 +782,7 @@ function isRequestAuthorized(req, requestUrl, cfg, scope) {
   if (!cfg.token) return true;
   if (requestUrl.searchParams.get("token") === cfg.token) return true;
 
-  const authHeader = req.headers.authorization || "";
-  const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
-  const bearerToken = bearerMatch ? bearerMatch[1].trim() : "";
+  const bearerToken = bearerTokenFromRequest(req);
   if (bearerToken === cfg.token) return true;
 
   const identity = findIdentityForRequest(req, cfg);
@@ -733,11 +790,32 @@ function isRequestAuthorized(req, requestUrl, cfg, scope) {
 }
 
 function findIdentityForRequest(req, cfg) {
-  const authHeader = req.headers.authorization || "";
-  const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
-  const bearerToken = bearerMatch ? bearerMatch[1].trim() : "";
+  const bearerToken = bearerTokenFromRequest(req);
   if (!bearerToken) return null;
   return durableStore(cfg.dataDir).findIdentityByCredentialHash(hashSecret(bearerToken)) || null;
+}
+
+function bearerTokenFromRequest(req) {
+  const authHeader = req.headers.authorization || "";
+  const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
+  return bearerMatch ? bearerMatch[1].trim() : "";
+}
+
+function consumeRateLimit(limits, key, maxAttempts, windowMs) {
+  const now = Date.now();
+  const recent = (limits.get(key) || []).filter((timestamp) => now - timestamp < windowMs);
+  if (recent.length >= maxAttempts) {
+    limits.set(key, recent);
+    return true;
+  }
+  recent.push(now);
+  limits.set(key, recent);
+  return false;
+}
+
+function requestRateLimitKey(req, cfg, scope) {
+  const identity = findIdentityForRequest(req, cfg);
+  return `${scope}:${identity?.id || req.socket.remoteAddress || "unknown"}`;
 }
 
 function formatNotificationTitle(cfg, task) {
@@ -757,6 +835,7 @@ async function startServer(providedCfg) {
   const cfg = providedCfg || config();
   ensureDataDir(cfg.dataDir);
   const pairingAttempts = new Map();
+  const securityRateLimits = new Map();
 
   if (cfg.retentionDays > 0) {
     try {
@@ -795,6 +874,28 @@ async function startServer(providedCfg) {
         return handlePairRequest(req, res, cfg, pairingAttempts);
       }
 
+      if (requestUrl.pathname === "/pair/rotate") {
+        if (req.method === "POST" && consumeRateLimit(
+          securityRateLimits,
+          requestRateLimitKey(req, cfg, "credential-rotation"),
+          DEFAULT_ROTATION_ATTEMPTS,
+          ROTATION_ATTEMPT_WINDOW_MS
+        )) {
+          recordSecurityAudit(cfg, {
+            action: "rate-limit-rejected",
+            scope: "credential-rotation",
+            deviceId: findIdentityForRequest(req, cfg)?.deviceId || "",
+            reason: "rotation-window-exceeded"
+          });
+          return sendJson(res, 429, {
+            ok: false,
+            code: "rotation_rate_limited",
+            error: "Too many credential rotations. Wait before trying again."
+          }, { "retry-after": String(Math.ceil(ROTATION_ATTEMPT_WINDOW_MS / 1000)) });
+        }
+        return handlePairRotationRequest(req, res, cfg);
+      }
+
       if (
         requestUrl.pathname === "/privacy" ||
         requestUrl.pathname === "/privacy/export" ||
@@ -805,6 +906,24 @@ async function startServer(providedCfg) {
       }
 
       if (requestUrl.pathname === "/reply") {
+        if (req.method === "POST" && consumeRateLimit(
+          securityRateLimits,
+          requestRateLimitKey(req, cfg, "reply"),
+          DEFAULT_REPLY_ATTEMPTS,
+          REPLY_ATTEMPT_WINDOW_MS
+        )) {
+          recordSecurityAudit(cfg, {
+            action: "rate-limit-rejected",
+            scope: "reply",
+            identityId: findIdentityForRequest(req, cfg)?.id || "",
+            reason: "reply-window-exceeded"
+          });
+          return sendJson(res, 429, {
+            ok: false,
+            code: "reply_rate_limited",
+            error: "Too many reply attempts. Wait before trying again."
+          }, { "retry-after": String(Math.ceil(REPLY_ATTEMPT_WINDOW_MS / 1000)) });
+        }
         return handleReplyRequest(req, res, requestUrl, cfg);
       }
 
@@ -915,6 +1034,7 @@ async function startServer(providedCfg) {
         endpoints: [
           "/health",
           "/pair",
+          "/pair/rotate",
           "/privacy",
           "/privacy/export",
           "/privacy/retention",
@@ -1092,10 +1212,99 @@ async function handlePairRequest(req, res, cfg, pairingAttempts) {
     lastSeenAt: nowISO
   }));
 
+  recordSecurityAudit(cfg, {
+    action: "identity-paired",
+    identityId: credentials.identity.id,
+    deviceId: credentials.identity.deviceId,
+    role: credentials.identity.role,
+    scopes: credentials.identity.scopes
+  });
+
   return sendJson(res, 201, {
     ok: true,
     credential: credentials.credential,
     identity: publicIdentity(credentials.identity)
+  }, { "cache-control": "no-store" });
+}
+
+async function handlePairRotationRequest(req, res, cfg) {
+  if (req.method !== "POST") {
+    return sendJson(res, 405, { ok: false, error: "POST required" });
+  }
+
+  const actor = findIdentityForRequest(req, cfg);
+  const sharedTokenAuthorized = Boolean(cfg.token && bearerTokenFromRequest(req) === cfg.token);
+  if (!actor && !sharedTokenAuthorized) {
+    recordSecurityAudit(cfg, {
+      action: "authorization-rejected",
+      scope: "credential-rotation",
+      reason: "missing-or-invalid-bearer"
+    });
+    return sendJson(res, 401, { ok: false, error: "Invalid token" });
+  }
+
+  const body = parseBodyFields(await readHttpBody(req), req.headers["content-type"] || "");
+  const requestedIdentityId = String(body.identityId || body.identity_id || "").trim();
+  const requestedDeviceId = String(body.deviceId || body.device_id || "").trim();
+  if (!actor && !requestedIdentityId && !requestedDeviceId) {
+    return sendJson(res, 400, {
+      ok: false,
+      code: "rotation_target_required",
+      error: "The hub token must name the identity or device to rotate."
+    });
+  }
+
+  const store = durableStore(cfg.dataDir);
+  const target = requestedIdentityId
+    ? store.findIdentityById(requestedIdentityId)
+    : requestedDeviceId
+      ? store.listIdentities().find((identity) => identity.deviceId === requestedDeviceId)
+      : actor;
+  if (!target) {
+    return sendJson(res, 404, { ok: false, code: "identity_not_found", error: "Paired identity not found." });
+  }
+  if (actor && target.id !== actor.id && !hasScope(actor, "admin")) {
+    return sendJson(res, 403, {
+      ok: false,
+      code: "rotation_forbidden",
+      error: "Only an identity with administration scope can rotate another device."
+    });
+  }
+  if (target.status !== "active") {
+    return sendJson(res, 409, {
+      ok: false,
+      code: "identity_not_active",
+      error: `Cannot rotate ${target.status} PhoneDex identity.`
+    });
+  }
+
+  const rotated = rotateIdentityCredential(target);
+  const result = store.rotateIdentity({
+    identityId: target.id,
+    credentialHash: hashSecret(rotated.credential),
+    now: rotated.identity.credentialRotatedAt
+  });
+  if (!result.changed) {
+    return sendJson(res, 409, {
+      ok: false,
+      code: "identity_changed",
+      error: "The identity changed before rotation completed. Try again with the current credential."
+    });
+  }
+
+  recordSecurityAudit(cfg, {
+    action: "credential-rotated",
+    identityId: result.identity.id,
+    deviceId: result.identity.deviceId,
+    credentialVersion: result.identity.credentialVersion,
+    actorIdentityId: actor?.id || "hub-owner-bearer"
+  });
+
+  return sendJson(res, 200, {
+    ok: true,
+    credential: rotated.credential,
+    identity: publicIdentity(result.identity),
+    instructions: "Replace the stored credential now. The previous credential is invalid."
   }, { "cache-control": "no-store" });
 }
 
@@ -1764,13 +1973,49 @@ async function handleReplyRequest(req, res, requestUrl, cfg) {
     fields.replyText ||
     RESPONSE_CHOICES[choice] ||
     choice;
-  const existing = findReplyByIdempotencyKey(cfg.dataDir, idempotencyKey);
+  const replyText = fields.reply_text || fields.replyText || "";
+  const existingByIdempotencyKey = findReplyByIdempotencyKey(cfg.dataDir, idempotencyKey);
+  const existingByCommandId = findReplyByCommandId(cfg.dataDir, commandId);
+  if (existingByCommandId && !replyIntentMatches(existingByCommandId, {
+    taskId,
+    choice,
+    prompt,
+    replyText
+  })) {
+    recordSecurityAudit(cfg, {
+      action: "replay-rejected",
+      scope: "tasks.reply",
+      commandId,
+      taskId,
+      reason: "command-id-bound-to-different-payload"
+    });
+    return sendJson(res, 409, {
+      ok: false,
+      code: "command_replay",
+      error: "This command ID was already used for a different reply. Create a new command."
+    });
+  }
+  const existing = existingByIdempotencyKey || existingByCommandId;
   if (existing) {
     if (existing.taskId !== taskId) {
       return sendJson(res, 409, {
         ok: false,
         code: "idempotency_conflict",
         error: "The idempotency key is already bound to another task."
+      });
+    }
+    if (!replyIntentMatches(existing, { taskId, choice, prompt, replyText })) {
+      recordSecurityAudit(cfg, {
+        action: "replay-rejected",
+        scope: "tasks.reply",
+        commandId,
+        taskId,
+        reason: "idempotency-key-bound-to-different-payload"
+      });
+      return sendJson(res, 409, {
+        ok: false,
+        code: "idempotency_conflict",
+        error: "The idempotency key is already bound to a different reply."
       });
     }
     const delivery = existing.deliveryState === "completed"
@@ -1787,6 +2032,13 @@ async function handleReplyRequest(req, res, requestUrl, cfg) {
         deliveryState: delivery.state
       });
     }
+    recordSecurityAudit(cfg, {
+      action: "replay-deduplicated",
+      scope: "tasks.reply",
+      commandId: existing.commandId,
+      taskId: existing.taskId,
+      reason: existingByIdempotencyKey ? "idempotency-key" : "command-id"
+    });
     return sendJson(res, 200, {
       ok: true,
       duplicate: true,
@@ -1807,7 +2059,7 @@ async function handleReplyRequest(req, res, requestUrl, cfg) {
     choice,
     prompt,
     action: fields.action || "",
-    replyText: fields.reply_text || fields.replyText || "",
+    replyText,
     taskTitle: task?.title || "",
     sessionId: task?.sessionId || "",
     cwd: task?.cwd || "",
@@ -1862,6 +2114,24 @@ function findReplyByIdempotencyKey(dataDir, idempotencyKey) {
     return { ...reply, deliveryState: "completed" };
   }
   return reply;
+}
+
+function findReplyByCommandId(dataDir, commandId) {
+  if (!commandId) return undefined;
+  return readJsonl(dataDir, "replies.jsonl")
+    .slice()
+    .reverse()
+    .find((candidate) => candidate?.commandId === commandId);
+}
+
+function replyIntentMatches(existing, { taskId, choice, prompt, replyText }) {
+  return Boolean(
+    existing &&
+      existing.taskId === taskId &&
+      existing.choice === choice &&
+      existing.prompt === prompt &&
+      (existing.replyText || "") === (replyText || "")
+  );
 }
 
 function createReplyCommand(reply, actor, state) {
@@ -2773,6 +3043,7 @@ Usage:
   phonedex pair:create --name "My iPhone"
   phonedex pair:list
   phonedex pair:revoke --identity ID
+  phonedex pair:rotate --identity ID
   phonedex enroll-agent --device-id macbook-air --name "MacBook Air" --platform macos
   phonedex enroll-agent --device-id windows-desktop --name "Windows Desktop" --platform windows --script
   phonedex agent-self-test
@@ -2796,6 +3067,7 @@ Compatibility aliases:
   watchdex verify-devices
   watchdex notify-coverage
   watchdex pair:create --name "My iPhone"
+  watchdex pair:rotate --identity ID
   watchdex enroll-agent --device-id macbook-air --name "MacBook Air" --platform macos
   watchdex enroll-agent --device-id windows-desktop --name "Windows Desktop" --platform windows --script
   watchdex agent-self-test
@@ -2862,6 +3134,23 @@ function ensureDataDir(dataDir) {
 function appendJsonl(dataDir, fileName, value) {
   ensureDataDir(dataDir);
   fs.appendFileSync(path.join(dataDir, fileName), `${JSON.stringify(value)}\n`);
+}
+
+function recordSecurityAudit(cfg, entry) {
+  try {
+    appendJsonl(cfg.dataDir, SECURITY_AUDIT_FILE, {
+      schema: "phonedex.security-audit.v1",
+      at: new Date().toISOString(),
+      ...Object.fromEntries(Object.entries(entry).map(([key, value]) => [
+        key,
+        Array.isArray(value)
+          ? value.slice(0, 12).map((item) => redactSensitiveText(item)).join(",")
+          : redactSensitiveText(value).slice(0, 200)
+      ]))
+    });
+  } catch {
+    // Security telemetry must not break the protected request or local hook.
+  }
 }
 
 function readJsonl(dataDir, fileName) {
