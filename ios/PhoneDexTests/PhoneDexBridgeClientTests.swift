@@ -52,6 +52,36 @@ final class PhoneDexBridgeClientTests: XCTestCase {
             machineName: "Studio Mac"
         )
     }
+
+    func testFetchTasksRequestsCompleteProjectHistory() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [URLProtocolStub.self]
+        let session = URLSession(configuration: configuration)
+
+        URLProtocolStub.handler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "http://bridge.test/tasks?limit=all")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "authorization"), "Bearer secret")
+
+            return (
+                HTTPURLResponse(
+                    url: try XCTUnwrap(request.url),
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: ["content-type": "application/json"]
+                )!,
+                Data("[]".utf8)
+            )
+        }
+
+        let client = PhoneDexBridgeClient(
+            bridgeURL: URL(string: "http://bridge.test")!,
+            token: "secret",
+            session: session
+        )
+
+        let tasks = try await client.fetchTasks()
+        XCTAssertTrue(tasks.isEmpty)
+    }
 }
 
 private extension InputStream {

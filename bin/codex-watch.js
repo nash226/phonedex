@@ -599,7 +599,12 @@ async function startServer(providedCfg) {
         if (!isRequestTokenValid(req, requestUrl, cfg)) {
           return sendJson(res, 401, { ok: false, error: "Invalid token" });
         }
-        return sendJson(res, 200, readJsonl(cfg.dataDir, "tasks.jsonl").slice(-25).map(publicTask));
+        const tasks = readJsonl(cfg.dataDir, "tasks.jsonl");
+        const requestedLimit = requestUrl.searchParams.get("limit");
+        const visibleTasks = requestedLimit === "all"
+          ? tasks
+          : tasks.slice(-parseTaskListLimit(requestedLimit));
+        return sendJson(res, 200, visibleTasks.map(publicTask));
       }
 
       if (requestUrl.pathname === "/devices/heartbeat") {
@@ -663,6 +668,13 @@ async function startServer(providedCfg) {
   }
 
   return server;
+}
+
+function parseTaskListLimit(value) {
+  if (value === null || value === "") return 25;
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return 25;
+  return Math.min(parsed, 500);
 }
 
 async function startService(args) {
