@@ -2228,7 +2228,11 @@ async function handleLifecycleCommandRequest(req, res, requestUrl, cfg, lifecycl
     ...Object.fromEntries(requestUrl.searchParams.entries()),
     ...parseBodyFields(body, req.headers["content-type"] || "")
   };
-  if (cfg.token && !isRequestAuthorized(req, requestUrl, cfg, "tasks.reply")) {
+  const requestedKind = String(
+    (fields.command && typeof fields.command === "object" ? fields.command.kind : fields.kind) || ""
+  ).trim();
+  const requiredScope = APPROVAL_KINDS.includes(requestedKind) ? "tasks.approve" : "tasks.reply";
+  if (cfg.token && !isRequestAuthorized(req, requestUrl, cfg, requiredScope)) {
     return sendJson(res, 401, { ok: false, error: "Invalid token" });
   }
 
