@@ -704,8 +704,8 @@ Status: **Queued**
 
 Outcome: turn the complete system into an operable public product.
 
-- [ ] Reproducible signing, entitlements, semantic versioning, and build
-  provenance.
+- [ ] Reproducible signing and entitlements.
+- [x] Keep semantic versioning and secret-free build provenance reproducible.
 - [x] Staged migration, backup, rollback, and disaster-recovery drills.
 - [ ] Content-free observability with correlation IDs and component health.
 - [x] Add an implementation-based iOS privacy manifest and App Store privacy
@@ -729,6 +729,14 @@ compatibility command/receipt logs. `docs/RECOVERY.md` defines the staged
 upgrade stop conditions, complete backup boundary, read-only recovery smoke
 checks, and rerun evidence required before writers resume. The drill does not
 require Apple credentials, a hosted service, or private Codex APIs.
+
+Verification evidence for the completed version-and-provenance slice:
+`VERSION` is the canonical semantic version for the bridge, native app, and
+notification extension. `scripts/release-manifest.js` validates the generated
+Xcode project, emits a `phonedex.release.v1` manifest with the source revision
+and supported build matrix, and excludes credentials, local paths, and task
+content. Node CI runs `npm run release:verify`; signing, entitlements,
+TestFlight, and real-device validation remain release-owner gates.
 
 Verification evidence for the completed App Review and support-runbook slice:
 `docs/APP_REVIEW.md` provides a release-owner checklist and truthful App Review
