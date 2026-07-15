@@ -11,19 +11,21 @@ struct PhoneDexCachedState: Codable, Equatable {
     let cursor: String?
     let tasks: [PhoneDexTask]
     let devices: [PhoneDexDevice]
+    let events: [PhoneDexEvent]
     let lastSyncAt: Date?
     let drafts: [String: String]
     let readingPositions: [String: String]
     let pendingReplies: [PhoneDexPendingReply]
 
     private enum CodingKeys: String, CodingKey {
-        case schema, version, cursor, tasks, devices, lastSyncAt, drafts, readingPositions, pendingReplies
+        case schema, version, cursor, tasks, devices, events, lastSyncAt, drafts, readingPositions, pendingReplies
     }
 
     init(
         cursor: String?,
         tasks: [PhoneDexTask],
         devices: [PhoneDexDevice],
+        events: [PhoneDexEvent] = [],
         lastSyncAt: Date?,
         drafts: [String: String] = [:],
         readingPositions: [String: String] = [:],
@@ -36,6 +38,7 @@ struct PhoneDexCachedState: Codable, Equatable {
         self.cursor = cursor
         self.tasks = tasks
         self.devices = devices
+        self.events = events
         self.lastSyncAt = lastSyncAt
         self.drafts = drafts
         self.readingPositions = readingPositions
@@ -49,6 +52,7 @@ struct PhoneDexCachedState: Codable, Equatable {
         cursor = try container.decodeIfPresent(String.self, forKey: .cursor)
         tasks = try container.decode([PhoneDexTask].self, forKey: .tasks)
         devices = try container.decode([PhoneDexDevice].self, forKey: .devices)
+        events = try container.decodeIfPresent([PhoneDexEvent].self, forKey: .events) ?? []
         lastSyncAt = try container.decodeIfPresent(Date.self, forKey: .lastSyncAt)
         drafts = try container.decodeIfPresent([String: String].self, forKey: .drafts) ?? [:]
         readingPositions = try container.decodeIfPresent([String: String].self, forKey: .readingPositions) ?? [:]
@@ -62,6 +66,7 @@ struct PhoneDexCachedState: Codable, Equatable {
         try container.encodeIfPresent(cursor, forKey: .cursor)
         try container.encode(tasks, forKey: .tasks)
         try container.encode(devices, forKey: .devices)
+        try container.encode(events, forKey: .events)
         try container.encodeIfPresent(lastSyncAt, forKey: .lastSyncAt)
         try container.encode(drafts, forKey: .drafts)
         try container.encode(readingPositions, forKey: .readingPositions)

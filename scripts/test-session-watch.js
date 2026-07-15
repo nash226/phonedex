@@ -46,6 +46,14 @@ try {
       },
       {
         type: "event_msg",
+        timestamp: "2026-06-30T02:01:00.000Z",
+        payload: {
+          type: "task_started",
+          message: "Codex started the fixture task"
+        }
+      },
+      {
+        type: "event_msg",
         timestamp: "2026-06-30T02:02:00.000Z",
         payload: {
           type: "task_complete",
@@ -108,6 +116,8 @@ try {
   const storePath = path.join(dataDir, "phonedex-store.json");
   const initialStore = JSON.parse(fs.readFileSync(storePath, "utf8"));
   assert.equal(initialStore.tasks.length, 2);
+  assert.equal(initialStore.events.some((event) => event.type === "task_started"), true);
+  assert.equal(initialStore.events.some((event) => event.type === "task_completed"), true);
   assertCaptureSources(
     initialStore.tasks,
     "Agent message final answer fixture",

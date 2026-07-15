@@ -517,6 +517,7 @@ struct PhoneDexTaskDetailView: View {
                         detailSection(.question) { questionPrompt }
                     }
                     detailSection(.transcript) { transcript }
+                    detailSection(.liveEvents) { liveEvents }
                     detailSection(.activity) { activity }
                     detailSection(.evidence) { evidence }
                     replyStatus
@@ -812,6 +813,49 @@ struct PhoneDexTaskDetailView: View {
         }
     }
 
+    private var liveEvents: some View {
+        let events = model.events(for: task.id)
+        return VStack(alignment: .leading, spacing: 10) {
+            Label("Live activity", systemImage: "waveform.path.ecg")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.blue)
+
+            if events.isEmpty {
+                Text("No structured lifecycle events were exported for this task yet.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(events) { event in
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: event.symbol)
+                                .foregroundStyle(event.type == "task_failed" ? .red : .secondary)
+                                .frame(width: 20)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(event.displayTitle)
+                                    .font(.subheadline.weight(.medium))
+                                if let summary = event.summary, !summary.isEmpty {
+                                    Text(summary)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .textSelection(.enabled)
+                                }
+                                if let date = event.displayDate {
+                                    Text(date, style: .relative)
+                                        .font(.caption2)
+                                        .foregroundStyle(.tertiary)
+                                }
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.vertical, 8)
+                        .accessibilityElement(children: .combine)
+                    }
+                }
+            }
+        }
+    }
+
     private var evidence: some View {
         VStack(alignment: .leading, spacing: 10) {
             Label("Evidence", systemImage: "checklist")
@@ -1014,6 +1058,7 @@ private enum PhoneDexTaskDetailAnchor: String {
     case status
     case question
     case transcript
+    case liveEvents
     case activity
     case evidence
     case bottom

@@ -57,6 +57,7 @@ final class PhoneDexAppModel: ObservableObject {
 
     @Published private(set) var tasks: [PhoneDexTask] = []
     @Published private(set) var devices: [PhoneDexDevice] = []
+    @Published private(set) var events: [PhoneDexEvent] = []
     @Published private(set) var drafts: [PhoneDexTask.ID: String] = [:]
     @Published private(set) var readingPositions: [PhoneDexTask.ID: String] = [:]
     @Published private(set) var pendingReplies: [PhoneDexPendingReply] = []
@@ -109,7 +110,8 @@ final class PhoneDexAppModel: ObservableObject {
             let result = try await client.fetchResilientSync(
                 cursor: syncCursor,
                 tasks: syncTasks,
-                devices: devices
+                devices: devices,
+                events: events
             )
             if let fetchedTasks = result.tasks {
                 syncTasks = fetchedTasks
@@ -121,6 +123,12 @@ final class PhoneDexAppModel: ObservableObject {
                 devices = fetchedDevices.sorted { lhs, rhs in
                     if lhs.isOnline != rhs.isOnline { return lhs.isOnline }
                     return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
+                }
+            }
+            if let fetchedEvents = result.events {
+                events = fetchedEvents.sorted { lhs, rhs in
+                    if lhs.taskId != rhs.taskId { return lhs.taskId < rhs.taskId }
+                    return lhs.sequence < rhs.sequence
                 }
             }
             if selectedTaskID == nil || !tasks.contains(where: { $0.id == selectedTaskID }) {
@@ -425,6 +433,12 @@ final class PhoneDexAppModel: ObservableObject {
         readingPositions[taskID]
     }
 
+    func events(for taskID: PhoneDexTask.ID) -> [PhoneDexEvent] {
+        events
+            .filter { $0.taskId == taskID }
+            .sorted { $0.sequence < $1.sequence }
+    }
+
     func updateReadingPosition(_ position: String?, for taskID: PhoneDexTask.ID) {
         let normalizedPosition = position?.trimmingCharacters(in: .whitespacesAndNewlines)
         guard readingPositions[taskID] != normalizedPosition else { return }
@@ -450,6 +464,7 @@ final class PhoneDexAppModel: ObservableObject {
                 (lhs.displayDate ?? .distantPast) > (rhs.displayDate ?? .distantPast)
             }
             devices = cached.devices
+            events = cached.events
             drafts = cached.drafts
             readingPositions = cached.readingPositions
             pendingReplies = cached.pendingReplies
@@ -468,6 +483,7 @@ final class PhoneDexAppModel: ObservableObject {
                 cursor: syncCursor,
                 tasks: syncTasks,
                 devices: devices,
+                events: events,
                 lastSyncAt: lastSyncAt,
                 drafts: drafts,
                 readingPositions: readingPositions,
