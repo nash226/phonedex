@@ -156,6 +156,14 @@ response. URLs and local paths are optional metadata and must be filtered
 according to the retention and privacy policy before leaving the user's
 devices.
 
+`phonedex.event.v1` records are append-only lifecycle observations. The
+`sequence` is ordered within a task, `type` is a bounded lifecycle name such
+as `task_started`, `progress`, `needs_input`, `approval_requested`,
+`task_failed`, or `task_completed`, and `data` contains only bounded event
+metadata such as a user-visible summary. Event records are emitted from the
+supported local session JSONL boundary, not from private desktop UI state, and
+are delivered as `event` snapshot records or ordered sync changes.
+
 Device records retain the legacy `status` field as the reachability value and
 may add an additive `health` object:
 
@@ -178,7 +186,8 @@ supported adapter reports it; older heartbeats therefore decode as unknown.
 The hub exposes `GET /sync` as the versioned snapshot-plus-cursor contract.
 Clients send an authenticated bearer token and an optional opaque `v1.` cursor
 with a bounded `limit` (1–100, default 50). A fresh request returns a stable,
-deterministically ordered snapshot page of tasks and devices. The returned
+deterministically ordered snapshot page of tasks, devices, and lifecycle
+events. The returned
 cursor continues snapshot pagination; the hub rejects a page request with
 `409 sync_snapshot_changed` if the durable store changed between pages. Once
 the snapshot is complete, the same cursor advances through ordered changes.
@@ -193,7 +202,7 @@ Sync responses use this envelope:
 {
   "schema": "phonedex.sync.v1",
   "protocolVersion": 1,
-  "snapshot": { "complete": true, "tasks": [], "devices": [] },
+  "snapshot": { "complete": true, "tasks": [], "devices": [], "events": [] },
   "changes": [],
   "cursor": "v1.opaque-value",
   "hasMore": false
@@ -210,8 +219,8 @@ corrupt current snapshot is recovered from the backup only when the backup
 validates; future store versions fail closed instead of being silently
 downgraded.
 
-The native iPhone client stores the last complete task/device projection and
-the opaque cursor in an AES-GCM encrypted cache. Its 256-bit cache key is a
+The native iPhone client stores the last complete task/device/event projection
+and the opaque cursor in an AES-GCM encrypted cache. Its 256-bit cache key is a
 device-only Keychain item and the cache file uses iOS data protection. A
 rejected or changed cursor causes a fresh snapshot bootstrap; legacy endpoint
 fallbacks deliberately clear the durable cursor so compatibility data cannot be

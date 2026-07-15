@@ -23,13 +23,13 @@ macOS-only and experimental. The agent never claims private Codex Desktop UI
 parity, and the iPhone can hide or explain an unavailable reply capability from
 the heartbeat rather than guessing from the device platform.
 
-Task and device state is persisted through the versioned transactional store
+Task, device, and lifecycle-event state is persisted through the versioned transactional store
 in [`lib/phonedex-store.js`](../lib/phonedex-store.js). It atomically replaces
 `phonedex-store.json`, retains the previous snapshot as
 `phonedex-store.json.bak`, and imports the current JSONL/device files on first
 start. Those legacy files remain mirrored for compatibility, while bridge
-reads and task deduplication use the transactional snapshot as the source of
-truth.
+reads, task deduplication, and cursor sync use the transactional snapshot as
+the source of truth.
 
 ## Product Flow
 
@@ -104,9 +104,12 @@ PhoneDex has two completion paths:
 | Session watcher | Fallback scanner for Codex session JSONL files. | Catches completed replies when hooks are unavailable or stale. |
 
 The session watcher polls recent files under `~/.codex/sessions`, waits a
-short debounce period, then extracts final assistant text. It currently
-understands older `response_item` final messages, `event_msg` records with
-`payload.type = "task_complete"`, and final-answer `agent_message` records.
+short debounce period, then consumes supported lifecycle records without
+parsing desktop UI. It understands older `response_item` final messages,
+`event_msg` records with `payload.type = "task_complete"`, final-answer
+`agent_message` records, and supported start/progress event records. Start and
+progress observations become durable `phonedex.event.v1` records, while task
+status remains a projection that converges hook and watcher captures.
 
 State lives in `data/session-watch-state.json`, so the watcher does not notify
 the same completed reply repeatedly. Each capture also carries a deterministic
@@ -114,7 +117,9 @@ logical completion identity when the source device, Codex session, and message
 identity are available. The hook and watcher use that identity to merge into
 one durable task in either arrival order; merged provenance is retained as
 bounded `captureSources`, while an unchanged duplicate does not create another
-sync change or notification.
+sync change or notification. Event records are ordered per task, deduplicated
+by stable id, and delivered through the same authenticated snapshot-plus-cursor
+`/sync` contract used by the native iPhone client.
 
 ## Notification Build
 
@@ -250,6 +255,7 @@ making retention and deletion explicit:
 | File | Purpose |
 | --- | --- |
 | `data/tasks.jsonl` | Completed Codex replies and manual notification tasks. |
+| `data/phonedex-store.json` | Transactional tasks, devices, lifecycle events, and sync journal. |
 | `data/replies.jsonl` | Phone replies and custom text entries. |
 | `data/events.jsonl` | Notification attempts and auto-resume events. |
 | `data/session-watch-state.json` | Deduplication state for the session watcher. |

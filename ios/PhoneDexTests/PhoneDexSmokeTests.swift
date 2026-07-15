@@ -130,6 +130,26 @@ final class PhoneDexSmokeTests: XCTestCase {
         XCTAssertTrue(task.question?.allowsFreeText == true)
     }
 
+    func testLifecycleEventDecodesBoundedSummary() throws {
+        let event = try JSONDecoder().decode(
+            PhoneDexEvent.self,
+            from: Data("""
+            {
+              "id": "event_1",
+              "taskId": "task_1",
+              "createdAt": "2026-07-15T12:00:01.000Z",
+              "sequence": 2,
+              "type": "progress",
+              "data": {"summary": "Running focused tests"}
+            }
+            """.utf8)
+        )
+
+        XCTAssertEqual(event.displayTitle, "Progress")
+        XCTAssertEqual(event.summary, "Running focused tests")
+        XCTAssertEqual(event.sequence, 2)
+    }
+
     private func decodeTask(id: String, cwd: String, machineName: String) throws -> PhoneDexTask {
         let payload: [String: Any] = [
             "id": id,
