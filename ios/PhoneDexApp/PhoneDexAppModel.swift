@@ -92,7 +92,7 @@ final class PhoneDexAppModel: ObservableObject {
 
     func refresh() async {
         guard let client = bridgeClient else {
-            connectionState = .failed("Add a valid bridge URL in Settings.", lastSync: lastSuccessfulSync)
+            connectionState = .failed(settings.bridgeURLValidationMessage, lastSync: lastSuccessfulSync)
             return
         }
 

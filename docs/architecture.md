@@ -143,8 +143,7 @@ Pushcut can use the same task shape as an optional webhook fallback:
   "choice": "okay_whats_next",
   "prompt": "okay whats next",
   "replyUrl": "http://192.168.1.189:8765/reply",
-  "machineName": "MacBook Air",
-  "token": "..."
+  "machineName": "MacBook Air"
 }
 ```
 
@@ -153,6 +152,13 @@ callback URL that should receive the reply, so replies route back to the
 machine and session that created the task. PhoneDex's native iOS path uses a
 notification content extension so the expanded view can show a branded,
 scrollable task surface like the README mockup.
+
+Native iOS notification metadata contains task context and a credential-free
+callback URL only. The app reads the paired credential from Keychain and sends
+it in an authorization header; it never accepts a durable token from a
+configuration URL or notification payload. The HTTP examples above describe
+the local development bridge; production iPhone connections require an HTTPS
+bridge URL.
 
 ## Phone Actions
 
@@ -251,10 +257,11 @@ making retention and deletion explicit:
 | `data/privacy-policy.json` | Bounded retention policy. A missing policy is non-destructive. |
 | `data/privacy-audit.jsonl` | Content-free retention and history-deletion audit entries. |
 
-Security is handled with `WATCH_BRIDGE_TOKEN`. The token is verified by
-`/reply`, `/tasks`, `/devices`, `/replies`, and the privacy endpoints when it
-is set. Native app clients should send it as an authorization bearer token or
-query parameter.
+Legacy bridge security is handled with `WATCH_BRIDGE_TOKEN`. Compatibility
+endpoints still accept body or query tokens for older clients when configured,
+but native app clients use the paired credential as an authorization bearer
+token and do not put it in URLs or notification metadata. Production native
+iPhone connections require HTTPS; loopback HTTP is reserved for development.
 
 Authenticated `GET /privacy` and `GET /privacy/export` expose bounded policy
 and redacted user data. `POST /privacy/retention` requires
