@@ -62,6 +62,40 @@ cannot be sent instead of presenting a false control. Mac and Windows share
 the same adapter contract; platform-specific behavior is selected by the
 adapter, not inferred by the iPhone.
 
+### Secure pairing
+
+The hub CLI creates a short-lived pairing grant with:
+
+```sh
+npm run pair:create -- --name "Nash iPhone"
+```
+
+The command prints a random grant and a separate six-digit verification code.
+The grant is valid for ten minutes by default and can be redeemed once at
+`POST /pair`:
+
+```json
+{
+  "grant": "opaque-one-time-grant",
+  "verificationCode": "123456",
+  "deviceName": "Nash iPhone",
+  "platform": "ios"
+}
+```
+
+The hub stores only SHA-256 hashes of the grant, verification code, and
+returned device credential. A successful response returns the credential once
+and includes a `phonedex.identity.v1` public identity with scoped permissions:
+phones receive `tasks.read` and `tasks.reply`; agents receive the ingest and
+heartbeat scopes needed by the existing local agent contract. Paired clients
+send the credential only as an `Authorization: Bearer` header. Query-string
+credentials are not accepted for paired identities. Invalid, expired, reused,
+and rate-limited attempts return bounded errors without echoing secrets.
+
+This slice establishes the pairing grant and device-bound credential path;
+credential revocation, rotation, TLS enforcement, and admin scope remain
+separate security work.
+
 ### Completion capture convergence
 
 Task records may include `messageId`, `logicalEventId`, and `captureSources`.

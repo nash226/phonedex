@@ -67,6 +67,46 @@ final class PhoneDexBridgeClientTests: XCTestCase {
         XCTAssertTrue(receipt.isSuccessful)
     }
 
+    func testRedeemPairingUsesOneTimeGrantWithoutCredentialInRequest() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [URLProtocolStub.self]
+        let session = URLSession(configuration: configuration)
+
+        URLProtocolStub.handler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "http://bridge.test/pair")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertNil(request.value(forHTTPHeaderField: "authorization"))
+            let body = try request.httpBody ?? XCTUnwrap(request.httpBodyStream).readAllData()
+            let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(json["grant"] as? String, "grant-secret")
+            XCTAssertEqual(json["verificationCode"] as? String, "123456")
+            XCTAssertEqual(json["platform"] as? String, "ios")
+            XCTAssertNil(json["credential"])
+
+            return (
+                HTTPURLResponse(
+                    url: try XCTUnwrap(request.url),
+                    statusCode: 201,
+                    httpVersion: nil,
+                    headerFields: ["content-type": "application/json"]
+                )!,
+                Data("""
+                {"ok":true,"credential":"device-credential","identity":{"id":"identity_1","deviceId":"phone_1","name":"iPhone","role":"phone","platform":"ios","scopes":["tasks.read","tasks.reply"],"status":"active"}}
+                """.utf8)
+            )
+        }
+
+        let response = try await PhoneDexBridgeClient(
+            bridgeURL: URL(string: "http://bridge.test")!,
+            token: "",
+            session: session
+        ).redeemPairing(grant: "grant-secret", verificationCode: "123456", deviceName: "iPhone")
+
+        XCTAssertEqual(response.credential, "device-credential")
+        XCTAssertEqual(response.identity.deviceId, "phone_1")
+        XCTAssertEqual(response.identity.scopes, ["tasks.read", "tasks.reply"])
+    }
+
     func testFetchTasksRequestsCompleteProjectHistory() async throws {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [URLProtocolStub.self]

@@ -30,6 +30,15 @@ const {
   createPhoneDexPrivacy,
   normalizeRetentionDays
 } = require("../lib/phonedex-privacy");
+const {
+  DEFAULT_PAIRING_TTL_MS,
+  createIdentity,
+  createPairingGrant,
+  hashSecret,
+  normalizeRole,
+  publicIdentity,
+  secretsMatch
+} = require("../lib/phonedex-identity");
 
 const ROOT = path.resolve(__dirname, "..");
 const DATA_DIR_DEFAULT = path.join(ROOT, "data");
@@ -48,6 +57,8 @@ const DEFAULT_DEVICE_STALE_MS = 2 * 60 * 1000;
 const DEFAULT_COVERAGE_ALERT_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const DEFAULT_AGENT_INVITE_TTL_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_AGENT_INVITE_MAX_ACTIVE = 5;
+const DEFAULT_PAIRING_ATTEMPTS = 5;
+const PAIRING_ATTEMPT_WINDOW_MS = 60 * 1000;
 const DURABLE_STORE_CACHE = new Map();
 
 const RESPONSE_CHOICES = {
@@ -147,6 +158,11 @@ async function main() {
     return;
   }
 
+  if (command === "pair:create") {
+    createPairingGrantCommand(args);
+    return;
+  }
+
   if (command === "agent-installs") {
     printAgentInstalls(args);
     return;
@@ -236,6 +252,7 @@ function config() {
       env.PHONEDEX_AGENT_INVITE_MAX_ACTIVE,
       DEFAULT_AGENT_INVITE_MAX_ACTIVE
     ),
+    pairingTtlMs: positiveNumber(env.PHONEDEX_PAIRING_TTL_MS, DEFAULT_PAIRING_TTL_MS),
     host,
     port,
     dataDir: env.WATCH_BRIDGE_DATA_DIR || DATA_DIR_DEFAULT,
@@ -290,6 +307,25 @@ async function setup() {
   console.log("2. Run: npm run server");
   console.log("3. In Codex, open /hooks and trust the PhoneDex hook");
   console.log("4. Run: npm run test-notify");
+}
+
+function createPairingGrantCommand(args) {
+  const cfg = config();
+  ensureDataDir(cfg.dataDir);
+  const flags = parseFlags(args);
+  const role = normalizeRole(flags.role || "phone");
+  const grant = createPairingGrant({
+    role,
+    name: flags.name || (role === "phone" ? "PhoneDex iPhone" : "PhoneDex agent"),
+    platform: flags.platform || (role === "phone" ? "ios" : "unknown"),
+    ttlMs: positiveNumber(flags.ttlMs || flags["ttl-ms"] || flags.ttl, cfg.pairingTtlMs)
+  });
+  durableStore(cfg.dataDir).createPairingGrant(grant.stored);
+  console.log(JSON.stringify({
+    bridgeUrl: cfg.publicUrl,
+    ...grant.public,
+    instructions: "Enter the grant and verification code in the PhoneDex app. Keep both private."
+  }, null, 2));
 }
 
 async function handleHook() {
@@ -614,6 +650,27 @@ function isBearerTokenValid(req, cfg) {
   return Boolean(bearerMatch && bearerMatch[1].trim() === cfg.token);
 }
 
+function isRequestAuthorized(req, requestUrl, cfg, scope) {
+  if (!cfg.token) return true;
+  if (requestUrl.searchParams.get("token") === cfg.token) return true;
+
+  const authHeader = req.headers.authorization || "";
+  const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
+  const bearerToken = bearerMatch ? bearerMatch[1].trim() : "";
+  if (bearerToken === cfg.token) return true;
+
+  const identity = findIdentityForRequest(req, cfg);
+  return Boolean(identity && identity.status === "active" && (!scope || identity.scopes.includes(scope)));
+}
+
+function findIdentityForRequest(req, cfg) {
+  const authHeader = req.headers.authorization || "";
+  const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
+  const bearerToken = bearerMatch ? bearerMatch[1].trim() : "";
+  if (!bearerToken) return null;
+  return durableStore(cfg.dataDir).findIdentityByCredentialHash(hashSecret(bearerToken)) || null;
+}
+
 function formatNotificationTitle(cfg, task) {
   const machineName = task.machineName || cfg.machineName;
   if (!machineName) return task.title;
@@ -630,6 +687,7 @@ function formatPhoneNotificationMessage(task) {
 async function startServer(providedCfg) {
   const cfg = providedCfg || config();
   ensureDataDir(cfg.dataDir);
+  const pairingAttempts = new Map();
 
   if (cfg.retentionDays > 0) {
     try {
@@ -664,6 +722,10 @@ async function startServer(providedCfg) {
         });
       }
 
+      if (requestUrl.pathname === "/pair") {
+        return handlePairRequest(req, res, cfg, pairingAttempts);
+      }
+
       if (
         requestUrl.pathname === "/privacy" ||
         requestUrl.pathname === "/privacy/export" ||
@@ -682,7 +744,7 @@ async function startServer(providedCfg) {
       }
 
       if (requestUrl.pathname === "/replies") {
-        if (!isRequestTokenValid(req, requestUrl, cfg)) {
+        if (!isRequestAuthorized(req, requestUrl, cfg, "tasks.read")) {
           return sendJson(res, 401, { ok: false, error: "Invalid token" });
         }
         return sendJson(res, 200, readJsonl(cfg.dataDir, "replies.jsonl").slice(-25));
@@ -692,7 +754,7 @@ async function startServer(providedCfg) {
         if (req.method === "POST") {
           return handleTaskIngestRequest(req, res, requestUrl, cfg);
         }
-        if (!isRequestTokenValid(req, requestUrl, cfg)) {
+        if (!isRequestAuthorized(req, requestUrl, cfg, "tasks.read")) {
           return sendJson(res, 401, { ok: false, error: "Invalid token" });
         }
         const tasks = readJsonl(cfg.dataDir, "tasks.jsonl");
@@ -707,7 +769,7 @@ async function startServer(providedCfg) {
         if (req.method !== "GET") {
           return sendJson(res, 405, { ok: false, error: "GET required" });
         }
-        if (!isRequestTokenValid(req, requestUrl, cfg)) {
+        if (!isRequestAuthorized(req, requestUrl, cfg, "tasks.read")) {
           return sendJson(res, 401, { ok: false, error: "Invalid token" });
         }
 
@@ -754,7 +816,7 @@ async function startServer(providedCfg) {
         if (req.method === "POST") {
           return handleAgentInstallReportRequest(req, res, requestUrl, cfg);
         }
-        if (!isRequestTokenValid(req, requestUrl, cfg)) {
+        if (!isRequestAuthorized(req, requestUrl, cfg, "devices.heartbeat")) {
           return sendJson(res, 401, { ok: false, error: "Invalid token" });
         }
         return sendJson(
@@ -765,7 +827,7 @@ async function startServer(providedCfg) {
       }
 
       if (requestUrl.pathname === "/devices") {
-        if (!isRequestTokenValid(req, requestUrl, cfg)) {
+        if (!isRequestAuthorized(req, requestUrl, cfg, "tasks.read")) {
           return sendJson(res, 401, { ok: false, error: "Invalid token" });
         }
         return sendJson(res, 200, listDeviceCoverage(cfg));
@@ -783,6 +845,7 @@ async function startServer(providedCfg) {
         service: "watchdex",
         endpoints: [
           "/health",
+          "/pair",
           "/privacy",
           "/privacy/export",
           "/privacy/retention",
@@ -857,6 +920,120 @@ async function handlePrivacyRequest(req, res, requestUrl, cfg) {
   }
 }
 
+async function handlePairRequest(req, res, cfg, pairingAttempts) {
+  if (req.method !== "POST") {
+    return sendJson(res, 405, { ok: false, error: "POST required" });
+  }
+
+  const remoteAddress = req.socket.remoteAddress || "unknown";
+  const now = Date.now();
+  const recentAttempts = (pairingAttempts.get(remoteAddress) || [])
+    .filter((timestamp) => now - timestamp < PAIRING_ATTEMPT_WINDOW_MS);
+  if (recentAttempts.length >= DEFAULT_PAIRING_ATTEMPTS) {
+    pairingAttempts.set(remoteAddress, recentAttempts);
+    return sendJson(res, 429, {
+      ok: false,
+      code: "pairing_rate_limited",
+      error: "Too many pairing attempts. Wait a minute and try again."
+    });
+  }
+  recentAttempts.push(now);
+  pairingAttempts.set(remoteAddress, recentAttempts);
+
+  const body = await readHttpBody(req);
+  const fields = parseBodyFields(body, req.headers["content-type"] || "");
+  const grant = typeof fields.grant === "string" ? fields.grant.trim() : "";
+  const verificationCode = typeof fields.verificationCode === "string"
+    ? fields.verificationCode.trim()
+    : "";
+  if (!/^[A-Za-z0-9_-]{16,100}$/.test(grant) || !/^\d{6}$/.test(verificationCode)) {
+    return sendJson(res, 400, {
+      ok: false,
+      code: "pairing_invalid",
+      error: "Enter the complete pairing grant and six-digit verification code."
+    });
+  }
+
+  const store = durableStore(cfg.dataDir);
+  const storedGrant = store.listPairingGrants().find(
+    (candidate) => secretsMatch(candidate.grantHash, hashSecret(grant))
+  );
+  const nowISO = new Date(now).toISOString();
+  if (!storedGrant) {
+    return sendJson(res, 400, {
+      ok: false,
+      code: "pairing_invalid",
+      error: "That pairing grant is not valid. Generate a new grant on the hub."
+    });
+  }
+  if (storedGrant.usedAt) {
+    return sendJson(res, 410, {
+      ok: false,
+      code: "pairing_used",
+      error: "That pairing grant was already used. Generate a new grant on the hub."
+    });
+  }
+  if (Date.parse(storedGrant.expiresAt || "") <= now) {
+    return sendJson(res, 410, {
+      ok: false,
+      code: "pairing_expired",
+      error: "That pairing grant expired. Generate a new grant on the hub."
+    });
+  }
+
+  const deviceName = normalizePairingField(fields.deviceName || fields.name, storedGrant.name, 160);
+  const deviceId = normalizePairingField(fields.deviceId, `${storedGrant.role}-${crypto.randomBytes(6).toString("hex")}`, 120);
+  const platform = normalizePairingField(
+    fields.platform,
+    storedGrant.platform || (storedGrant.role === "phone" ? "ios" : "unknown"),
+    40
+  );
+  const credentials = createIdentity({
+    grant: storedGrant,
+    deviceId,
+    name: deviceName,
+    platform,
+    now: new Date(now)
+  });
+  const redemption = store.redeemPairingGrant({
+    grantHash: storedGrant.grantHash,
+    verificationCodeHash: hashSecret(verificationCode),
+    identity: credentials.identity,
+    now: nowISO
+  });
+  if (!redemption.ok) {
+    const status = redemption.code === "pairing_used" || redemption.code === "pairing_expired" ? 410 : 400;
+    return sendJson(res, status, {
+      ok: false,
+      code: redemption.code,
+      error: status === 410
+        ? "That pairing grant is no longer available. Generate a new grant on the hub."
+        : "The verification code does not match this pairing grant."
+    });
+  }
+
+  recordDeviceHeartbeat(cfg.dataDir, addDeviceProtocolFields({
+    deviceId: credentials.identity.deviceId,
+    machineName: credentials.identity.name,
+    platform: credentials.identity.platform,
+    role: credentials.identity.role,
+    status: "online",
+    health: { agent: "unknown", adapter: "unknown" },
+    lastSeenAt: nowISO
+  }));
+
+  return sendJson(res, 201, {
+    ok: true,
+    credential: credentials.credential,
+    identity: publicIdentity(credentials.identity)
+  }, { "cache-control": "no-store" });
+}
+
+function normalizePairingField(value, fallback, maxLength) {
+  const normalized = typeof value === "string" ? value.trim() : "";
+  return (normalized || fallback).slice(0, maxLength);
+}
+
 function normalizeConfiguredRetentionDays(value) {
   if (value === undefined || value === "") return 0;
   return normalizeRetentionDays(value);
@@ -920,7 +1097,7 @@ async function handleTaskIngestRequest(req, res, requestUrl, cfg) {
   };
   const token = fields.token || "";
 
-  if (cfg.token && token !== cfg.token && !isRequestTokenValid(req, requestUrl, cfg)) {
+  if (cfg.token && token !== cfg.token && !isRequestAuthorized(req, requestUrl, cfg, "tasks.ingest")) {
     return sendJson(res, 401, { ok: false, error: "Invalid token" });
   }
 
@@ -950,7 +1127,7 @@ async function handleDeviceHeartbeatRequest(req, res, requestUrl, cfg) {
   };
   const token = fields.token || "";
 
-  if (cfg.token && token !== cfg.token && !isRequestTokenValid(req, requestUrl, cfg)) {
+  if (cfg.token && token !== cfg.token && !isRequestAuthorized(req, requestUrl, cfg, "devices.heartbeat")) {
     return sendJson(res, 401, { ok: false, error: "Invalid token" });
   }
 
@@ -968,7 +1145,7 @@ async function handleAgentInstallReportRequest(req, res, requestUrl, cfg) {
   };
   const token = fields.token || "";
 
-  if (cfg.token && token !== cfg.token && !isRequestTokenValid(req, requestUrl, cfg)) {
+  if (cfg.token && token !== cfg.token && !isRequestAuthorized(req, requestUrl, cfg, "devices.heartbeat")) {
     return sendJson(res, 401, { ok: false, error: "Invalid token" });
   }
 
@@ -1467,7 +1644,7 @@ async function handleReplyRequest(req, res, requestUrl, cfg) {
     ...parseBodyFields(body, req.headers["content-type"] || "")
   };
 
-  if (cfg.token && fields.token !== cfg.token && !isRequestTokenValid(req, requestUrl, cfg)) {
+  if (cfg.token && fields.token !== cfg.token && !isRequestAuthorized(req, requestUrl, cfg, "tasks.reply")) {
     return sendJson(res, 401, { ok: false, error: "Invalid token" });
   }
 
@@ -2523,6 +2700,7 @@ Usage:
   phonedex devices
   phonedex verify-devices
   phonedex notify-coverage
+  phonedex pair:create --name "My iPhone"
   phonedex enroll-agent --device-id macbook-air --name "MacBook Air" --platform macos
   phonedex enroll-agent --device-id windows-desktop --name "Windows Desktop" --platform windows --script
   phonedex agent-self-test
@@ -2545,6 +2723,7 @@ Compatibility aliases:
   watchdex devices
   watchdex verify-devices
   watchdex notify-coverage
+  watchdex pair:create --name "My iPhone"
   watchdex enroll-agent --device-id macbook-air --name "MacBook Air" --platform macos
   watchdex enroll-agent --device-id windows-desktop --name "Windows Desktop" --platform windows --script
   watchdex agent-self-test
@@ -4548,11 +4727,12 @@ function sendHtml(res, status, body, extraHeaders = {}) {
   res.end(body);
 }
 
-function sendJson(res, status, value) {
+function sendJson(res, status, value, extraHeaders = {}) {
   const body = JSON.stringify(value, null, 2);
   res.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
-    "content-length": Buffer.byteLength(body)
+    "content-length": Buffer.byteLength(body),
+    ...extraHeaders
   });
   res.end(body);
 }
