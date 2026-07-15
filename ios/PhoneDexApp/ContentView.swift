@@ -172,7 +172,7 @@ private struct PhoneDexChatsView: View {
     }
 }
 
-private struct PhoneDexTaskRow: View {
+struct PhoneDexTaskRow: View {
     let task: PhoneDexTask
 
     var body: some View {
@@ -218,7 +218,7 @@ private struct PhoneDexTaskRow: View {
     }
 }
 
-private struct PhoneDexConnectionHeader: View {
+struct PhoneDexConnectionHeader: View {
     let state: PhoneDexAppModel.ConnectionState
 
     var body: some View {
@@ -252,7 +252,7 @@ private struct PhoneDexConnectionHeader: View {
     }
 }
 
-private struct PhoneDexTaskDetailView: View {
+struct PhoneDexTaskDetailView: View {
     let task: PhoneDexTask
     @ObservedObject var model: PhoneDexAppModel
     @State private var draft = ""
@@ -419,15 +419,7 @@ private struct PhoneDexProjectsView: View {
         NavigationStack {
             List(model.projects) { project in
                 NavigationLink {
-                    List(project.tasks) { task in
-                        NavigationLink {
-                            PhoneDexTaskDetailView(task: task, model: model)
-                        } label: {
-                            PhoneDexTaskRow(task: task)
-                        }
-                    }
-                    .navigationTitle(project.name)
-                    .navigationBarTitleDisplayMode(.inline)
+                    PhoneDexWorkspaceDetailView(project: project, model: model)
                 } label: {
                     HStack(spacing: 12) {
                         Image(systemName: "folder.fill")
@@ -438,6 +430,11 @@ private struct PhoneDexProjectsView: View {
                             Text("\(project.machineName) · \(project.tasks.count) conversation\(project.tasks.count == 1 ? "" : "s")")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                            if project.activeTaskCount > 0 || project.attentionTaskCount > 0 {
+                                Text(workspaceStatus(project))
+                                    .font(.caption2.weight(.medium))
+                                    .foregroundStyle(project.attentionTaskCount > 0 ? .orange : .blue)
+                            }
                             if let path = project.path {
                                 Text(path)
                                     .font(.caption2)
@@ -457,6 +454,13 @@ private struct PhoneDexProjectsView: View {
             }
         }
     }
+
+    private func workspaceStatus(_ project: PhoneDexProject) -> String {
+        if project.attentionTaskCount > 0 {
+            return "\(project.attentionTaskCount) need attention"
+        }
+        return "\(project.activeTaskCount) active"
+    }
 }
 
 private struct PhoneDexDevicesView: View {
@@ -465,24 +469,27 @@ private struct PhoneDexDevicesView: View {
     var body: some View {
         NavigationStack {
             List(model.devices) { device in
-                HStack(spacing: 12) {
-                    Image(systemName: device.platform == "darwin" ? "desktopcomputer" : "pc")
-                        .foregroundStyle(device.isOnline ? .green : .orange)
-                        .frame(width: 34)
+                NavigationLink {
+                    PhoneDexDeviceDetailView(device: device, model: model)
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: device.isMacPlatform ? "desktopcomputer" : "pc")
+                            .foregroundStyle(device.health.isActionable ? .orange : .green)
+                            .frame(width: 34)
 
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(device.displayName).font(.headline)
-                        Text(deviceSummary(device))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(device.displayName).font(.headline)
+                            Text(deviceSummary(device))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: device.health.symbol)
+                            .foregroundStyle(device.health.isActionable ? .orange : .green)
+                            .accessibilityLabel(device.health.title)
                     }
-                    Spacer()
-                    Circle()
-                        .fill(device.isOnline ? Color.green : Color.orange)
-                        .frame(width: 9, height: 9)
-                        .accessibilityLabel(device.isOnline ? "Online" : (device.status ?? "Unavailable"))
+                    .padding(.vertical, 4)
                 }
-                .padding(.vertical, 4)
             }
             .navigationTitle("Devices")
             .refreshable { await model.refresh() }
@@ -495,7 +502,7 @@ private struct PhoneDexDevicesView: View {
     }
 
     private func deviceSummary(_ device: PhoneDexDevice) -> String {
-        [device.status?.capitalized, device.platform?.capitalized, device.version.map { "v\($0)" }]
+        [device.health.title, device.platform?.capitalized, device.version.map { "v\($0)" }]
             .compactMap { $0 }
             .joined(separator: " · ")
     }
