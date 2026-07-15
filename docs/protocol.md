@@ -261,6 +261,12 @@ versioned delivery receipt used by native clients. New clients should use the
 bearer-authenticated `/sync` and `/reply` contracts and must not put tokens in
 URLs.
 
+The legacy Pushcut notification provider uses a ten-minute, single-use opaque
+action grant for its quick replies. The hub stores only the grant hash and
+binds the grant to the task version, selected choice, command id, and
+idempotency key; the grant is consumed before the normal reply receipt flow.
+Pushcut payloads therefore contain no durable hub credential or local path.
+
 ### Managed task lifecycle commands
 
 `POST /command` accepts the same versioned command envelope for the supported

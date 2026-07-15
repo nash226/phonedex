@@ -107,6 +107,52 @@ try {
   assert.equal(unchanged.merged, false);
   assert.equal(recovered.read().revision, unchangedRevision);
 
+  const actionGrant = recovered.createNotificationActionGrant({
+    grantHash: "notification-grant-hash",
+    taskId: "task_first",
+    taskVersion: 1,
+    choice: "okay_whats_next",
+    prompt: "Continue",
+    idempotencyKey: "notification-action-key",
+    commandId: "notification-command-id",
+    createdAt: now,
+    expiresAt: "2026-07-15T12:10:00.000Z"
+  });
+  assert.equal(actionGrant.taskId, "task_first");
+  assert.equal(recovered.read().notificationActionGrants.length, 1);
+  assert.equal(
+    recovered.consumeNotificationActionGrant({
+      grantHash: "notification-grant-hash",
+      now
+    }).ok,
+    true
+  );
+  assert.equal(
+    recovered.consumeNotificationActionGrant({
+      grantHash: "notification-grant-hash",
+      now
+    }).code,
+    "action_used"
+  );
+  recovered.createNotificationActionGrant({
+    grantHash: "expired-notification-grant-hash",
+    taskId: "task_first",
+    taskVersion: 1,
+    choice: "lets_do_that",
+    prompt: "Do that",
+    idempotencyKey: "expired-notification-action-key",
+    commandId: "expired-notification-command-id",
+    createdAt: now,
+    expiresAt: "2026-07-15T11:59:00.000Z"
+  });
+  assert.equal(
+    recovered.consumeNotificationActionGrant({
+      grantHash: "expired-notification-grant-hash",
+      now
+    }).code,
+    "action_expired"
+  );
+
   const versionedDir = path.join(root, "versioned");
   fs.mkdirSync(versionedDir, { recursive: true });
   fs.writeFileSync(
