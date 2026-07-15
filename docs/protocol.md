@@ -26,7 +26,7 @@ version is rejected rather than guessed.
 | --- | --- | --- |
 | `phonedex.task.v1` | `id`, `createdAt`, `origin`, `status` | A tracked Codex run and its current summary. |
 | `phonedex.event.v1` | `id`, `taskId`, `createdAt`, `sequence`, `type`, `data` | Ordered task activity suitable for cursor sync. |
-| `phonedex.device.v1` | `deviceId`, `machineName`, `platform`, `role`, `status`, `lastSeenAt` | Reachability and installed-agent identity. |
+| `phonedex.device.v1` | `deviceId`, `machineName`, `platform`, `role`, `status`, `lastSeenAt` | Reachability, installed-agent identity, and separately reported component health. |
 | `phonedex.workspace.v1` | `workspaceId`, `deviceId`, `name`, `createdAt` | Durable repository or working-directory context. |
 | `phonedex.capability.v1` | `id`, `version`, `scope`, `supported` | Honest adapter capability negotiation. |
 | `phonedex.command.v1` | `commandId`, `createdAt`, `kind`, `target`, `idempotencyKey`, `state`, `payload` | A phone-issued lifecycle or reply request. |
@@ -38,6 +38,25 @@ records, so `publicTask` must continue to remove credentials before an API
 response. URLs and local paths are optional metadata and must be filtered
 according to the retention and privacy policy before leaving the user's
 devices.
+
+Device records retain the legacy `status` field as the reachability value and
+may add an additive `health` object:
+
+```json
+{
+  "health": {
+    "reachability": "online",
+    "agent": "healthy",
+    "adapter": "unknown"
+  }
+}
+```
+
+`reachability` uses `online`, `stale`, `missing`, `revoked`, or `unknown`.
+`agent` and `adapter` use `healthy`, `degraded`, `unhealthy`, or `unknown`.
+The current bridge can prove that its agent process is healthy when its
+heartbeat is running, but it does not claim Codex adapter health until a
+supported adapter reports it; older heartbeats therefore decode as unknown.
 
 The hub exposes `GET /sync` as the versioned snapshot-plus-cursor contract.
 Clients send an authenticated bearer token and an optional opaque `v1.` cursor
