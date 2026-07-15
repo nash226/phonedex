@@ -1542,23 +1542,27 @@ function buildVisibleReplyPrompt(reply) {
 }
 
 async function submitPromptToForegroundCodex(cfg, task, prompt) {
+  const foregroundApp =
+    process.env.PHONEDEX_FOREGROUND_APP ||
+    (fs.existsSync("/Applications/ChatGPT.app") ? "ChatGPT" : "Codex");
   appendJsonl(cfg.dataDir, "events.jsonl", {
     at: new Date().toISOString(),
     type: "foreground-resume-worker-started",
     taskId: task.id,
     sessionId: task.sessionId || "",
-    cwd: task.cwd || ROOT
+    cwd: task.cwd || ROOT,
+    foregroundApp
   });
 
   const script = `
 on run argv
   set promptText to item 1 of argv
+  set foregroundApp to item 2 of argv
   set previousClipboard to the clipboard
-  tell application "Codex" to activate
   delay 0.6
   set the clipboard to promptText
   tell application "System Events"
-    tell process "Codex"
+    tell process foregroundApp
       set frontmost to true
       keystroke "v" using {command down}
       delay 0.2
@@ -1571,7 +1575,10 @@ end run
 `;
 
   try {
-    await runChild("osascript", ["-e", script, prompt], {
+    await runChild("open", ["-a", foregroundApp], {
+      cwd: task.cwd || ROOT
+    });
+    await runChild("osascript", ["-e", script, prompt, foregroundApp], {
       cwd: task.cwd || ROOT
     });
     appendJsonl(cfg.dataDir, "events.jsonl", {
