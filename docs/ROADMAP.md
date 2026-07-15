@@ -117,7 +117,7 @@ Outcome: remove shared bearer-token setup from the production path.
 - [ ] Create revocable identities for phone, hub, and computer agents.
 - [ ] Implement short-lived, single-use pairing grants with verification codes.
 - [ ] Add scoped permissions for read, reply, approve, and administration.
-- [ ] Move iOS credentials from `UserDefaults` to Keychain.
+- [x] Move iOS credentials from `UserDefaults` to Keychain.
 - [ ] Remove credentials from URLs, notification metadata, logs, and support
   output.
 - [ ] Require TLS in release configuration and remove arbitrary ATS loads.
@@ -126,6 +126,18 @@ Outcome: remove shared bearer-token setup from the production path.
 
 Exit gate: acceptance scenarios 1, 7, 12, and 13 pass, and a fresh install can
 pair and recover without copying a durable secret.
+
+Verification evidence for the completed iOS credential-storage slice:
+`ios/PhoneDexApp/PhoneDexCredentialStore.swift` stores the bridge token as a
+device-only Keychain generic-password item with
+`kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`. `PhoneDexSettings` migrates
+the legacy `phonedex.token` UserDefaults value once, removes the legacy value,
+and exposes a generic, non-secret error when secure storage fails.
+`ios/PhoneDexTests/PhoneDexSettingsTests.swift` covers migration, updates,
+clearing, failure redaction, and Keychain round trips; the concrete Keychain
+round trip is skipped only when an unsigned simulator reports its expected
+missing entitlement. Notification payload credential removal and scoped
+pairing remain separate M2 slices.
 
 ## M3: Native iPhone Core
 
