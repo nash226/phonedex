@@ -531,47 +531,105 @@ async function recordTaskAndDispatch(cfg, task, options = {}) {
     isDuplicateTask(candidate, task),
     mergeTaskCaptures
   );
-  if (!result.created) {
-    const duplicate = result.task;
-    return { task: duplicate, created: false, merged: Boolean(result.merged) };
-  }
+  if (!result.created && !result.merged) return { task: result.task, created: false, merged: false };
 
   // Keep the legacy file for existing local tooling while the transactional
   // snapshot is the source of truth for bridge reads and writes.
   appendJsonl(cfg.dataDir, "tasks.jsonl", task);
+
+  const previousStatus = result.previous?.status;
+  const statusChanged = result.created || previousStatus !== result.task.status;
+  const lifecycleEvent = options.event || (statusChanged ? eventForTaskStatus(result.task) : null);
+  if (lifecycleEvent) appendTaskEvent(cfg, result.task, lifecycleEvent);
+  for (const event of options.events || []) appendTaskEvent(cfg, result.task, event);
 
   const forward =
     options.forward !== false
       ? await maybeForwardTaskToHub(cfg, task)
       : { ok: true, skipped: true, reason: "forward disabled" };
 
-  const shouldNotify = options.notify !== false && !cfg.agentMode;
+  const shouldNotify = options.notify !== false && !cfg.agentMode &&
+    (result.created || (result.merged && statusChanged));
   if (shouldNotify) {
     await sendWatchNotification(cfg, task);
   }
 
-  return { task, created: true, forward };
+  return { task: result.task, created: result.created, merged: Boolean(result.merged), forward };
 }
 
 function mergeTaskCaptures(existing, incoming) {
   const merged = {
     ...existing,
-    captureSources: normalizeCaptureSources([
-      ...(Array.isArray(existing.captureSources) ? existing.captureSources : []),
-      ...(Array.isArray(incoming.captureSources) ? incoming.captureSources : [])
-    ])
+    captureSources: []
   };
+  const captureSources = normalizeCaptureSources([
+    ...(Array.isArray(existing.captureSources) ? existing.captureSources : []),
+    ...(Array.isArray(incoming.captureSources) ? incoming.captureSources : [])
+  ]);
+  const seenCaptureSources = new Set();
+  merged.captureSources = captureSources.filter((capture) => {
+    if (seenCaptureSources.has(capture.source)) return false;
+    seenCaptureSources.add(capture.source);
+    return true;
+  });
 
   if (!merged.question && incoming.question) merged.question = incoming.question;
 
   for (const field of ["logicalEventId", "messageId", "sessionId", "cwd"]) {
     if (!merged[field] && incoming[field]) merged[field] = incoming[field];
   }
+  for (const field of ["status", "updatedAt", "title", "source", "at", "question"]) {
+    if (incoming[field] !== undefined && incoming[field] !== merged[field]) merged[field] = incoming[field];
+  }
+  if (Number.isInteger(incoming.version) && incoming.version > (existing.version || 0)) {
+    merged.version = incoming.version;
+  }
   if ((!merged.text || merged.text === "Task completed") && incoming.text) {
     merged.text = incoming.text;
   }
+  if (incoming.text && incoming.text !== existing.text && incoming.status !== undefined) {
+    merged.text = incoming.text;
+  }
+  if (merged.status !== existing.status || merged.text !== existing.text) {
+    merged.version = Math.max((existing.version || 1) + 1, merged.version || 1);
+    merged.updatedAt = incoming.updatedAt || incoming.at || new Date().toISOString();
+  }
   if (!merged.hookPayload && incoming.hookPayload) merged.hookPayload = incoming.hookPayload;
   return merged;
+}
+
+function eventForTaskStatus(task) {
+  const type = {
+    queued: "task_created",
+    running: "task_started",
+    needs_input: "needs_input",
+    awaiting_approval: "approval_requested",
+    failed: "task_failed",
+    cancelled: "task_cancelled",
+    completed: "task_completed"
+  }[task.status];
+  if (!type) return null;
+  return {
+    id: `${task.id}:${type}:v${task.version || 1}`,
+    createdAt: task.updatedAt || task.createdAt || task.at,
+    type,
+    data: task.text ? { summary: task.text.slice(0, 1000) } : {}
+  };
+}
+
+function appendTaskEvent(cfg, task, event) {
+  const existing = durableStore(cfg.dataDir).listEvents(task.id);
+  const record = protocolRecord("event", {
+    id: String(event.id || `${task.id}:event:${existing.length + 1}`).slice(0, 160),
+    taskId: task.id,
+    createdAt: event.createdAt || new Date().toISOString(),
+    sequence: Number.isInteger(event.sequence) && event.sequence > 0
+      ? event.sequence
+      : existing.length + 1,
+    type: event.type,
+    data: event.data && typeof event.data === "object" ? event.data : {}
+  });
+  return durableStore(cfg.dataDir).appendEvent(record);
 }
 
 function isDuplicateTask(candidate, task) {
@@ -1227,7 +1285,8 @@ function publicSyncPage(page) {
       ? {
           ...page.snapshot,
           tasks: page.snapshot.tasks.map(publicSyncTask),
-          devices: page.snapshot.devices.map(publicDevice)
+          devices: page.snapshot.devices.map(publicDevice),
+          events: (page.snapshot.events || []).map(publicSyncEvent)
         }
       : null,
     changes: page.changes.map((change) => ({
@@ -1237,12 +1296,29 @@ function publicSyncPage(page) {
       deleted: change.deleted,
       ...(change.deleted
         ? {}
-        : { record: change.kind === "task" ? publicSyncTask(change.record) : publicDevice(change.record) })
+        : {
+            record: change.kind === "task"
+              ? publicSyncTask(change.record)
+              : change.kind === "device"
+                ? publicDevice(change.record)
+                : publicSyncEvent(change.record)
+          })
     })),
     cursor: page.cursor,
     hasMore: page.hasMore,
     updatedAt: page.updatedAt
   };
+}
+
+function publicSyncEvent(event) {
+  return redactPublicStrings({
+    id: event.id,
+    taskId: event.taskId,
+    createdAt: event.createdAt,
+    sequence: event.sequence,
+    type: event.type,
+    data: event.data
+  });
 }
 
 async function startService(args) {
@@ -2795,7 +2871,7 @@ function runChild(command, args, options = {}) {
 
 function createTask(fields) {
   return addTaskProtocolFields({
-    id: makeId("task"),
+    id: fields.id || makeId("task"),
     at: new Date().toISOString(),
     source: fields.source || "unknown",
     title: fields.title || "Codex done",
@@ -2813,6 +2889,8 @@ function createTask(fields) {
       os.hostname(),
     sessionId: fields.sessionId || "",
     messageId: fields.messageId || "",
+    status: fields.status,
+    updatedAt: fields.updatedAt,
     hookPayload: fields.hookPayload,
     rawHookInputBytes: fields.rawHookInputBytes,
     ...(fields.question ? { question: normalizeTaskQuestion(fields.question) } : {})
@@ -4646,14 +4724,46 @@ async function scanSessions({ cfg, notify }) {
       state.seen[item.id] = new Date().toISOString();
       processedCount = index + 1;
 
-      if (!notify || hasMatchingTask(readJsonl(cfg.dataDir, "tasks.jsonl"), item)) continue;
+      if (!notify) continue;
+
+      const taskId = sessionTaskId(filePath, item.sessionId);
+      const tasks = readJsonl(cfg.dataDir, "tasks.jsonl");
+      const existing = tasks.find((candidate) =>
+        candidate.id === taskId || candidate.sessionId === item.sessionId
+      );
+
+      if (item.kind === "activity") {
+        if (existing?.status === "completed" || existing?.status === "failed" || existing?.status === "cancelled") continue;
+        const task = createTask({
+          id: existing?.id || taskId,
+          source: "codex-session-watch",
+          title: `Codex running: ${path.basename(item.cwd || ROOT)}`,
+          text: item.event.data.summary || "Codex is working on this task.",
+          cwd: item.cwd || ROOT,
+          sessionId: item.sessionId,
+          status: "running",
+          messageId: item.messageId,
+          hookPayload: { session_file: filePath, message_id: item.messageId, fallback: true }
+        });
+        await recordTaskAndDispatch(cfg, task, { notify: false, events: [item.event] });
+        continue;
+      }
+
+      if (
+        existing?.status === "completed" &&
+        existing.text === normalizeNotificationText(item.text) &&
+        existing.captureSources?.some((capture) => capture.source === "codex-session-watch")
+      ) continue;
+      if (!existing && hasMatchingTask(tasks, item)) continue;
 
       const task = createTask({
+        id: existing?.id || taskId,
         source: "codex-session-watch",
         title: `Codex done: ${path.basename(item.cwd || ROOT)}`,
         text: normalizeNotificationText(item.text),
         cwd: item.cwd || ROOT,
         sessionId: item.sessionId,
+        status: "completed",
         messageId: item.messageId,
         hookPayload: {
           session_file: filePath,
@@ -4663,7 +4773,7 @@ async function scanSessions({ cfg, notify }) {
       });
 
       const result = await recordTaskAndDispatch(cfg, task);
-      if (result.created) notified += 1;
+      if (result.created || (result.merged && existing?.status !== "completed")) notified += 1;
     }
 
     state.files[filePath] = {
@@ -4680,6 +4790,10 @@ async function scanSessions({ cfg, notify }) {
   );
   writeJsonFile(cfg.dataDir, SESSION_WATCH_STATE, state);
   return notified;
+}
+
+function sessionTaskId(filePath, sessionId) {
+  return `session_${crypto.createHash("sha256").update(`${filePath}\u0000${sessionId}`).digest("hex").slice(0, 32)}`;
 }
 
 function recentSessionFiles(cfg) {
@@ -4740,6 +4854,7 @@ function readFinalSessionMessages(filePath) {
       if (!text) continue;
 
       messages.push({
+        kind: "final",
         id: `${filePath}:${payload.turn_id || record.timestamp}:task_complete`,
         messageId: payload.turn_id || "",
         at: sessionEventTimestamp(record, payload),
@@ -4752,10 +4867,15 @@ function readFinalSessionMessages(filePath) {
 
     if (record.type === "event_msg" && payload.type === "agent_message") {
       const text = String(payload.message || "").trim();
-      if (payload.phase !== "final_answer" || !text) continue;
+      if (!text) continue;
+      if (payload.phase !== "final_answer") {
+        messages.push(sessionActivity(filePath, sessionId, cwd, record, payload, text, sequence + 1));
+        continue;
+      }
 
       sequence += 1;
       messages.push({
+        kind: "final",
         id: `${filePath}:${record.timestamp || sequence}:agent_message:${sequence}`,
         messageId: record.timestamp || "",
         at: record.timestamp || new Date().toISOString(),
@@ -4763,6 +4883,12 @@ function readFinalSessionMessages(filePath) {
         cwd,
         sessionId
       });
+      continue;
+    }
+
+    if (record.type === "event_msg" && ["task_started", "turn_started", "progress"].includes(payload.type)) {
+      const text = String(payload.message || payload.summary || payload.status || "").trim();
+      messages.push(sessionActivity(filePath, sessionId, cwd, record, payload, text, sequence + 1));
       continue;
     }
 
@@ -4774,6 +4900,7 @@ function readFinalSessionMessages(filePath) {
     if (!text) continue;
 
     messages.push({
+      kind: "final",
       id: `${filePath}:${payload.id || record.timestamp}`,
       messageId: payload.id || "",
       at: record.timestamp || new Date().toISOString(),
@@ -4784,6 +4911,29 @@ function readFinalSessionMessages(filePath) {
   }
 
   return messages;
+}
+
+function sessionActivity(filePath, sessionId, cwd, record, payload, text, sequence) {
+  const type = payload.type === "task_started" || payload.type === "turn_started"
+    ? "task_started"
+    : "progress";
+  const id = `${filePath}:${record.timestamp || sequence}:${payload.type}`;
+  return {
+    kind: "activity",
+    id,
+    messageId: id,
+    at: record.timestamp || new Date().toISOString(),
+    cwd,
+    sessionId,
+    event: {
+      id,
+      createdAt: record.timestamp || new Date().toISOString(),
+      type,
+      data: {
+        summary: normalizeNotificationText(text || (type === "task_started" ? "Codex started this task." : "Codex reported progress."), 1000)
+      }
+    }
+  };
 }
 
 function sessionEventTimestamp(record, payload) {

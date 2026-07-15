@@ -136,6 +136,7 @@ async function main() {
     let cursor = "";
     let tasks = [];
     let devices = [];
+    let events = [];
     let lastPage;
     do {
       const page = await request(`${hubUrl}/sync?limit=1${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`, {
@@ -149,12 +150,15 @@ async function main() {
       assert.equal(page.json.changes.length, 0);
       tasks = tasks.concat(page.json.snapshot.tasks);
       devices = devices.concat(page.json.snapshot.devices);
+      events = events.concat(page.json.snapshot.events || []);
       cursor = page.json.cursor;
       lastPage = page.json;
     } while (lastPage.hasMore);
 
     assert.deepEqual(tasks.map((task) => task.id).sort(), taskIds.sort());
     assert.deepEqual(devices.map((device) => device.deviceId), ["windows-workstation"]);
+    assert.equal(events.length >= 2, true);
+    assert.equal(events.every((event) => event.type === "task_completed"), true);
     assert.equal(JSON.stringify(tasks).includes("do-not-return-this-secret"), false);
     assert.equal(tasks.every((task) => task.workspaceName === "repo"), true);
     assert.equal(tasks.every((task) => !Object.hasOwn(task, "cwd")), true);
@@ -180,6 +184,7 @@ async function main() {
     assert.equal(stream.response.status, 200);
     assert.equal(stream.json.snapshot, null);
     assert.equal(stream.json.changes.some((change) => change.id === newTaskId), true);
+    assert.equal(stream.json.changes.some((change) => change.kind === "event" && change.record.type === "task_completed"), true);
 
     const invalid = await request(`${hubUrl}/sync?cursor=not-a-cursor`, {
       headers: { authorization: "Bearer hub-token" }
