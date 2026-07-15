@@ -54,7 +54,40 @@ struct PhoneDexReplyReceipt: Codable, Equatable {
 struct PhoneDexLifecycleResponse: Decodable {
     let state: String?
     let task: PhoneDexTask?
+    let handoff: PhoneDexDesktopHandoff?
     let receipt: PhoneDexReplyReceipt
+}
+
+struct PhoneDexDesktopHandoff: Decodable, Equatable, Identifiable {
+    let schema: String?
+    let protocolVersion: Int?
+    let capability: String?
+    let taskId: String
+    let sessionId: String
+    let machineName: String
+    let workspaceName: String
+    let platform: String
+    let adapterId: String
+    let adapterMode: String
+    let repository: String?
+    let branch: String?
+    let createdAt: String?
+
+    var id: String { "\(taskId)-\(sessionId)" }
+
+    var copyText: String {
+        var lines = [
+            "PhoneDex desktop handoff",
+            "Task: \(taskId)",
+            "Session: \(sessionId)",
+            "Machine: \(machineName)",
+            "Workspace: \(workspaceName)",
+            "Adapter: \(adapterId) (\(adapterMode), \(platform))"
+        ]
+        if let repository, !repository.isEmpty { lines.append("Repository: \(repository)") }
+        if let branch, !branch.isEmpty { lines.append("Branch: \(branch)") }
+        return lines.joined(separator: "\n")
+    }
 }
 
 struct PhoneDexPairingResponse: Decodable, Equatable {
@@ -344,7 +377,9 @@ struct PhoneDexBridgeClient {
             "commandId": commandId,
             "idempotencyKey": idempotencyKey,
             "actor": "iphone",
-            "requestedCapability": "task.\(kind == "create_task" ? "create" : kind).v1"
+            "requestedCapability": kind == "handoff"
+                ? "desktop.handoff.v1"
+                : "task.\(kind == "create_task" ? "create" : kind).v1"
         ]
         if let taskId { payload["taskId"] = taskId }
         if let deviceId { payload["deviceId"] = deviceId }
