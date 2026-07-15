@@ -504,6 +504,7 @@ struct PhoneDexTaskDetailView: View {
     @State private var showDesktopHandoff = false
     @State private var desktopHandoff: PhoneDexDesktopHandoff?
     @State private var selectedDiffFile: PhoneDexChangedFile?
+    @State private var showReviewSummary = false
     @FocusState private var composerFocused: Bool
 
     init(task: PhoneDexTask, model: PhoneDexAppModel) {
@@ -668,6 +669,9 @@ struct PhoneDexTaskDetailView: View {
         }
         .sheet(item: $selectedDiffFile) { file in
             PhoneDexDiffViewer(files: diffFiles, initialFileID: file.id)
+        }
+        .sheet(isPresented: $showReviewSummary) {
+            PhoneDexReviewSummaryView(task: task)
         }
     }
 
@@ -1048,9 +1052,19 @@ struct PhoneDexTaskDetailView: View {
 
     private var evidence: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("Evidence", systemImage: "checklist")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.blue)
+            HStack {
+                Label("Evidence", systemImage: "checklist")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.blue)
+                Spacer(minLength: 8)
+                if task.evidence?.hasReviewContent == true {
+                    Button("Review", systemImage: "doc.text.magnifyingglass") {
+                        showReviewSummary = true
+                    }
+                    .font(.caption.weight(.semibold))
+                    .accessibilityHint("Opens a file and validation summary for this task")
+                }
+            }
 
             if let repository = task.repository, !repository.isEmpty {
                 evidenceRow("Repository", repository, symbol: "shippingbox")
