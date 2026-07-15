@@ -79,7 +79,7 @@ device, and command control plane while retaining migration from current data.
 
 - [x] Define versioned schemas for tasks, events, devices, workspaces,
   capabilities, commands, and command receipts.
-- [ ] Introduce a transactional embedded store with migrations and backup.
+- [x] Introduce a transactional embedded store with migrations and backup.
 - [ ] Add snapshot-plus-cursor sync with pagination, tombstones, and stable
   ordering.
 - [ ] Converge hook and session-watcher captures into one logical task event.
@@ -98,6 +98,15 @@ defines and validates the seven `phonedex.*.v1` record types, while
 capability, command, and receipt records plus rejected protocol versions,
 unknown schemas, invalid command states, and missing targets. New bridge task
 and device records carry the v1 identity without removing legacy JSONL fields.
+
+Verification evidence for the completed store slice: `lib/phonedex-store.js`
+atomically replaces a versioned `phonedex-store.json` snapshot, retains the
+previous snapshot as `phonedex-store.json.bak`, serializes writers with a
+recoverable lock, upgrades older store versions, and imports legacy
+`tasks.jsonl` and `devices.json` state without deleting those files.
+`scripts/test-store.js` covers migration, backup contents, corruption recovery,
+and version upgrades; the bridge uses the store for task deduplication and
+device heartbeat upserts while preserving the legacy file mirror.
 
 ## M2: Secure Identity and Pairing
 
