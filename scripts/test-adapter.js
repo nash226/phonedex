@@ -20,6 +20,16 @@ assert.equal(macCli.capabilities.every((capability) => capability.schema === "ph
 assert.match(macCli.limitations.join(" "), /does not automate private desktop UI/i);
 assertAdapterDescriptor(macCli);
 
+const managedMac = createCodexAdapter({
+  platform: "macos",
+  mode: "cli",
+  codexBin: "/usr/local/bin/codex",
+  workspaceRoots: ["/Users/example/Projects"]
+});
+assert.equal(supportsAdapterCapability(managedMac, "task.create"), true);
+assert.equal(supportsAdapterCapability(managedMac, "task.cancel"), true);
+assert.equal(supportsAdapterCapability(managedMac, "task.retry"), true);
+
 const windowsAppServer = createCodexAdapter({
   platform: "win32",
   mode: "app-server",

@@ -419,7 +419,7 @@ across Mac and Windows.
 
 - [x] Define the adapter boundary and capability test suite.
 - [x] Implement structured task reply and question-response commands.
-- [ ] Implement task create, cancel, and retry where supported.
+- [x] Implement task create, cancel, and retry where supported.
 - [x] Export live lifecycle events without parsing desktop UI.
 - [ ] Export changed files, source-linked patches, artifacts, and validation
   receipts.
@@ -453,6 +453,20 @@ its encrypted outbox retries the exact response identity. `scripts/test-question
 `scripts/test-protocol.js`,
 `PhoneDexBridgeClientTests`, and `PhoneDexSmokeTests` cover validation,
 forwarding, receipt persistence, decoding, and the iOS request shape.
+
+Verification evidence for the completed managed lifecycle slice:
+`lib/phonedex-lifecycle.js` runs allowlisted workspace prompts through the
+public `codex exec` contract, tracks only PhoneDex-owned child processes, and
+updates durable queued/running/canceling/completed/failed/cancelled task state.
+`POST /command` in `bin/codex-watch.js` routes capability-gated create, cancel,
+and retry commands from the hub to Mac/Windows-compatible agents, persists
+versioned command receipts, rejects stale or replay-conflicting requests, and
+keeps workspace paths and execution prompts out of public projections. The
+native SwiftUI task detail exposes cancel/retry only from task-declared
+capabilities, while Chats offers a workspace-scoped create sheet.
+`scripts/test-lifecycle.js` covers creation, public redaction, duplicate
+delivery, cancellation, retry, and stale-version rejection with a fake CLI
+adapter.
 
 Verification evidence for the completed lifecycle-event export slice:
 `bin/codex-watch.js` consumes supported Codex session JSONL lifecycle records
