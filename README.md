@@ -54,6 +54,11 @@ remove the retired LaunchAgents and keep only the PhoneDex bridge running.
 
 PhoneDex is currently a working local bridge plus native iOS prototype.
 
+The production direction is defined in the canonical
+[product foundation](docs/PRODUCT.md), with small-PR execution ordered in the
+[delivery roadmap](docs/ROADMAP.md). The current bridge topology and data flow
+remain documented in [architecture](docs/architecture.md).
+
 The branded scrollable UI lives in the native PhoneDex iOS app in
 [ios/](ios/). Until native remote push is finished, the app can fetch recent
 tasks from the hub and post replies back to PhoneDex; Pushcut can still be used
@@ -516,12 +521,11 @@ Tailscale. Keep the token private either way.
 
 ## Roadmap
 
-- Configurable reply choices.
-- Safer Codex resume queue with reviewable pending actions.
-- Packaged install flow.
-- Native iOS app notification delivery and reply callbacks.
-- Native remote push delivery without Pushcut.
-- Windows foreground submitter.
+PhoneDex is moving from the working notification bridge and iOS prototype to a
+secure, production-ready iPhone command center for Codex work on Mac and
+Windows. See the [canonical product requirements](docs/PRODUCT.md) for the
+supported parity promise and the [delivery roadmap](docs/ROADMAP.md) for
+milestones, acceptance gates, and the next autonomous worker slices.
 
 ## References
 
