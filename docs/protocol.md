@@ -329,6 +329,12 @@ versioned delivery receipt used by native clients. New clients should use the
 bearer-authenticated `/sync` and `/reply` contracts and must not put tokens in
 URLs.
 
+The legacy Pushcut notification provider uses a ten-minute, single-use opaque
+action grant for its quick replies. The hub stores only the grant hash and
+binds the grant to the task version, selected choice, command id, and
+idempotency key; the grant is consumed before the normal reply receipt flow.
+Pushcut payloads therefore contain no durable hub credential or local path.
+
 ### Managed task lifecycle commands
 
 `POST /command` accepts the same versioned command envelope for the supported
@@ -340,6 +346,36 @@ Cancel and retry are limited to tasks whose execution was started and tracked
 by PhoneDex. Existing desktop tasks remain read-only, and unsupported commands
 fail closed with a bounded error and durable receipt. Command retries reuse
 the idempotency key; payload changes are rejected as replay conflicts.
+
+### Desktop handoff commands
+
+An agent may advertise `desktop.handoff.v1` when its ready CLI or app-server
+adapter can preserve a stable Codex session identity across the Mac or Windows
+handoff. `POST /command` then accepts the common command envelope with
+`kind: "handoff"`, a task target, and the current `expectedTaskVersion`.
+
+The command does not open private desktop UI, send credentials, expose a local
+path, or claim unrestricted Codex Desktop parity. It returns a completed receipt
+and a bounded manifest for the user to continue on the named computer through the
+supported adapter:
+
+```json
+{
+  "kind": "handoff",
+  "taskId": "task_123",
+  "expectedTaskVersion": 4,
+  "commandId": "phone-command-2",
+  "idempotencyKey": "phone-command-key-2",
+  "requestedCapability": "desktop.handoff.v1"
+}
+```
+
+The response manifest includes `taskId`, `sessionId`, `machineName`,
+`workspaceName`, `platform`, `adapterId`, and `adapterMode`, with optional
+repository and branch context. A task without a stable session id or an agent
+without the negotiated capability fails closed with a durable rejection receipt.
+Repeating the same command returns a duplicate receipt without preparing a
+different handoff.
 
 ```json
 {

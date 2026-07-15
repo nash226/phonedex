@@ -523,6 +523,7 @@ async function handleHook() {
     cwd,
     sessionId,
     messageId,
+    lifecycleCapabilities: taskLifecycleCapabilities(cfg.adapter),
     evidence: normalizeTaskEvidence(payload.phonedexEvidence || payload.evidence || payload.phonedex?.evidence),
     ...(payload.approvalRequest || payload.approval_request
       ? { approvalRequest: payload.approvalRequest || payload.approval_request }
@@ -543,7 +544,8 @@ async function handleNotify(args) {
     title: flags.title || "Codex done",
     text: flags.text || flags.body || "Task completed",
     cwd: flags.cwd || process.cwd(),
-    sessionId: flags.session || flags.sessionId || ""
+    sessionId: flags.session || flags.sessionId || "",
+    lifecycleCapabilities: taskLifecycleCapabilities(cfg.adapter)
   });
 
   await recordTaskAndDispatch(cfg, task);
@@ -863,10 +865,9 @@ function buildPushcutBody(cfg, task) {
 
   const actions = actionPayloads.map(([name, choice]) => {
     const prompt = RESPONSE_CHOICES[choice];
-    const url = new URL(`${cfg.publicUrl}/reply`);
-    url.searchParams.set("token", cfg.token);
-    url.searchParams.set("taskId", task.id);
-    url.searchParams.set("choice", choice);
+    const actionGrant = createNotificationActionGrant(cfg, task, choice, prompt);
+    const url = new URL(`${safeSupportURL(cfg.publicUrl)}/reply`);
+    url.searchParams.set("action", actionGrant.token);
 
     return {
       name,
@@ -876,11 +877,7 @@ function buildPushcutBody(cfg, task) {
         httpMethod: "POST",
         httpContentType: "application/json",
         httpBody: JSON.stringify({
-          token: cfg.token,
-          taskId: task.id,
-          choice,
-          prompt,
-          machineName: task.machineName || cfg.machineName
+          action: actionGrant.token
         })
       }
     };
@@ -895,13 +892,28 @@ function buildPushcutBody(cfg, task) {
     id: task.id,
     input: JSON.stringify({
       taskId: task.id,
-      cwd: task.cwd,
-      sessionId: task.sessionId || "",
-      machineName: task.machineName || cfg.machineName,
-      replyUrl: cfg.replyUrl
+      machineName: task.machineName || cfg.machineName
     }),
     actions
   };
+}
+
+function createNotificationActionGrant(cfg, task, choice, prompt) {
+  const token = crypto.randomBytes(32).toString("base64url");
+  const now = new Date();
+  const taskVersion = Number.isInteger(task.version) && task.version >= 1 ? task.version : 1;
+  durableStore(cfg.dataDir).createNotificationActionGrant({
+    grantHash: hashSecret(token),
+    taskId: task.id,
+    taskVersion,
+    choice,
+    prompt,
+    idempotencyKey: makeId("notification-action"),
+    commandId: makeId("notification-command"),
+    createdAt: now.toISOString(),
+    expiresAt: new Date(now.getTime() + 10 * 60 * 1000).toISOString()
+  });
+  return { token };
 }
 
 function isScopedBearerAuthorized(req, cfg, scope) {
@@ -942,7 +954,7 @@ function formatNotificationTitle(cfg, task) {
 }
 
 function formatPhoneNotificationMessage(task) {
-  const text = normalizeNotificationText(task.text || "Task completed");
+  const text = normalizeNotificationText(redactSensitiveText(task.text || "Task completed"));
   if (task.source === "agent-install-report") return text;
   if (/^completed[:\s]/i.test(text)) return text;
   return `Completed: ${text}`;
@@ -995,7 +1007,9 @@ async function startServer(providedCfg) {
           hubUrl: safeSupportURL(cfg.hubUrl),
           protocolVersion: 1,
           supportedProtocolVersions: [1],
-          capabilities: defaultCapabilities(cfg.agentMode ? "agent" : "hub"),
+          capabilities: cfg.agentMode
+            ? advertisedAgentCapabilities(cfg)
+            : defaultCapabilities("hub"),
           adapter: cfg.adapter
         });
       }
@@ -1984,7 +1998,44 @@ async function handleReplyRequest(req, res, requestUrl, cfg) {
     ...parseBodyFields(body, req.headers["content-type"] || "")
   };
 
-  if (cfg.token && fields.token !== cfg.token && !isRequestAuthorized(req, requestUrl, cfg, "tasks.reply")) {
+  let notificationAction = null;
+  const actionToken = String(fields.action || fields.actionGrant || "").trim();
+  if (actionToken) {
+    const actionResult = durableStore(cfg.dataDir).consumeNotificationActionGrant({
+      grantHash: hashSecret(actionToken)
+    });
+    if (!actionResult.ok) {
+      const status = actionResult.code === "action_used" || actionResult.code === "action_expired"
+        ? 410
+        : 401;
+      return sendJson(res, status, {
+        ok: false,
+        code: "notification_action_invalid",
+        error: "This notification action is no longer available. Open PhoneDex to refresh the task."
+      });
+    }
+    notificationAction = actionResult.grant;
+    const suppliedTaskId = fields.taskId || fields.task_id;
+    const suppliedChoice = fields.choice;
+    if ((suppliedTaskId && suppliedTaskId !== notificationAction.taskId) ||
+        (suppliedChoice && suppliedChoice !== notificationAction.choice)) {
+      return sendJson(res, 401, {
+        ok: false,
+        code: "notification_action_invalid",
+        error: "This notification action does not match its task. Open PhoneDex to refresh the task."
+      });
+    }
+    fields.taskId = notificationAction.taskId;
+    fields.expectedTaskVersion = notificationAction.taskVersion;
+    fields.choice = notificationAction.choice;
+    fields.prompt = notificationAction.prompt;
+    fields.idempotencyKey = notificationAction.idempotencyKey;
+    fields.commandId = notificationAction.commandId;
+    fields.actor = "notification";
+    fields.action = "notification";
+  }
+
+  if (cfg.token && !notificationAction && fields.token !== cfg.token && !isRequestAuthorized(req, requestUrl, cfg, "tasks.reply")) {
     return sendJson(res, 401, { ok: false, error: "Invalid token" });
   }
 
@@ -2223,6 +2274,7 @@ async function handleLifecycleCommandRequest(req, res, requestUrl, cfg, lifecycl
       ok: true,
       duplicate: true,
       recorded: existing,
+      handoff: existing.handoff,
       receipt
     });
   }
@@ -2286,13 +2338,15 @@ async function handleLifecycleCommandRequest(req, res, requestUrl, cfg, lifecycl
     );
     appendJsonl(cfg.dataDir, "commands.jsonl", protocolRecord("command", {
       ...commandRecord,
-      state: "acknowledged"
+      state: "acknowledged",
+      ...(result.handoff ? { handoff: result.handoff } : {})
     }));
     return sendJson(res, 200, {
       ok: true,
       commandId: command.commandId,
       state: result.state,
       task: commandTask ? publicTask(commandTask) : undefined,
+      handoff: result.handoff,
       receipt
     });
   } catch (error) {
@@ -2302,6 +2356,7 @@ async function handleLifecycleCommandRequest(req, res, requestUrl, cfg, lifecycl
       "capability_unsupported",
       "task_not_managed",
       "task_running",
+      "task_handoff_unavailable",
       "approval_not_available",
       "approval_command_invalid",
       "approval_mismatch",
@@ -2380,6 +2435,8 @@ function normalizeLifecycleCommand(raw, cfg) {
     expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
     requestedCapability: APPROVAL_KINDS.includes(kind)
       ? APPROVAL_CAPABILITY
+      : kind === "handoff"
+        ? "desktop.handoff.v1"
       : `task.${kind === "create_task" ? "create" : kind}.v1`
   };
   if (APPROVAL_KINDS.includes(kind)) {
@@ -3314,6 +3371,9 @@ function createTask(fields) {
     sessionId: fields.sessionId || "",
     messageId: fields.messageId || "",
     status: fields.status,
+    lifecycleCapabilities: Array.isArray(fields.lifecycleCapabilities)
+      ? fields.lifecycleCapabilities
+      : undefined,
     updatedAt: fields.updatedAt,
     hookPayload: fields.hookPayload,
     rawHookInputBytes: fields.rawHookInputBytes,
@@ -3321,6 +3381,12 @@ function createTask(fields) {
     ...(fields.question ? { question: normalizeTaskQuestion(fields.question) } : {}),
     ...(fields.approvalRequest ? { approvalRequest: normalizeApprovalRequest(fields.approvalRequest) } : {})
   });
+}
+
+function taskLifecycleCapabilities(adapter) {
+  return supportsAdapterCapability(adapter, "desktop.handoff")
+    ? ["desktop.handoff.v1"]
+    : [];
 }
 
 function createIngestedTask(fields, cfg, req) {
@@ -3885,10 +3951,7 @@ async function startDeviceHeartbeat(cfg) {
 }
 
 function buildLocalDeviceHeartbeat(cfg) {
-  const capabilities = defaultCapabilities("agent").map((capability) => {
-    const adapterCapability = cfg.adapter.capabilities.find((candidate) => candidate.id === capability.id);
-    return adapterCapability || capability;
-  });
+  const capabilities = advertisedAgentCapabilities(cfg);
   return addDeviceProtocolFields({
     deviceId: cfg.deviceId,
     machineName: cfg.machineName,
@@ -3917,6 +3980,13 @@ function buildLocalDeviceHeartbeat(cfg) {
     capabilities: capabilities.map((capability) => `${capability.id}.v${capability.version}`),
     capabilityDetails: capabilities,
     lastSeenAt: new Date().toISOString()
+  });
+}
+
+function advertisedAgentCapabilities(cfg) {
+  return defaultCapabilities("agent").map((capability) => {
+    const adapterCapability = cfg.adapter.capabilities.find((candidate) => candidate.id === capability.id);
+    return adapterCapability || capability;
   });
 }
 
@@ -4298,7 +4368,8 @@ async function runAgentSelfTest(cfg) {
     title: "PhoneDex agent self-test",
     text: `Agent self-test from ${cfg.machineName} at ${startedAt}`,
     cwd: process.cwd(),
-    sessionId: `agent-self-test-${cfg.deviceId}-${Date.now()}`
+    sessionId: `agent-self-test-${cfg.deviceId}-${Date.now()}`,
+    lifecycleCapabilities: taskLifecycleCapabilities(cfg.adapter)
   });
   const taskResult = await recordTaskAndDispatch(cfg, task, { notify: false });
   const taskForward = taskResult.forward || {
@@ -5226,6 +5297,7 @@ async function scanSessions({ cfg, notify }) {
           sessionId: item.sessionId,
           status: "running",
           messageId: item.messageId,
+          lifecycleCapabilities: taskLifecycleCapabilities(cfg.adapter),
           hookPayload: { session_file: filePath, message_id: item.messageId, fallback: true }
         });
         await recordTaskAndDispatch(cfg, task, { notify: false, events: [item.event] });
@@ -5265,6 +5337,7 @@ async function scanSessions({ cfg, notify }) {
         sessionId: item.sessionId,
         status: "completed",
         messageId: item.messageId,
+        lifecycleCapabilities: taskLifecycleCapabilities(cfg.adapter),
         hookPayload: {
           session_file: filePath,
           message_id: item.messageId,

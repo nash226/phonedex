@@ -66,7 +66,7 @@
     "test:pairing": "node ./scripts/test-pairing.js",
     "test:identity-lifecycle": "node ./scripts/test-identity-lifecycle.js",
     "test:approvals": "node ./scripts/test-approvals.js",
-    "check": "node --check ./bin/codex-watch.js && node --check ./lib/phonedex-store.js && node --check ./lib/phonedex-sync.js && node --check ./lib/phonedex-adapter.js && node --check ./lib/phonedex-lifecycle.js && node --check ./lib/phonedex-security.js"
+    "check": "node --check ./bin/codex-watch.js && node --check ./lib/phonedex-store.js && node --check ./lib/phonedex-sync.js && node --check ./lib/phonedex-adapter.js && node --check ./lib/phonedex-handoff.js && node --check ./lib/phonedex-lifecycle.js && node --check ./lib/phonedex-security.js"
   },
   "engines": {
     "node": ">=18"
