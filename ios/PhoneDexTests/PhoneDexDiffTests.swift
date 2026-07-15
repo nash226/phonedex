@@ -44,6 +44,24 @@ final class PhoneDexDiffTests: XCTestCase {
         XCTAssertEqual(document.document(showingContext: false).lines.count, PhoneDexDiffParser.defaultLineLimit / 2)
     }
 
+    func testFiveThousandLineReviewPathStaysWithinInteractiveOpenBudget() {
+        let patch = (0..<PhoneDexDiffParser.defaultLineLimit)
+            .map { index in index.isMultiple(of: 2) ? "+added \(index)" : " context \(index)" }
+            .joined(separator: "\n")
+
+        let start = CFAbsoluteTimeGetCurrent()
+        let document = PhoneDexDiffParser.parse(patch)
+        let visibleDocument = document.document(showingContext: false)
+        let elapsed = CFAbsoluteTimeGetCurrent() - start
+
+        XCTAssertEqual(visibleDocument.lines.count, PhoneDexDiffParser.defaultLineLimit / 2)
+        XCTAssertLessThan(
+            elapsed,
+            1.0,
+            "Parsing and preparing the bounded review document took \(elapsed)s"
+        )
+    }
+
     func testChangingContextVisibilityReusesParsedLineIdentities() {
         let document = PhoneDexDiffParser.parse("@@ -1,2 +1,2 @@\n keep\n+new")
 
