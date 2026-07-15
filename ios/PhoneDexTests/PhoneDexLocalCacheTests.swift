@@ -16,7 +16,18 @@ final class PhoneDexLocalCacheTests: XCTestCase {
             devices: [],
             lastSyncAt: Date(timeIntervalSince1970: 1_750_000_000),
             drafts: ["task_123": "Keep the next reply focused"],
-            readingPositions: ["task_123": "activity"]
+            readingPositions: ["task_123": "activity"],
+            pendingReplies: [PhoneDexPendingReply(
+                commandId: "command_123",
+                idempotencyKey: "reply_123",
+                taskId: "task_123",
+                choice: "custom",
+                prompt: "Keep going",
+                expectedTaskVersion: 3,
+                sessionId: "thread_123",
+                machineName: "Studio Mac",
+                createdAt: Date(timeIntervalSince1970: 1_750_000_001)
+            )]
         )
 
         try cache.save(state)
