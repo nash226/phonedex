@@ -33,6 +33,17 @@ final class PhoneDexAppModel: ObservableObject {
         tasks.first { $0.id == selectedTaskID }
     }
 
+    var projects: [PhoneDexProject] {
+        Dictionary(grouping: tasks, by: \PhoneDexTask.projectID)
+            .values
+            .map(PhoneDexProject.init(tasks:))
+            .sorted { lhs, rhs in
+                let nameOrder = lhs.name.localizedCaseInsensitiveCompare(rhs.name)
+                if nameOrder != .orderedSame { return nameOrder == .orderedAscending }
+                return lhs.machineName.localizedCaseInsensitiveCompare(rhs.machineName) == .orderedAscending
+            }
+    }
+
     func refresh() async {
         guard let client = bridgeClient else {
             connectionState = .failed("Add a valid bridge URL in Settings.")
