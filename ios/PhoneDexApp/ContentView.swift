@@ -945,6 +945,10 @@ private struct PhoneDexSettingsView: View {
     @ObservedObject var model: PhoneDexAppModel
     @ObservedObject private var settings: PhoneDexSettings
     @State private var notificationStatus = ""
+    @State private var pairingGrant = ""
+    @State private var pairingCode = ""
+    @State private var pairingStatus = ""
+    @State private var isPairing = false
 
     init(model: PhoneDexAppModel) {
         self.model = model
@@ -954,6 +958,40 @@ private struct PhoneDexSettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    Text("On the hub, run `npm run pair:create`, then enter both values here. The grant expires and can be used once.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
+                    TextField("Pairing grant", text: $pairingGrant)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .privacySensitive()
+
+                    TextField("6-digit verification code", text: $pairingCode)
+                        .keyboardType(.numberPad)
+                        .textContentType(.oneTimeCode)
+                        .privacySensitive()
+
+                    Button("Pair this iPhone", systemImage: "checkmark.shield") {
+                        Task { await redeemPairing() }
+                    }
+                    .disabled(isPairing || pairingGrant.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || pairingCode.count != 6)
+
+                    if isPairing {
+                        ProgressView("Pairing…")
+                    }
+                    if !pairingStatus.isEmpty {
+                        Label(pairingStatus, systemImage: pairingStatus.hasPrefix("Paired") ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                            .font(.footnote)
+                            .foregroundStyle(pairingStatus.hasPrefix("Paired") ? .green : .red)
+                    }
+                } header: {
+                    Text("Secure pairing")
+                } footer: {
+                    Text("The PhoneDex app stores the resulting device credential in Keychain. It is not included in the pairing request.")
+                }
+
                 Section("Connection") {
                     TextField("Bridge URL", text: $settings.bridgeURL)
                         .textInputAutocapitalization(.never)
@@ -1030,6 +1068,33 @@ private struct PhoneDexSettingsView: View {
             notificationStatus = "Notification scheduled."
         } catch {
             notificationStatus = error.localizedDescription
+        }
+    }
+
+    private func redeemPairing() async {
+        guard let bridgeURL = settings.normalizedBridgeURL else {
+            pairingStatus = "Enter a valid bridge URL first."
+            return
+        }
+
+        isPairing = true
+        defer { isPairing = false }
+        do {
+            let response = try await PhoneDexBridgeClient(
+                bridgeURL: bridgeURL,
+                token: ""
+            ).redeemPairing(
+                grant: pairingGrant.trimmingCharacters(in: .whitespacesAndNewlines),
+                verificationCode: pairingCode.trimmingCharacters(in: .whitespacesAndNewlines),
+                deviceName: UIDevice.current.name.isEmpty ? "iPhone" : UIDevice.current.name
+            )
+            settings.token = response.credential
+            pairingGrant = ""
+            pairingCode = ""
+            pairingStatus = "Paired as \(response.identity.name)."
+            await model.refresh()
+        } catch {
+            pairingStatus = error.localizedDescription
         }
     }
 }
