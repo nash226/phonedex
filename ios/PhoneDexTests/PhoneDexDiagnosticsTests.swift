@@ -38,6 +38,15 @@ final class PhoneDexDiagnosticsTests: XCTestCase {
         XCTAssertFalse(state.isInitialLoading)
     }
 
+    func testDeviceDiagnosticsKeepReachabilitySeparateFromComponentHealth() {
+        let device = makeDevice(status: "online")
+
+        XCTAssertEqual(device.reachabilityHealth, .online)
+        XCTAssertEqual(device.agentHealth, .degraded)
+        XCTAssertEqual(device.adapterHealth, .unknown)
+        XCTAssertTrue(device.adapterHealth.isActionable)
+    }
+
     private func makeDevice(status: String) -> PhoneDexDevice {
         PhoneDexDevice(
             deviceId: "macbook",
@@ -48,7 +57,12 @@ final class PhoneDexDiagnosticsTests: XCTestCase {
             lastSeenAt: "2026-07-15T12:00:00Z",
             version: "1.0.0",
             publicUrl: nil,
-            expected: true
+            expected: true,
+            componentHealth: PhoneDexDeviceHealthSummary(
+                reachability: status,
+                agent: "degraded",
+                adapter: "unknown"
+            )
         )
     }
 

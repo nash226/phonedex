@@ -90,7 +90,7 @@ device, and command control plane while retaining migration from current data.
 - [x] Add snapshot-plus-cursor sync with pagination, tombstones, and stable
   ordering.
 - [ ] Converge hook and session-watcher captures into one logical task event.
-- [ ] Separate device reachability, agent health, and Codex adapter health.
+- [x] Separate device reachability, agent health, and Codex adapter health.
 - [ ] Add capability negotiation and protocol compatibility errors.
 - [ ] Add retention, redaction, export, and deletion controls.
 - [ ] Preserve a compatibility adapter for current `/tasks` and `/reply`
@@ -124,6 +124,16 @@ credentials and private local paths from responses while retaining `/tasks` and
 changes, tombstones, invalid cursors, and snapshot mutation detection. The iOS
 client consumes the paginated contract in `PhoneDexBridgeClient` and its unit
 tests cover bearer-authenticated pagination and decoding.
+
+Verification evidence for the completed device-health slice:
+`lib/phonedex-protocol.js` normalizes the additive `phonedex.device.v1.health`
+object while retaining legacy `status`; local Mac/Windows-compatible bridge
+heartbeats report agent-process health and leave unsupported Codex adapter
+health as `unknown`, and the hub forwards explicit component health through
+`/devices` and `/sync`. `PhoneDexDeviceDetailView` renders separate,
+accessible reachability, PhoneDex agent, and Codex adapter states. Node
+protocol/sync fixtures and `PhoneDexDiagnosticsTests` cover normalization,
+public sync filtering, degraded agent health, and honest unknown adapter state.
 
 ## M2: Secure Identity and Pairing
 

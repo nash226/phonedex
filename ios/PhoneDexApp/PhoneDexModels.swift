@@ -213,6 +213,36 @@ struct PhoneDexDevice: Codable, Identifiable, Equatable {
     let version: String?
     let publicUrl: String?
     let expected: Bool?
+    let componentHealth: PhoneDexDeviceHealthSummary?
+
+    private enum CodingKeys: String, CodingKey {
+        case deviceId, machineName, platform, role, status, lastSeenAt, version, publicUrl, expected
+        case componentHealth = "health"
+    }
+
+    init(
+        deviceId: String,
+        machineName: String?,
+        platform: String?,
+        role: String?,
+        status: String?,
+        lastSeenAt: String?,
+        version: String?,
+        publicUrl: String?,
+        expected: Bool?,
+        componentHealth: PhoneDexDeviceHealthSummary? = nil
+    ) {
+        self.deviceId = deviceId
+        self.machineName = machineName
+        self.platform = platform
+        self.role = role
+        self.status = status
+        self.lastSeenAt = lastSeenAt
+        self.version = version
+        self.publicUrl = publicUrl
+        self.expected = expected
+        self.componentHealth = componentHealth
+    }
 
     var id: String { deviceId }
 
@@ -222,6 +252,12 @@ struct PhoneDexDevice: Codable, Identifiable, Equatable {
     }
 
     var isOnline: Bool { status == "online" }
+}
+
+struct PhoneDexDeviceHealthSummary: Codable, Equatable {
+    let reachability: String?
+    let agent: String?
+    let adapter: String?
 }
 
 struct PhoneDexSyncPage: Decodable {

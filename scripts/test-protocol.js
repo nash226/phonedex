@@ -35,6 +35,27 @@ const device = addDeviceProtocolFields({
   capabilities: ["task.reply.v1", "task.cancel.v1"]
 });
 assert.equal(validateProtocolRecord("device", device).valid, true);
+assert.deepEqual(device.health, {
+  reachability: "online",
+  agent: "unknown",
+  adapter: "unknown"
+});
+
+const separatedHealthDevice = addDeviceProtocolFields({
+  deviceId: "windows-desktop",
+  machineName: "Windows Desktop",
+  platform: "windows",
+  role: "agent",
+  status: "stale",
+  health: { agent: "degraded", adapter: "healthy" },
+  lastSeenAt: now
+});
+assert.equal(validateProtocolRecord("device", separatedHealthDevice).valid, true);
+assert.deepEqual(separatedHealthDevice.health, {
+  reachability: "stale",
+  agent: "degraded",
+  adapter: "healthy"
+});
 
 const legacySafe = addTaskProtocolFields({
   id: "task_legacy",

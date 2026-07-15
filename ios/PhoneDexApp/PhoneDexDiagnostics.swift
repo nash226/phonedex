@@ -40,6 +40,42 @@ enum PhoneDexDeviceHealth: Equatable {
     var isActionable: Bool { self != .online }
 }
 
+enum PhoneDexComponentHealth: Equatable {
+    case healthy
+    case degraded
+    case unhealthy
+    case unknown
+
+    init(status: String?) {
+        switch status?.lowercased() {
+        case "healthy": self = .healthy
+        case "degraded": self = .degraded
+        case "unhealthy": self = .unhealthy
+        default: self = .unknown
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .healthy: return "Healthy"
+        case .degraded: return "Degraded"
+        case .unhealthy: return "Unhealthy"
+        case .unknown: return "Unknown"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .healthy: return "checkmark.circle.fill"
+        case .degraded: return "exclamationmark.circle.fill"
+        case .unhealthy: return "xmark.octagon.fill"
+        case .unknown: return "questionmark.circle.fill"
+        }
+    }
+
+    var isActionable: Bool { self != .healthy }
+}
+
 struct PhoneDexDeviceDiagnostic: Equatable {
     let title: String
     let message: String
@@ -48,6 +84,18 @@ struct PhoneDexDeviceDiagnostic: Equatable {
 
 extension PhoneDexDevice {
     var health: PhoneDexDeviceHealth { PhoneDexDeviceHealth(status: status) }
+
+    var reachabilityHealth: PhoneDexDeviceHealth {
+        PhoneDexDeviceHealth(status: componentHealth?.reachability ?? status)
+    }
+
+    var agentHealth: PhoneDexComponentHealth {
+        PhoneDexComponentHealth(status: componentHealth?.agent)
+    }
+
+    var adapterHealth: PhoneDexComponentHealth {
+        PhoneDexComponentHealth(status: componentHealth?.adapter)
+    }
 
     var isMacPlatform: Bool {
         ["macos", "darwin"].contains(platform?.lowercased() ?? "")
@@ -59,7 +107,7 @@ extension PhoneDexDevice {
     }
 
     var diagnostic: PhoneDexDeviceDiagnostic {
-        switch health {
+        switch reachabilityHealth {
         case .online:
             return PhoneDexDeviceDiagnostic(
                 title: "This computer is reachable",
