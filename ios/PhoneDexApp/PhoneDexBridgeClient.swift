@@ -184,7 +184,6 @@ struct PhoneDexBridgeClient {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
         }
         request.httpBody = try JSONSerialization.data(withJSONObject: [
-            "token": token,
             "taskId": taskId,
             "sessionId": sessionId ?? "",
             "choice": choice.rawValue,

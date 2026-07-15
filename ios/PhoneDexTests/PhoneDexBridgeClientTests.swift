@@ -28,6 +28,7 @@ final class PhoneDexBridgeClientTests: XCTestCase {
             XCTAssertEqual(json["prompt"], "Run the focused tests")
             XCTAssertEqual(json["reply_text"], "Run the focused tests")
             XCTAssertEqual(json["machineName"], "Studio Mac")
+            XCTAssertNil(json["token"])
 
             return (
                 HTTPURLResponse(

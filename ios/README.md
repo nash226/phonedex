@@ -14,6 +14,8 @@ The iOS app scaffold includes:
 - Bridge URL settings stored on-device; the bridge token is stored in the
   device-only Keychain. Existing tokens from the legacy `UserDefaults` setting
   are migrated once and removed.
+- Configuration URLs may set the bridge endpoint, but never import a token;
+  enter credentials in Settings so they stay in Keychain.
 - A complete task-history fetcher that builds the project navigator from the
   PhoneDex bridge `/tasks` endpoint.
 - A notification content extension for category `PHONEDEX_TASK`.
@@ -23,6 +25,9 @@ The iOS app scaffold includes:
   typed custom replies.
 - Notification action handling that posts replies back to the bridge `/reply`
   endpoint.
+- Notification metadata contains task routing context only; reply actions read
+  the bridge credential from the device-only Keychain and authenticate with an
+  `Authorization: Bearer` header.
 - An adaptive command-center shell with Chats, Projects, Browser, Devices,
   and Settings tabs.
 - A Projects navigator that keeps matching workspace names distinct per device
