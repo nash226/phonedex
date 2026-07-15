@@ -48,7 +48,7 @@ tests, and a trustworthy small-PR path.
 - [x] Add a reproducible unsigned iOS simulator build job.
 - [x] Add an iOS unit-test target and one smoke test for app launch/model decode.
 - [x] Add PR templates for validation evidence and human decisions.
-- [ ] Document supported development versions for Node, Xcode, iOS, macOS, and
+- [x] Document supported development versions for Node, Xcode, iOS, macOS, and
   Windows.
 
 Exit gate: pull requests cannot merge with failing required checks, and both
@@ -69,6 +69,13 @@ Verification evidence for the completed iOS simulator build slice:
 pinned `macos-15` runner with a generic iOS Simulator destination and code
 signing disabled, so pull requests and `main` pushes validate the app without
 Apple credentials or a named simulator device.
+
+Verification evidence for the completed development-matrix slice:
+`docs/DEVELOPMENT.md` records the Node 18.x/22.x CI matrix, the Xcode 26.3 and
+macOS Sequoia 15.6 native build baseline, the iOS 17.0 deployment target, and
+the documented Windows agent prerequisites and validation limits. It links the
+exact bridge and unsigned simulator commands used by CI and points platform
+specific setup docs at the same source of truth.
 
 Verification evidence for the completed PR-template slice:
 `.github/pull_request_template.md` requires each change to name exactly one

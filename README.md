@@ -96,6 +96,8 @@ fall back to the currently open ChatGPT/Codex window.
 
 ## Requirements
 
+- See [Development Requirements](docs/DEVELOPMENT.md) for the supported
+  Node.js, Xcode, iOS, macOS, and Windows matrix and reproducible checks.
 - macOS for the hub and native iOS build flow; Node-based agents can run on
   other Codex machines, including Windows, when they can read that machine's
   local Codex session files.

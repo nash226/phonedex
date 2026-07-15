@@ -1,5 +1,8 @@
 # PhoneDex iOS App
 
+For the complete cross-platform toolchain matrix, see
+[`docs/DEVELOPMENT.md`](../docs/DEVELOPMENT.md).
+
 This is the native iPhone path for PhoneDex. It owns the branded notification
 surface, lets you scroll longer Codex results, and posts typed or dictated
 replies back to the PhoneDex bridge.
