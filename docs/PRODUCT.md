@@ -81,7 +81,10 @@ The repository already proves the core loop, but not the final product.
 
 ### Current bridge and agent
 
-- A Codex `Stop` hook and a session-file watcher capture completed responses.
+- A Codex `Stop` hook and a session-file watcher capture completed responses;
+  when source device, session, and message identity are available, both paths
+  converge into one logical completion with bounded provenance and no duplicate
+  visible notification.
 - Each Mac or Windows computer can run a local Node agent and heartbeat to a
   PhoneDex hub.
 - The hub stores recent tasks, replies, events, and device state in local files.

@@ -85,7 +85,12 @@ understands older `response_item` final messages, `event_msg` records with
 `payload.type = "task_complete"`, and final-answer `agent_message` records.
 
 State lives in `data/session-watch-state.json`, so the watcher does not notify
-the same completed reply repeatedly.
+the same completed reply repeatedly. Each capture also carries a deterministic
+logical completion identity when the source device, Codex session, and message
+identity are available. The hook and watcher use that identity to merge into
+one durable task in either arrival order; merged provenance is retained as
+bounded `captureSources`, while an unchanged duplicate does not create another
+sync change or notification.
 
 ## Notification Build
 
@@ -100,6 +105,9 @@ Each task stores:
 - `cwd`: project directory that produced the response
 - `sessionId`: Codex session id when available
 - `machineName`: human-readable source machine
+- `logicalEventId`: stable completion identity when session/message metadata is
+  available
+- `captureSources`: bounded hook/watcher provenance for the same logical event
 
 For the native iOS path, the app reads `/tasks`, schedules a local notification
 with category `PHONEDEX_TASK`, and posts action replies back to `/reply`.

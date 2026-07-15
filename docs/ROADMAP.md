@@ -96,7 +96,7 @@ device, and command control plane while retaining migration from current data.
 - [x] Introduce a transactional embedded store with migrations and backup.
 - [x] Add snapshot-plus-cursor sync with pagination, tombstones, and stable
   ordering.
-- [ ] Converge hook and session-watcher captures into one logical task event.
+- [x] Converge hook and session-watcher captures into one logical task event.
 - [x] Separate device reachability, agent health, and Codex adapter health.
 - [ ] Add capability negotiation and protocol compatibility errors.
 - [ ] Add retention, redaction, export, and deletion controls.
@@ -131,6 +131,18 @@ credentials and private local paths from responses while retaining `/tasks` and
 changes, tombstones, invalid cursors, and snapshot mutation detection. The iOS
 client consumes the paginated contract in `PhoneDexBridgeClient` and its unit
 tests cover bearer-authenticated pagination and decoding.
+
+Verification evidence for the completed capture-convergence slice:
+`lib/phonedex-protocol.js` derives a bounded `logicalEventId` from the source
+device, Codex session, and completion message identity, and records bounded
+`captureSources` provenance. `bin/codex-watch.js` extracts message identity from
+Stop-hook payloads, applies the same identity to session-watcher records, and
+merges duplicate captures in either arrival order without forwarding or
+notifying twice. `lib/phonedex-store.js` records a replacement sync change only
+when new capture provenance is merged; an unchanged duplicate does not advance
+the store revision. `scripts/test-session-watch.js` exercises hook-first and
+watcher-first convergence, while the protocol and store fixtures cover bounded
+identity and no-op transactions.
 
 Verification evidence for the completed device-health slice:
 `lib/phonedex-protocol.js` normalizes the additive `phonedex.device.v1.health`
