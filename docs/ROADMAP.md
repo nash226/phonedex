@@ -203,7 +203,7 @@ Outcome: remove shared bearer-token setup from the production path.
   output.
 - [ ] Require TLS in release configuration and remove arbitrary ATS loads.
 - [ ] Implement rotation, revoke, replay defense, rate limits, and audit events.
-- [ ] Add a threat model and automated security regression tests.
+- [x] Add a threat model and automated security regression tests.
 
 Exit gate: acceptance scenarios 1, 7, 12, and 13 pass, and a fresh install can
 pair and recover without copying a durable secret.
@@ -222,6 +222,18 @@ the native notification metadata builder and bridge reply integration fixture;
 scoped pairing remains a separate M2 slice. The native app reads the Keychain
 credential when handling a notification action and the bridge accepts the
 authenticated header while retaining legacy body-token compatibility.
+
+Verification evidence for the completed threat-model and security-regression
+slice: `docs/THREAT_MODEL.md` records PhoneDex assets, trust boundaries,
+security invariants, current mitigations, known legacy-token/TLS gaps, and
+human-gated release blockers. `lib/phonedex-privacy.js` provides the shared
+bounded text redactor; public task projections, provider responses, and
+persisted error logs apply it before exposure. `scripts/test-security.js`
+proves credential-shaped text is redacted, structured secrets and private
+paths are absent from `/tasks`, `/sync`, and privacy responses, and query-token
+authentication is rejected by the privacy surface. Existing Swift settings
+tests cover native Keychain migration, credential-bearing URL rejection, and
+notification metadata.
 
 Verification evidence for the completed Chats scope slice: the native SwiftUI
 Chats surface in `ios/PhoneDexApp/ContentView.swift` provides Needs You,
