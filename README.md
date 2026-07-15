@@ -90,6 +90,9 @@ thread, use `foreground` mode. It activates Codex.app, pastes the literal phone
 reply text into the visible input, and submits it through the UI. macOS must allow the
 process running PhoneDex, plus `osascript` when prompted, to control the
 computer in **Privacy & Security > Accessibility**.
+When a completion includes a Codex thread id, foreground mode opens that exact
+Desktop thread before submitting the phone reply; tasks without a thread id
+fall back to the currently open ChatGPT/Codex window.
 
 ## Requirements
 
