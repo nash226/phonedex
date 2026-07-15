@@ -113,6 +113,10 @@ The repository already proves the core loop, but not the final product.
   restoration.
 - Structured `needs_input` tasks can show bounded choices and an optional free-
   text answer field; answers preserve question identity through delivery.
+- Allowlisted Mac and Windows agents can expose a bounded managed-task control
+  surface: choose an advertised workspace to create a run, then cancel or
+  retry that PhoneDex-owned run when the negotiated capability is present.
+  Existing desktop-captured tasks remain read-only from the iPhone.
 - Configuration and preview actions can be invoked through a custom URL scheme.
 - The project targets iOS 17 and includes unit and UI test targets for the
   native shell.
@@ -127,7 +131,8 @@ The repository already proves the core loop, but not the final product.
   in the same encrypted cache for offline retry.
 - The iOS app has no complete live-progress model, approval UI, artifact
   viewer, or general lifecycle command queue; task detail only renders the
-  response and metadata currently exported by the bridge.
+  response and metadata currently exported by the bridge, with the bounded
+  managed-task controls described above.
 - The shared token remains part of legacy setup and can be accepted in URLs by
   the current bridge; notification payloads no longer contain it. The iOS
   settings token is stored in device-only Keychain storage, with legacy
@@ -135,10 +140,10 @@ The repository already proves the core loop, but not the final product.
 - Release ATS no longer allows arbitrary network loads, and configured
   non-loopback bridges require HTTPS; loopback HTTP remains available only for
   local development. Hub and agent TLS deployment is still release work.
-- Reply commands now carry a client idempotency key and expected task version;
-  the bridge persists command receipts and the iPhone exposes queued, failed,
-  duplicate, stale, and successful delivery states. General lifecycle command
-  receipts remain future work.
+- Reply and managed lifecycle commands carry a client idempotency key and
+  expected task version; the bridge persists command receipts and the iPhone
+  exposes accepted, duplicate, stale, and failed delivery states. General
+  lifecycle queuing and approval commands remain future work.
 - Paired credentials can be rotated without changing task history, protected
   requests are rate-limited per principal, and reply idempotency keys reject
   mutated replays. Content-free security lifecycle outcomes are written to the
@@ -146,10 +151,11 @@ The repository already proves the core loop, but not the final product.
 - Legacy bridge endpoints still expose a recent slice of append-only JSONL data,
   but the authenticated `/sync` contract now provides versioned snapshot pages,
   opaque cursors, stable ordering, and tombstones. The native iPhone client
-  persists its cursor and encrypted cache; reply command receipts and outbox
-  replay are implemented while general lifecycle commands remain future work.
-- Starting, canceling, retrying, approving, or streaming a Codex task is not a
-  defined cross-platform agent contract.
+  persists its cursor and encrypted cache; reply and managed lifecycle receipts
+  are implemented while general lifecycle queuing remains future work.
+- Starting, canceling, and retrying are defined only for PhoneDex-owned,
+  allowlisted runs through the capability-gated agent contract. Approving or
+  streaming an arbitrary Codex task is not a defined cross-platform contract.
 - Foreground UI automation is Mac-specific, permission-sensitive, and brittle.
 
 These limitations are release blockers, not details to hide behind polish.
@@ -166,11 +172,11 @@ supported command path on the originating machine.
 | Read a completed response | Rich, readable transcript with machine and workspace context | **Current, partial.** Completion text exists; full transcript sync does not. |
 | Reply to a task | Send text or a constrained quick action with delivery state | **Current, partial.** Reply receipts, retries, task-version conflict checks, and structured question responses exist; broader agent commands remain partial. |
 | See live progress | Running state, concise activity, and latest meaningful event | **Target.** Requires structured agent events; iOS cannot infer this from desktop UI. |
-| Start a task | Choose a machine/workspace, enter a prompt, and create a tracked run | **Target.** Requires a versioned agent command API and supported Codex adapter. |
+| Start a task | Choose a machine/workspace, enter a prompt, and create a tracked run | **Current, bounded.** Allowlisted agents expose a versioned create command; arbitrary desktop task creation is not promised. |
 | Answer a question | Render explicit choices or text input and resume the same task | **Current, partial.** Bounded task questions and reply envelopes exist; richer event streams and adapter-native continuation remain future work. |
 | Review an approval | Show exact operation, scope, risk, and origin before approve/reject | **Target.** Only available when the adapter exposes a valid, expiring approval. |
 | Review changes | Mobile diff summary, file list, patch detail, and validation results | **Target.** Requires structured artifact and diff export from the agent. |
-| Cancel, retry, or queue | Issue idempotent lifecycle commands with visible receipts | **Target.** Requires adapter capability negotiation. |
+| Cancel, retry, or queue | Issue idempotent lifecycle commands with visible receipts | **Current, bounded.** Cancel/retry apply to PhoneDex-owned runs when advertised; general queueing remains Target. |
 | Open on desktop | Deep-link or hand off to the exact supported task/session | **Target where the desktop integration exposes a stable identifier.** |
 | Reproduce all desktop tools | Exact private UI, terminal, extensions, and local integrations | **Not promised.** Use explicit mobile workflows or hand off to the computer. |
 

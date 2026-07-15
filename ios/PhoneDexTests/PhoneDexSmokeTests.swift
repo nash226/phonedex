@@ -80,6 +80,26 @@ final class PhoneDexSmokeTests: XCTestCase {
         XCTAssertEqual(task.activity[1].detail, "Message message_1")
     }
 
+    func testManagedTaskCapabilitiesAndDeviceWorkspacesDecode() throws {
+        let task = try JSONDecoder().decode(
+            PhoneDexTask.self,
+            from: Data("""
+            {"id":"managed_task","status":"canceling","lifecycleCapabilities":["task.cancel.v1","task.retry.v1"]}
+            """.utf8)
+        )
+        let device = try JSONDecoder().decode(
+            PhoneDexDevice.self,
+            from: Data("""
+            {"deviceId":"agent_1","machineName":"Studio Mac","platform":"macos","status":"online","capabilities":["task.create.v1"],"workspaces":["PhoneDex","Website"]}
+            """.utf8)
+        )
+
+        XCTAssertTrue(task.supportsLifecycle("task.cancel.v1"))
+        XCTAssertEqual(task.displayStatus, "Cancelling")
+        XCTAssertTrue(device.supportsCapability("task.create.v1"))
+        XCTAssertEqual(device.workspaces, ["PhoneDex", "Website"])
+    }
+
     func testStructuredQuestionDecodesChoicesAndFreeTextPolicy() throws {
         let task = try JSONDecoder().decode(
             PhoneDexTask.self,

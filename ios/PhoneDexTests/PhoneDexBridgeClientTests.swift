@@ -73,6 +73,56 @@ final class PhoneDexBridgeClientTests: XCTestCase {
         XCTAssertTrue(receipt.isSuccessful)
     }
 
+    func testSendLifecycleCommandUsesAuthenticatedIdempotentContract() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [URLProtocolStub.self]
+        let session = URLSession(configuration: configuration)
+
+        URLProtocolStub.handler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "http://bridge.test/command")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "authorization"), "Bearer secret")
+
+            let body = try request.httpBody ?? XCTUnwrap(request.httpBodyStream).readAllData()
+            let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(json["kind"] as? String, "cancel")
+            XCTAssertEqual(json["taskId"] as? String, "task_123")
+            XCTAssertEqual(json["commandId"] as? String, "cancel_123")
+            XCTAssertEqual(json["idempotencyKey"] as? String, "cancel_key")
+            XCTAssertEqual(json["expectedTaskVersion"] as? Int, 7)
+            XCTAssertEqual(json["requestedCapability"] as? String, "task.cancel.v1")
+            XCTAssertNil(json["token"])
+
+            return (
+                HTTPURLResponse(
+                    url: try XCTUnwrap(request.url),
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: ["content-type": "application/json"]
+                )!,
+                Data("""
+                {"state":"accepted","task":{"id":"task_123","status":"canceling","version":8},"receipt":{"schema":"phonedex.command-receipt.v1","protocolVersion":1,"commandId":"cancel_123","createdAt":"2026-07-15T12:00:00.000Z","state":"accepted","taskId":"task_123","taskVersion":8,"idempotencyKey":"cancel_key","message":"Cancellation requested"}}
+                """.utf8)
+            )
+        }
+
+        let response = try await PhoneDexBridgeClient(
+            bridgeURL: URL(string: "http://bridge.test")!,
+            token: "secret",
+            session: session
+        ).sendLifecycleCommand(
+            kind: "cancel",
+            taskId: "task_123",
+            commandId: "cancel_123",
+            idempotencyKey: "cancel_key",
+            expectedTaskVersion: 7
+        )
+
+        XCTAssertEqual(response.receipt.state, "accepted")
+        XCTAssertEqual(response.task?.status, "canceling")
+        XCTAssertEqual(response.task?.version, 8)
+    }
+
     func testRedeemPairingUsesOneTimeGrantWithoutCredentialInRequest() async throws {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [URLProtocolStub.self]
