@@ -40,5 +40,11 @@ according to the retention and privacy policy before leaving the user's
 devices.
 
 This slice defines the shared shape and compatibility rules. Pagination,
-cursor storage, migrations, command delivery, and adapter-specific capability
-implementations remain separate roadmap slices.
+cursor storage, command delivery, and adapter-specific capability
+implementations remain separate roadmap slices. The hub now persists task and
+device records through a versioned transactional snapshot. The snapshot is
+replaced atomically, the prior version is retained as a backup, and existing
+JSONL/device files are imported on first start and kept as a compatibility
+mirror for local tooling. A failed or corrupt current snapshot is recovered
+from the backup only when the backup validates; future store versions fail
+closed instead of being silently downgraded.

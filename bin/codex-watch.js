@@ -6,6 +6,7 @@ const os = require("node:os");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const { spawn } = require("node:child_process");
+const { createPhoneDexStore } = require("../lib/phonedex-store");
 const {
   addDeviceProtocolFields,
   addTaskProtocolFields
@@ -28,6 +29,7 @@ const DEFAULT_DEVICE_STALE_MS = 2 * 60 * 1000;
 const DEFAULT_COVERAGE_ALERT_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const DEFAULT_AGENT_INVITE_TTL_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_AGENT_INVITE_MAX_ACTIVE = 5;
+const DURABLE_STORE_CACHE = new Map();
 
 const RESPONSE_CHOICES = {
   okay_whats_next: "okay whats next",
@@ -306,8 +308,11 @@ async function handleNotify(args) {
 }
 
 async function recordTaskAndDispatch(cfg, task, options = {}) {
-  const duplicate = findDuplicateTask(cfg.dataDir, task);
-  if (duplicate) {
+  const result = durableStore(cfg.dataDir).appendTask(task, (candidate) =>
+    isDuplicateTask(candidate, task)
+  );
+  if (!result.created) {
+    const duplicate = result.task;
     appendJsonl(cfg.dataDir, "events.jsonl", {
       at: new Date().toISOString(),
       type: "duplicate-task-ignored",
@@ -321,6 +326,8 @@ async function recordTaskAndDispatch(cfg, task, options = {}) {
     return { task: duplicate, created: false };
   }
 
+  // Keep the legacy file for existing local tooling while the transactional
+  // snapshot is the source of truth for bridge reads and writes.
   appendJsonl(cfg.dataDir, "tasks.jsonl", task);
 
   const forward =
@@ -336,8 +343,8 @@ async function recordTaskAndDispatch(cfg, task, options = {}) {
   return { task, created: true, forward };
 }
 
-function findDuplicateTask(dataDir, task) {
-  const taskAt = Date.parse(task.at || "");
+function isDuplicateTask(candidate, task) {
+  const taskAt = Date.parse(task.at || task.createdAt || "");
   const sameOrigin = (candidate) => {
     const originTaskId = task.originTaskId || task.id || "";
     if (!originTaskId) return false;
@@ -353,28 +360,24 @@ function findDuplicateTask(dataDir, task) {
     return true;
   };
 
-  return readJsonl(dataDir, "tasks.jsonl")
-    .slice(-1000)
-    .find((candidate) => {
-      if (!candidate || candidate.parseError) return false;
-      if (sameOrigin(candidate) && sameDevice(candidate)) return true;
-      if (
-        task.messageId &&
-        candidate.messageId === task.messageId &&
-        task.sessionId &&
-        candidate.sessionId === task.sessionId
-      ) {
-        return true;
-      }
-      if (!task.sessionId || candidate.sessionId !== task.sessionId) return false;
-      if (candidate.text !== task.text) return false;
-      const candidateAt = Date.parse(candidate.at || "");
-      return (
-        !Number.isNaN(taskAt) &&
-        !Number.isNaN(candidateAt) &&
-        Math.abs(taskAt - candidateAt) < 5 * 60 * 1000
-      );
-    });
+  if (!candidate || candidate.parseError) return false;
+  if (sameOrigin(candidate) && sameDevice(candidate)) return true;
+  if (
+    task.messageId &&
+    candidate.messageId === task.messageId &&
+    task.sessionId &&
+    candidate.sessionId === task.sessionId
+  ) {
+    return true;
+  }
+  if (!task.sessionId || candidate.sessionId !== task.sessionId) return false;
+  if (candidate.text !== task.text) return false;
+  const candidateAt = Date.parse(candidate.at || candidate.createdAt || "");
+  return (
+    !Number.isNaN(taskAt) &&
+    !Number.isNaN(candidateAt) &&
+    Math.abs(taskAt - candidateAt) < 5 * 60 * 1000
+  );
 }
 
 async function maybeForwardTaskToHub(cfg, task) {
@@ -2234,6 +2237,7 @@ function appendJsonl(dataDir, fileName, value) {
 }
 
 function readJsonl(dataDir, fileName) {
+  if (fileName === "tasks.jsonl") return durableStore(dataDir).listTasks();
   const filePath = path.join(dataDir, fileName);
   if (!fs.existsSync(filePath)) return [];
   return fs
@@ -2390,25 +2394,14 @@ function normalizeDeviceHeartbeat(fields, req) {
 }
 
 function recordDeviceHeartbeat(dataDir, device) {
-  const state = readJsonFile(dataDir, DEVICES_STATE_FILE, { devices: [] });
-  const devices = Array.isArray(state.devices) ? state.devices : [];
-  const index = devices.findIndex((candidate) => candidate.deviceId === device.deviceId);
-  const previous = index >= 0 ? devices[index] : {};
-  const next = {
-    ...previous,
-    ...device,
-    firstSeenAt: previous.firstSeenAt || device.lastSeenAt || new Date().toISOString()
-  };
-
-  if (index >= 0) devices[index] = next;
-  else devices.push(next);
-
+  const next = durableStore(dataDir).upsertDevice(device);
+  const devices = durableStore(dataDir).listDevices();
+  // Keep the legacy file for older diagnostics and installed agents.
   writeJsonFile(dataDir, DEVICES_STATE_FILE, {
     updatedAt: new Date().toISOString(),
-    devices: devices.sort(
-      (a, b) => Date.parse(b.lastSeenAt || "") - Date.parse(a.lastSeenAt || "")
-    )
+    devices
   });
+  return next;
 }
 
 function listDeviceCoverage(cfg) {
@@ -3436,8 +3429,17 @@ function printDeviceCoverageReport(report) {
 }
 
 function readDeviceHeartbeats(dataDir) {
-  const state = readJsonFile(dataDir, DEVICES_STATE_FILE, { devices: [] });
-  return Array.isArray(state.devices) ? state.devices : [];
+  return durableStore(dataDir).listDevices();
+}
+
+function durableStore(dataDir) {
+  const key = path.resolve(dataDir);
+  let store = DURABLE_STORE_CACHE.get(key);
+  if (!store) {
+    store = createPhoneDexStore(key);
+    DURABLE_STORE_CACHE.set(key, store);
+  }
+  return store;
 }
 
 function listTaskDevices(dataDir) {

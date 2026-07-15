@@ -8,6 +8,14 @@ The versioned hub record contract is documented in
 schema identity while the current JSONL endpoints continue to accept legacy
 records during migration.
 
+Task and device state is persisted through the versioned transactional store
+in [`lib/phonedex-store.js`](../lib/phonedex-store.js). It atomically replaces
+`phonedex-store.json`, retains the previous snapshot as
+`phonedex-store.json.bak`, and imports the current JSONL/device files on first
+start. Those legacy files remain mirrored for compatibility, while bridge
+reads and task deduplication use the transactional snapshot as the source of
+truth.
+
 ## Product Flow
 
 The experience is intentionally simple:
