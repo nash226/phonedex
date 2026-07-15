@@ -739,6 +739,14 @@ the fixed-size composer icon, and allow long branch labels to wrap instead of
 clipping. This is evidence for the accessibility portion of the combined M8
 gate; performance, battery, localization, and crash validation remain open.
 
+Performance verification for the in-progress release-readiness slice:
+`PhoneDexDiffTests.testFiveThousandLineReviewPathStaysWithinInteractiveOpenBudget`
+measures the complete bounded 5,000-line parse and changed-only projection path
+and fails when local preparation exceeds one second. This is a regression guard
+for the documented interactive-open target, not proof of oldest-device p95
+behavior; TestFlight and real-device profiling remain required before the M8
+performance gate can be checked off.
+
 Verification evidence for the completed migration and recovery slice:
 `scripts/test-recovery.js` exercises legacy JSONL import, current-schema
 upgrade, transactional-backup rollback after a failed migration, rejection of
