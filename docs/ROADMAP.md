@@ -504,7 +504,7 @@ Outcome: safely handle consequential Codex decisions from iPhone.
 
 - [x] Define expiring, task-version-bound approval requests and receipts.
 - [x] Render exact operation, scope, origin, reason, risk, and expiry.
-- [ ] Add explicit approve/reject controls with stale-state rejection.
+- [x] Add explicit approve/reject controls with stale-state rejection.
 - [ ] Add configurable Face ID or passcode confirmation for high-risk actions.
 - [ ] Audit every decision without storing unnecessary sensitive content.
 - [ ] Add adversarial replay, expiry, compromised-device, and partial-failure
@@ -523,9 +523,15 @@ secrets. `bin/codex-watch.js` accepts the contract from supported hook and
 agent ingestion paths and only replaces an existing request from an equal or
 newer task version. `PhoneDexTaskDetailView` renders the exact operation,
 scope, origin, reason, risk, and expiry with a clear read-only explanation
-until `approval.respond.v1` is advertised. `scripts/test-protocol.js` and
-`PhoneDexSmokeTests.swift` cover valid, mismatched-version, invalid-expiry,
-and bounded native decoding paths. No approval is executed by this slice.
+until `approval.respond.v1` is advertised. The native review now presents
+confirmation-gated Approve and Reject controls only when that capability is
+declared, sends the approval id plus task version through the common idempotent
+command envelope, and renders the returned receipt state. The hub validates
+pending state, expiry, capability, and task version before forwarding; it
+requires a matching origin receipt before persisting the approved or rejected
+projection. `scripts/test-approvals.js` covers forwarding, receipt validation,
+idempotent replay, stale-version rejection, expiry rejection, and unsupported
+capability behavior. No private Codex Desktop API or UI automation is required.
 
 ## M6: Remote Notifications and Background Sync
 
