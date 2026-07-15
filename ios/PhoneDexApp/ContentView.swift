@@ -499,6 +499,8 @@ struct PhoneDexTaskDetailView: View {
     @State private var draftSaveTask: Task<Void, Never>?
     @State private var hasRestoredReadingPosition = false
     @State private var showCancelConfirmation = false
+    @State private var showDesktopHandoff = false
+    @State private var desktopHandoff: PhoneDexDesktopHandoff?
     @FocusState private var composerFocused: Bool
 
     init(task: PhoneDexTask, model: PhoneDexAppModel) {
@@ -521,6 +523,7 @@ struct PhoneDexTaskDetailView: View {
                     detailSection(.activity) { activity }
                     detailSection(.evidence) { evidence }
                     replyStatus
+                    lifecycleStatus
 
                     Color.clear
                         .frame(height: 1)
@@ -608,6 +611,15 @@ struct PhoneDexTaskDetailView: View {
                             Task { _ = await model.retry(task: task) }
                         }
                     }
+                    if model.supportsDesktopHandoff(for: task) {
+                        Divider()
+                        Button("Prepare desktop handoff", systemImage: "desktopcomputer.and.arrow.down") {
+                            Task {
+                                desktopHandoff = await model.prepareDesktopHandoff(task: task)
+                                showDesktopHandoff = desktopHandoff != nil
+                            }
+                        }
+                    }
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
@@ -621,6 +633,11 @@ struct PhoneDexTaskDetailView: View {
             Button("Keep working", role: .cancel) {}
         } message: {
             Text("PhoneDex will ask the originating agent to stop this managed run. The task will remain in your history.")
+        }
+        .sheet(isPresented: $showDesktopHandoff) {
+            if let desktopHandoff {
+                PhoneDexDesktopHandoffView(handoff: desktopHandoff)
+            }
         }
     }
 
@@ -951,6 +968,32 @@ struct PhoneDexTaskDetailView: View {
         }
     }
 
+    @ViewBuilder
+    private var lifecycleStatus: some View {
+        switch model.lifecycleState {
+        case .sending:
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text("Preparing desktop handoff…")
+            }
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .accessibilityElement(children: .combine)
+        case .accepted(let message):
+            Label(message, systemImage: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+                .font(.subheadline)
+                .accessibilityElement(children: .combine)
+        case .failed(let message):
+            Label(message, systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(.red)
+                .font(.subheadline)
+                .accessibilityElement(children: .combine)
+        case .idle:
+            EmptyView()
+        }
+    }
+
     private var composer: some View {
         Group {
             if task.question == nil || task.question?.allowsFreeText == true {
@@ -1050,6 +1093,68 @@ struct PhoneDexTaskDetailView: View {
         case "failed", "awaiting_approval", "needs_input", "needs_review": return .orange
         default: return .blue
         }
+    }
+}
+
+private struct PhoneDexDesktopHandoffView: View {
+    let handoff: PhoneDexDesktopHandoff
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Label("Exact task context prepared", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                        .font(.headline)
+                } footer: {
+                    Text("PhoneDex does not automate private desktop UI. Use this context on the named computer through its supported Codex adapter.")
+                }
+
+                Section("Task") {
+                    detailRow("Machine", handoff.machineName, symbol: "desktopcomputer")
+                    detailRow("Workspace", handoff.workspaceName, symbol: "folder")
+                    detailRow("Session", handoff.sessionId, symbol: "number")
+                    detailRow("Adapter", "\(handoff.adapterId) · \(handoff.adapterMode) · \(handoff.platform)", symbol: "point.3.connected.trianglepath.dotted")
+                    if let repository = handoff.repository, !repository.isEmpty {
+                        detailRow("Repository", repository, symbol: "shippingbox")
+                    }
+                    if let branch = handoff.branch, !branch.isEmpty {
+                        detailRow("Branch", branch, symbol: "arrow.triangle.branch")
+                    }
+                }
+
+                Section {
+                    ShareLink(item: handoff.copyText) {
+                        Label("Share handoff context", systemImage: "square.and.arrow.up")
+                    }
+                    Button {
+                        UIPasteboard.general.string = handoff.copyText
+                    } label: {
+                        Label("Copy handoff context", systemImage: "doc.on.doc")
+                    }
+                }
+            }
+            .navigationTitle("Desktop handoff")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func detailRow(_ title: String, _ value: String, symbol: String) -> some View {
+        Label {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.caption).foregroundStyle(.secondary)
+                Text(value).font(.body).textSelection(.enabled)
+            }
+        } icon: {
+            Image(systemName: symbol).foregroundStyle(.secondary)
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 

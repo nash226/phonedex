@@ -12,6 +12,7 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
     let cwd: String?
     let workspaceName: String?
     let machineName: String?
+    let deviceId: String?
     let sessionId: String?
     let status: String?
     let branch: String?
@@ -22,7 +23,7 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case id, at, createdAt, updatedAt, version, source, title, text, cwd, workspaceName
-        case machineName, sessionId, status, branch, repository, captureSources
+        case machineName, deviceId, sessionId, status, branch, repository, captureSources
         case question, lifecycleCapabilities
     }
 
@@ -39,6 +40,7 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
         cwd = try container.decodeIfPresent(String.self, forKey: .cwd)
         workspaceName = try container.decodeIfPresent(String.self, forKey: .workspaceName)
         machineName = try container.decodeIfPresent(String.self, forKey: .machineName)
+        deviceId = try container.decodeIfPresent(String.self, forKey: .deviceId)
         sessionId = try container.decodeIfPresent(String.self, forKey: .sessionId)
         status = try container.decodeIfPresent(String.self, forKey: .status)
         branch = try container.decodeIfPresent(String.self, forKey: .branch)
@@ -61,6 +63,7 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
         status: String?,
         branch: String?,
         repository: String?,
+        deviceId: String? = nil,
         createdAt: String? = nil,
         updatedAt: String? = nil,
         version: Int? = nil,
@@ -79,6 +82,7 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
         self.cwd = cwd
         self.workspaceName = workspaceName
         self.machineName = machineName
+        self.deviceId = deviceId
         self.sessionId = sessionId
         self.status = status
         self.branch = branch
