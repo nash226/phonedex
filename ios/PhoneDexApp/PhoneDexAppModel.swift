@@ -308,6 +308,41 @@ final class PhoneDexAppModel: ObservableObject {
         )
     }
 
+    func prepareDesktopHandoff(task: PhoneDexTask) async -> PhoneDexDesktopHandoff? {
+        guard let client = bridgeClient else {
+            lifecycleState = .failed("The bridge URL is invalid.")
+            return nil
+        }
+        lifecycleState = .sending
+        do {
+            let result = try await client.sendLifecycleCommand(
+                kind: "handoff",
+                taskId: task.id,
+                expectedTaskVersion: task.version ?? 1
+            )
+            if let updatedTask = result.task { upsertLifecycleTask(updatedTask) }
+            guard let handoff = result.handoff else {
+                lifecycleState = .failed("The agent accepted the request without returning handoff context.")
+                return nil
+            }
+            lifecycleState = .accepted(result.receipt.message ?? "Desktop handoff prepared.")
+            return handoff
+        } catch {
+            lifecycleState = .failed(error.localizedDescription)
+            return nil
+        }
+    }
+
+    func supportsDesktopHandoff(for task: PhoneDexTask) -> Bool {
+        guard let sessionId = task.sessionId?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !sessionId.isEmpty else { return false }
+        if task.supportsLifecycle("desktop.handoff.v1") { return true }
+        return devices.first {
+            if let deviceId = task.deviceId, deviceId == $0.deviceId { return true }
+            return task.machineName?.isEmpty == false && task.machineName == $0.machineName
+        }?.supportsCapability("desktop.handoff.v1") == true
+    }
+
     func createTask(deviceId: String, workspaceName: String, prompt: String) async -> Bool {
         guard let client = bridgeClient else {
             lifecycleState = .failed("The bridge URL is invalid.")

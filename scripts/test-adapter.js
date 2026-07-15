@@ -15,6 +15,7 @@ const macCli = createCodexAdapter({
 assert.equal(macCli.state, "ready");
 assert.equal(macCli.id, "codex.cli");
 assert.equal(supportsAdapterCapability(macCli, "task.reply"), true);
+assert.equal(supportsAdapterCapability(macCli, "desktop.handoff"), true);
 assert.equal(supportsAdapterCapability(macCli, "task.cancel"), false);
 assert.equal(macCli.capabilities.every((capability) => capability.schema === "phonedex.capability.v1"), true);
 assert.match(macCli.limitations.join(" "), /does not automate private desktop UI/i);
@@ -38,7 +39,7 @@ const windowsAppServer = createCodexAdapter({
 assert.equal(windowsAppServer.platform, "windows");
 assert.equal(windowsAppServer.state, "ready");
 assert.equal(supportsAdapterCapability(windowsAppServer, "task.reply"), true);
-assert.equal(windowsAppServer.capabilities.some((capability) => capability.id === "desktop.handoff" && capability.supported), false);
+assert.equal(supportsAdapterCapability(windowsAppServer, "desktop.handoff"), true);
 
 const windowsForeground = createCodexAdapter({
   platform: "windows",
