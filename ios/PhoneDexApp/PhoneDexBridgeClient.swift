@@ -254,7 +254,9 @@ struct PhoneDexBridgeClient {
         machineName: String?,
         commandId: String,
         idempotencyKey: String,
-        expectedTaskVersion: Int
+        expectedTaskVersion: Int,
+        questionId: String? = nil,
+        questionResponse: PhoneDexQuestionResponse? = nil
     ) async throws -> PhoneDexReplyReceipt {
         let url = bridgeURL.appending(path: "reply")
         var request = URLRequest(url: url)
@@ -263,7 +265,7 @@ struct PhoneDexBridgeClient {
         if !token.isEmpty {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
         }
-        request.httpBody = try JSONSerialization.data(withJSONObject: [
+        var payload: [String: Any] = [
             "taskId": taskId,
             "sessionId": sessionId ?? "",
             "choice": choice.rawValue,
@@ -275,7 +277,17 @@ struct PhoneDexBridgeClient {
             "expectedTaskVersion": expectedTaskVersion,
             "actor": "iphone",
             "requestedCapability": "task.reply.v1"
-        ])
+        ]
+        if let questionId {
+            payload["questionId"] = questionId
+        }
+        if let questionResponse {
+            var response: [String: String] = ["kind": questionResponse.kind]
+            if let choiceId = questionResponse.choiceId { response["choiceId"] = choiceId }
+            if let text = questionResponse.text { response["text"] = text }
+            payload["response"] = response
+        }
+        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
 
         let (data, response) = try await session.data(for: request)
         try validate(response: response, data: data)
