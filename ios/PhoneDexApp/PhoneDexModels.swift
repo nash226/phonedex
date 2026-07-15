@@ -17,13 +17,14 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
     let branch: String?
     let repository: String?
     let question: PhoneDexTaskQuestion?
+    let approvalRequest: PhoneDexApprovalRequest?
     let captureSources: [PhoneDexCaptureSource]
     let lifecycleCapabilities: [String]
 
     private enum CodingKeys: String, CodingKey {
         case id, at, createdAt, updatedAt, version, source, title, text, cwd, workspaceName
         case machineName, sessionId, status, branch, repository, captureSources
-        case question, lifecycleCapabilities
+        case question, approvalRequest, lifecycleCapabilities
     }
 
     init(from decoder: Decoder) throws {
@@ -44,6 +45,7 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
         branch = try container.decodeIfPresent(String.self, forKey: .branch)
         repository = try container.decodeIfPresent(String.self, forKey: .repository)
         question = try container.decodeIfPresent(PhoneDexTaskQuestion.self, forKey: .question)
+        approvalRequest = try container.decodeIfPresent(PhoneDexApprovalRequest.self, forKey: .approvalRequest)
         captureSources = try container.decodeIfPresent([PhoneDexCaptureSource].self, forKey: .captureSources) ?? []
         lifecycleCapabilities = try container.decodeIfPresent([String].self, forKey: .lifecycleCapabilities) ?? []
     }
@@ -65,6 +67,7 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
         updatedAt: String? = nil,
         version: Int? = nil,
         question: PhoneDexTaskQuestion? = nil,
+        approvalRequest: PhoneDexApprovalRequest? = nil,
         captureSources: [PhoneDexCaptureSource] = [],
         lifecycleCapabilities: [String] = []
     ) {
@@ -84,6 +87,7 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
         self.branch = branch
         self.repository = repository
         self.question = question
+        self.approvalRequest = approvalRequest
         self.captureSources = captureSources
         self.lifecycleCapabilities = lifecycleCapabilities
     }
@@ -222,6 +226,46 @@ struct PhoneDexTaskQuestion: Codable, Equatable {
 struct PhoneDexTaskQuestionChoice: Codable, Equatable, Identifiable {
     let id: String
     let label: String
+}
+
+struct PhoneDexApprovalOrigin: Codable, Equatable {
+    let deviceId: String
+    let machineName: String
+    let workspaceName: String?
+}
+
+struct PhoneDexApprovalRequest: Codable, Equatable, Identifiable {
+    let id: String
+    let taskVersion: Int
+    let operation: String
+    let scope: String
+    let origin: PhoneDexApprovalOrigin
+    let reason: String
+    let risk: String
+    let requestedAt: String
+    let expiresAt: String
+    let state: String
+
+    var isExpired: Bool {
+        guard let expiry = ISO8601DateFormatter.phoneDex.date(from: expiresAt) else { return true }
+        return expiry <= Date()
+    }
+
+    var expiryDate: Date? {
+        ISO8601DateFormatter.phoneDex.date(from: expiresAt)
+    }
+
+    var displayState: String {
+        if state == "pending" && isExpired { return "Expired" }
+        switch state {
+        case "pending": return "Awaiting your review"
+        case "approved": return "Approved"
+        case "rejected": return "Rejected"
+        case "expired": return "Expired"
+        case "stale": return "No longer current"
+        default: return "Unknown approval state"
+        }
+    }
 }
 
 struct PhoneDexQuestionResponse: Codable, Equatable {
