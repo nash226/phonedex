@@ -374,6 +374,8 @@ run `npm run agent:invite` on the hub to create a fresh link, or add
 `/agent-bootstrap/setup` from a trusted device.
 
 For the full system design, see [docs/architecture.md](docs/architecture.md).
+For App Review preparation, see [docs/APP_REVIEW.md](docs/APP_REVIEW.md), and
+for incident handling and customer support, see [docs/SUPPORT.md](docs/SUPPORT.md).
 For the legacy native Apple Watch app scaffold, see [watchos/README.md](watchos/README.md).
 For the native iOS notification UI prototype, see [ios/README.md](ios/README.md).
 
