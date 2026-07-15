@@ -115,6 +115,14 @@ async function main() {
     hub.kill();
   }
 
+  const durableState = JSON.parse(
+    fs.readFileSync(path.join(hubDataDir, "phonedex-store.json"), "utf8")
+  );
+  assert.equal(durableState.tasks.length, 2);
+  assert.equal(
+    durableState.devices.some((device) => device.deviceId === "agent-one"),
+    true
+  );
   assert.equal(stderr, "");
   assert.match(stdout, /PhoneDex listening/);
   console.log("agent self-test fixture passed");
