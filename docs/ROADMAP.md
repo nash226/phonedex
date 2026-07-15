@@ -501,8 +501,8 @@ Status: **Queued**
 
 Outcome: safely handle consequential Codex decisions from iPhone.
 
-- [ ] Define expiring, task-version-bound approval requests and receipts.
-- [ ] Render exact operation, scope, origin, reason, risk, and expiry.
+- [x] Define expiring, task-version-bound approval requests and receipts.
+- [x] Render exact operation, scope, origin, reason, risk, and expiry.
 - [ ] Add explicit approve/reject controls with stale-state rejection.
 - [ ] Add configurable Face ID or passcode confirmation for high-risk actions.
 - [ ] Audit every decision without storing unnecessary sensitive content.
@@ -511,6 +511,20 @@ Outcome: safely handle consequential Codex decisions from iPhone.
 
 Exit gate: acceptance scenarios 7 and 8 pass and an external security review
 has no unresolved critical or high findings for approval flows.
+
+Verification evidence for the completed approval-review contract slice:
+`lib/phonedex-protocol.js` validates bounded `approvalRequest` metadata only
+when a task is `awaiting_approval`, requires the request task version to match
+the task version, and rejects missing origins or non-forward expiry. Approve
+and reject command envelopes require the approval id and task version, while
+command receipts can carry the approval id, state, and expiry without storing
+secrets. `bin/codex-watch.js` accepts the contract from supported hook and
+agent ingestion paths and only replaces an existing request from an equal or
+newer task version. `PhoneDexTaskDetailView` renders the exact operation,
+scope, origin, reason, risk, and expiry with a clear read-only explanation
+until `approval.respond.v1` is advertised. `scripts/test-protocol.js` and
+`PhoneDexSmokeTests.swift` cover valid, mismatched-version, invalid-expiry,
+and bounded native decoding paths. No approval is executed by this slice.
 
 ## M6: Remote Notifications and Background Sync
 
