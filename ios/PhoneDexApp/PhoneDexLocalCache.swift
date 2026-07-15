@@ -12,12 +12,18 @@ struct PhoneDexCachedState: Codable, Equatable {
     let tasks: [PhoneDexTask]
     let devices: [PhoneDexDevice]
     let lastSyncAt: Date?
+    let drafts: [String: String]
+
+    private enum CodingKeys: String, CodingKey {
+        case schema, version, cursor, tasks, devices, lastSyncAt, drafts
+    }
 
     init(
         cursor: String?,
         tasks: [PhoneDexTask],
         devices: [PhoneDexDevice],
         lastSyncAt: Date?,
+        drafts: [String: String] = [:],
         schema: String = PhoneDexCachedState.currentSchema,
         version: Int = PhoneDexCachedState.currentVersion
     ) {
@@ -27,6 +33,29 @@ struct PhoneDexCachedState: Codable, Equatable {
         self.tasks = tasks
         self.devices = devices
         self.lastSyncAt = lastSyncAt
+        self.drafts = drafts
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        schema = try container.decode(String.self, forKey: .schema)
+        version = try container.decode(Int.self, forKey: .version)
+        cursor = try container.decodeIfPresent(String.self, forKey: .cursor)
+        tasks = try container.decode([PhoneDexTask].self, forKey: .tasks)
+        devices = try container.decode([PhoneDexDevice].self, forKey: .devices)
+        lastSyncAt = try container.decodeIfPresent(Date.self, forKey: .lastSyncAt)
+        drafts = try container.decodeIfPresent([String: String].self, forKey: .drafts) ?? [:]
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(schema, forKey: .schema)
+        try container.encode(version, forKey: .version)
+        try container.encodeIfPresent(cursor, forKey: .cursor)
+        try container.encode(tasks, forKey: .tasks)
+        try container.encode(devices, forKey: .devices)
+        try container.encodeIfPresent(lastSyncAt, forKey: .lastSyncAt)
+        try container.encode(drafts, forKey: .drafts)
     }
 }
 

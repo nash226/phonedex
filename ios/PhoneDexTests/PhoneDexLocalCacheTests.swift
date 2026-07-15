@@ -14,7 +14,8 @@ final class PhoneDexLocalCacheTests: XCTestCase {
             cursor: "cursor.v1",
             tasks: [task(id: "task_123")],
             devices: [],
-            lastSyncAt: Date(timeIntervalSince1970: 1_750_000_000)
+            lastSyncAt: Date(timeIntervalSince1970: 1_750_000_000),
+            drafts: ["task_123": "Keep the next reply focused"]
         )
 
         try cache.save(state)
