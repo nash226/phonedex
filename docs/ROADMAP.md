@@ -100,7 +100,7 @@ device, and command control plane while retaining migration from current data.
 - [x] Separate device reachability, agent health, and Codex adapter health.
 - [x] Add capability negotiation and protocol compatibility errors.
 - [x] Add retention, redaction, export, and deletion controls.
-- [ ] Preserve a compatibility adapter for current `/tasks` and `/reply`
+- [x] Preserve a compatibility adapter for current `/tasks` and `/reply`
   clients during migration.
 
 Exit gate: restart, duplicate delivery, pagination, migration, and rollback
@@ -176,6 +176,18 @@ endpoints work for the shared Mac/Windows-compatible hub;
 `PHONEDEX_RETENTION_DAYS` can enforce a configured startup policy.
 `scripts/test-privacy.js` covers export redaction, retention, authentication,
 confirmation failures, history deletion, and device inventory preservation.
+
+Verification evidence for the completed compatibility-adapter slice:
+`bin/codex-watch.js` keeps legacy `/tasks`, `/devices`, `/replies`, and `/reply`
+routes backed by the transactional store and command receipts while retaining
+body-token and query-token authentication only for older clients. Legacy
+`tasks.jsonl` and `devices.json` files migrate on first access, legacy task
+ingestion preserves the caller's id as `originTaskId`, and legacy replies are
+mirrored into `replies.jsonl` with the versioned command/receipt records. The
+adapter survives a hub restart without losing the durable projection.
+`scripts/test-compatibility.js` covers migration, legacy task listing and
+ingestion, snapshot visibility, form-encoded reply delivery, reply listing,
+device listing, and restart persistence.
 
 ## M2: Secure Identity and Pairing
 
