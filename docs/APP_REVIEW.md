@@ -48,6 +48,12 @@ routing context; it is not a durable
 authentication credential. The app reloads its paired credential from device
 protected storage when an action is handled.
 
+The release target includes an iOS privacy manifest. It declares no tracking,
+no collected data types, and the UserDefaults API reason used for local
+settings and cache coordination. This is an implementation-based draft for
+the App Store privacy answers, not a substitute for release-owner or legal
+review of the final privacy policy and support contact.
+
 Commands are versioned, task-bound, idempotent, and capability-gated. Approval
 decisions require the configured device-owner authentication policy. Unsupported
 desktop actions are hidden or explained rather than simulated. App Review
@@ -82,6 +88,8 @@ submission.
 - [ ] Placeholder fields above are replaced only in the release copy.
 - [ ] Privacy answers match the implemented local storage, network, and
   notification behavior.
+- [x] The implementation-based privacy manifest and App Store answer draft are
+  checked against the current local-first behavior.
 - [ ] Review credentials and test data are isolated from real work.
 - [ ] A reviewer can complete the six test steps without undocumented APIs.
 - [ ] Known limitations and the support contact are visible to the reviewer.

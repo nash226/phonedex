@@ -11,6 +11,8 @@ targets:
     platform: iOS
     sources:
       - PhoneDexApp
+    resources:
+      - PhoneDexApp/PrivacyInfo.xcprivacy
     settings:
       base:
         DEVELOPMENT_TEAM: RQRRLJ37K2
