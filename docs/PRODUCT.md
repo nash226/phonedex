@@ -106,6 +106,9 @@ The repository already proves the core loop, but not the final product.
 - The app schedules a local notification and registers three reply actions.
 - A notification content extension renders a long, scrollable result.
 - Notification actions post canned or typed/dictated replies to the bridge.
+- Task detail shows the latest response, lifecycle summary, capture provenance,
+  repository/branch context when supplied, honest evidence availability, and a
+  keyboard-safe composer with encrypted draft restoration.
 - Configuration and preview actions can be invoked through a custom URL scheme.
 - The project targets iOS 17 and includes an iOS unit-test target.
 
@@ -117,13 +120,13 @@ The repository already proves the core loop, but not the final product.
   durable cursor, and distinguishes loading, stale, offline, revoked,
   incompatible, and partial refresh states; command outbox behavior remains
   future work.
-- The iOS app has no durable lifecycle model, live progress, approval UI,
-  artifact review, command queue, or offline outbox; its current task inbox,
-  search, and read-only device/workspace details remain bridge-contract
-  surfaces.
-- The shared token remains included in local notification metadata and can be
-  accepted in URLs by the current bridge; the iOS settings token is now stored
-  in device-only Keychain storage, with legacy `UserDefaults` migration.
+- The iOS app has no complete live-progress model, approval UI, artifact
+  viewer, command queue, or offline outbox; task detail only renders the
+  response and metadata currently exported by the bridge.
+- The shared token remains part of legacy setup and can be accepted in URLs by
+  the current bridge; notification payloads no longer contain it. The iOS
+  settings token is stored in device-only Keychain storage, with legacy
+  `UserDefaults` migration.
 - The app allows arbitrary network loads and supports plaintext HTTP.
 - Notification reply errors are discarded and cannot be retried or audited by
   the user.

@@ -385,25 +385,68 @@ struct PhoneDexSyncUnavailableView: View {
 struct PhoneDexTaskDetailView: View {
     let task: PhoneDexTask
     @ObservedObject var model: PhoneDexAppModel
-    @State private var draft = ""
+    @State private var draft: String
+    @State private var showNewActivity = false
+    @State private var draftSaveTask: Task<Void, Never>?
     @FocusState private var composerFocused: Bool
 
+    init(task: PhoneDexTask, model: PhoneDexAppModel) {
+        self.task = task
+        self.model = model
+        _draft = State(initialValue: model.draft(for: task.id))
+    }
+
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 18) {
-                taskHeader
-                Divider()
-                message
-                replyStatus
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 20) {
+                    taskHeader
+                    statusSummary
+                    transcript
+                    activity
+                    evidence
+                    replyStatus
+
+                    Color.clear
+                        .frame(height: 1)
+                        .id("task-detail-bottom")
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 24)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
-            .padding(.bottom, 24)
+            .background(Color(uiColor: .systemBackground))
+            .overlay(alignment: .bottom) {
+                if showNewActivity {
+                    Button {
+                        withAnimation(.default) {
+                            proxy.scrollTo("task-detail-bottom", anchor: .bottom)
+                        }
+                        showNewActivity = false
+                    } label: {
+                        Label("Show new activity", systemImage: "arrow.down")
+                            .font(.subheadline.weight(.semibold))
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 9)
+                            .background(.regularMaterial, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .shadow(radius: 5, y: 2)
+                    .padding(.bottom, 12)
+                    .accessibilityHint("Moves to the latest task activity")
+                }
+            }
+            .onChange(of: task.updatedAt) { _, _ in
+                showNewActivity = true
+            }
         }
-        .background(Color(uiColor: .systemBackground))
         .navigationTitle(task.displayWorkspace)
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) { composer }
+        .onDisappear {
+            draftSaveTask?.cancel()
+            model.updateDraft(draft, for: task.id)
+        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
@@ -426,10 +469,10 @@ struct PhoneDexTaskDetailView: View {
     private var taskHeader: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                Label("Completed", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
+                Label(task.displayStatus, systemImage: task.statusSymbol)
+                    .foregroundStyle(statusColor)
                 Spacer()
-                if let date = task.displayDate {
+                if let date = task.lastUpdatedDate {
                     Text(date, style: .relative)
                         .foregroundStyle(.secondary)
                 }
@@ -445,23 +488,153 @@ struct PhoneDexTaskDetailView: View {
             }
             .font(.caption)
             .foregroundStyle(.secondary)
+
+            if let branch = task.branch, !branch.isEmpty {
+                Label(branch, systemImage: "arrow.triangle.branch")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
         }
     }
 
-    private var message: some View {
+    private var statusSummary: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(statusSummaryTitle)
+                .font(.headline)
+            Text("Latest known state from " + task.displayMachine + ". Refresh PhoneDex before relying on a changing task.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(Color(uiColor: .secondarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+
+    private var transcript: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("Codex", systemImage: "sparkles")
+            Label("Transcript", systemImage: "text.bubble")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.blue)
 
-            Text(task.text)
-                .font(.body)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            if task.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text("No response text was exported for this task.")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(14)
+                    .background(Color(uiColor: .secondarySystemBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Codex", systemImage: "sparkles")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    Text(task.text)
+                        .font(.body)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
                 .padding(14)
                 .background(Color(uiColor: .secondarySystemBackground))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+
+            Text("The current bridge provides the latest response. Structured session messages appear when the originating agent exports them.")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
         }
+    }
+
+    private var activity: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Activity", systemImage: "timeline.selection")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.blue)
+
+            if task.activity.isEmpty {
+                Text("No timestamped activity was exported.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(task.activity) { item in
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: item.symbol)
+                                .foregroundStyle(.secondary)
+                                .frame(width: 20)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(item.title)
+                                    .font(.subheadline.weight(.medium))
+                                if let detail = item.detail {
+                                    Text(detail)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Text(item.date, style: .date)
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.vertical, 8)
+                        .accessibilityElement(children: .combine)
+                    }
+                }
+            }
+        }
+    }
+
+    private var evidence: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Evidence", systemImage: "checklist")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.blue)
+
+            if let repository = task.repository, !repository.isEmpty {
+                evidenceRow("Repository", repository, symbol: "shippingbox")
+            }
+            if let branch = task.branch, !branch.isEmpty {
+                evidenceRow("Branch", branch, symbol: "arrow.triangle.branch")
+            }
+            if task.repository == nil && task.branch == nil {
+                ContentUnavailableView {
+                    Label("No exported evidence", systemImage: "doc.text.magnifyingglass")
+                } description: {
+                    Text("Changed files, diffs, and validation results are not available from this agent yet.")
+                }
+                .frame(maxWidth: .infinity)
+            } else {
+                Text("Files, diffs, and validation results are shown only when the agent exports them.")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+    }
+
+    private func evidenceRow(_ title: String, _ value: String, symbol: String) -> some View {
+        Label {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(value)
+                    .font(.subheadline)
+                    .lineLimit(2)
+                    .textSelection(.enabled)
+            }
+        } icon: {
+            Image(systemName: symbol)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color(uiColor: .secondarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .accessibilityElement(children: .combine)
     }
 
     @ViewBuilder
@@ -501,6 +674,14 @@ struct PhoneDexTaskDetailView: View {
                     .focused($composerFocused)
                     .submitLabel(.send)
                     .onSubmit { sendDraft() }
+                    .onChange(of: draft) { _, newValue in
+                        draftSaveTask?.cancel()
+                        draftSaveTask = Task { @MainActor in
+                            try? await Task.sleep(for: .milliseconds(350))
+                            guard !Task.isCancelled else { return }
+                            model.updateDraft(newValue, for: task.id)
+                        }
+                    }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
                     .background(Color(uiColor: .secondarySystemBackground))
@@ -529,6 +710,7 @@ struct PhoneDexTaskDetailView: View {
         }
         .buttonStyle(.bordered)
         .disabled(model.replyState == .sending)
+        .accessibilityHint("Sends the exact suggested reply to this task")
     }
 
     private func sendDraft() {
@@ -538,6 +720,27 @@ struct PhoneDexTaskDetailView: View {
                 draft = ""
                 composerFocused = false
             }
+        }
+    }
+
+    private var statusSummaryTitle: String {
+        switch task.status {
+        case "needs_input": return "Codex is waiting for your answer"
+        case "awaiting_approval": return "This task is waiting for approval"
+        case "needs_review": return "This task is ready for review"
+        case "running": return "Codex is still working"
+        case "failed": return "Codex reported a failure"
+        case "cancelled": return "This task was cancelled"
+        case "completed": return "Codex reported completion"
+        default: return "Task state is not yet known"
+        }
+    }
+
+    private var statusColor: Color {
+        switch task.status {
+        case "completed": return .green
+        case "failed", "awaiting_approval", "needs_input", "needs_review": return .orange
+        default: return .blue
         }
     }
 }

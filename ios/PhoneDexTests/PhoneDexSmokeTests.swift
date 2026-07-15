@@ -50,6 +50,36 @@ final class PhoneDexSmokeTests: XCTestCase {
         XCTAssertEqual(Set(projects.map(\.machineName)), ["MacBook Pro", "Windows PC"])
     }
 
+    func testTaskActivityUsesLifecycleAndCaptureProvenance() throws {
+        let task = try JSONDecoder().decode(
+            PhoneDexTask.self,
+            from: Data(
+                """
+                {
+                  "id": "task_activity",
+                  "createdAt": "2026-07-15T12:00:00.000Z",
+                  "updatedAt": "2026-07-15T12:05:00.000Z",
+                  "version": 3,
+                  "source": "stop-hook",
+                  "title": "Review the bridge",
+                  "text": "The bridge is ready.",
+                  "machineName": "Windows PC",
+                  "status": "completed",
+                  "captureSources": [
+                    {"source": "stop-hook", "messageId": "message_1", "observedAt": "2026-07-15T12:04:00.000Z"}
+                  ]
+                }
+                """.utf8
+            )
+        )
+
+        XCTAssertEqual(task.version, 3)
+        XCTAssertEqual(task.displaySource, "Stop hook")
+        XCTAssertEqual(task.activity.count, 3)
+        XCTAssertEqual(task.activity[1].title, "Captured by Stop hook")
+        XCTAssertEqual(task.activity[1].detail, "Message message_1")
+    }
+
     private func decodeTask(id: String, cwd: String, machineName: String) throws -> PhoneDexTask {
         let payload: [String: Any] = [
             "id": id,

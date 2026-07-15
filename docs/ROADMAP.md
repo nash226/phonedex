@@ -231,6 +231,16 @@ cursor. `PhoneDexLocalCacheTests.swift` covers encryption, deletion, and
 tamper-fail-closed behavior; bridge client tests cover incremental changes and
 stale-cursor recovery.
 
+Verification evidence for the completed task-detail slice: `PhoneDexTask` now
+decodes lifecycle timestamps, task version, and capture provenance from the
+supported bridge contract. `PhoneDexTaskDetailView` presents the latest
+response as a readable transcript, a normalized activity timeline, machine /
+workspace / branch context, and an explicit empty state when the agent has not
+exported diffs or validation results. Its composer restores per-task drafts
+from the encrypted cache and offers a "Show new activity" affordance instead
+of moving the reader when refreshed task metadata changes. Full session-event,
+diff, and validation exports remain gated on later agent contracts.
+
 Verification evidence for the completed device/workspace details slice:
 `ios/PhoneDexApp/PhoneDexDeviceDetailView.swift` provides read-only device
 identity, heartbeat health, visible-work counts, copyable device identity, and
@@ -253,12 +263,13 @@ Outcome: replace the utility screen with a polished, offline-aware native app.
 - [x] Build Chats scopes for Needs You, Running, and Recent with search and
   filters.
 - [x] Add a durable encrypted local cache, cursor sync, and freshness state.
-- [ ] Build task detail with transcript, structured events, evidence, and a
-  keyboard-safe composer.
+- [x] Build current-contract task detail with the latest transcript, normalized
+  lifecycle/capture activity, evidence context, and a keyboard-safe composer.
 - [x] Add completion detail, quick replies, a dictation-ready composer, and
   visible reply success/failure state for the current bridge contract.
-- [ ] Preserve drafts and reading position; announce new activity without
-  jumping scroll position.
+- [x] Preserve composer drafts in the encrypted local cache and announce new
+  activity without jumping scroll position.
+- [ ] Preserve task reading position across relaunch.
 - [x] Build explicit loading, empty, stale, offline, revoked, incompatible, and
   partial-failure states.
 - [ ] Add reply delivery receipts, retry, stale-version handling, and encrypted
