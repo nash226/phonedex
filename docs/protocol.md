@@ -242,3 +242,30 @@ reconnection retries the exact command identity. Stale replies are removed
 from the outbox and shown as a review-needed failure rather than being
 silently applied to newer task context. Legacy hubs that return no receipt are
 treated as accepted only through the compatibility adapter.
+
+### Structured questions
+
+A task may include an optional bounded `question` object when its status is
+`needs_input`:
+
+```json
+{
+  "id": "deploy-target",
+  "prompt": "Where should the release go?",
+  "choices": [
+    { "id": "staging", "label": "Deploy to staging" },
+    { "id": "production", "label": "Deploy to production" }
+  ],
+  "allowsFreeText": true
+}
+```
+
+Question ids and choice ids are task-scoped. A response adds `questionId` and
+exactly one response to the normal reply command: either
+`{"kind":"choice","choiceId":"staging"}` or
+`{"kind":"text","text":"..."}`. The bridge rejects missing, stale, or
+unavailable choices before forwarding, and records the structured response in
+the durable command payload and receipt. Mac and Windows agents receive the
+same versioned envelope; the supported CLI/app-server adapter translates the
+selected answer into the originating task continuation without automating a
+private desktop UI.

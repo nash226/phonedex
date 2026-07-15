@@ -14,6 +14,7 @@ const {
   negotiateCapabilities,
   negotiateProtocolVersion,
   normalizeCaptureSources,
+  normalizeTaskQuestion,
   protocolRecord
 } = require("../lib/phonedex-protocol");
 const {
@@ -496,6 +497,8 @@ function mergeTaskCaptures(existing, incoming) {
       ...(Array.isArray(incoming.captureSources) ? incoming.captureSources : [])
     ])
   };
+
+  if (!merged.question && incoming.question) merged.question = incoming.question;
 
   for (const field of ["logicalEventId", "messageId", "sessionId", "cwd"]) {
     if (!merged[field] && incoming[field]) merged[field] = incoming[field];
@@ -1172,7 +1175,20 @@ async function handleTaskIngestRequest(req, res, requestUrl, cfg) {
   }
 
   const incoming = fields.task && typeof fields.task === "object" ? fields.task : fields;
-  const task = createIngestedTask(incoming, cfg, req);
+  let task;
+  try {
+    task = createIngestedTask(incoming, cfg, req);
+  } catch (error) {
+    if (Array.isArray(error.validationErrors)) {
+      return sendJson(res, 400, {
+        ok: false,
+        code: "invalid_task_question",
+        error: "The task question is invalid.",
+        details: error.validationErrors
+      });
+    }
+    throw error;
+  }
   const result = await recordTaskAndDispatch(cfg, task, {
     forward: false,
     notify: !cfg.agentMode
@@ -1750,6 +1766,15 @@ async function handleReplyRequest(req, res, requestUrl, cfg) {
     });
   }
 
+  const questionResponse = parseQuestionResponse(fields, task.question);
+  if (questionResponse.error) {
+    return sendJson(res, questionResponse.status, {
+      ok: false,
+      code: questionResponse.code,
+      error: questionResponse.error
+    });
+  }
+
   const idempotencyKeyValue = fields.idempotencyKey || fields.idempotency_key || "";
   if (idempotencyKeyValue && String(idempotencyKeyValue).length > 240) {
     return sendJson(res, 400, { ok: false, code: "invalid_idempotency_key", error: "The idempotency key is too long." });
@@ -1759,6 +1784,7 @@ async function handleReplyRequest(req, res, requestUrl, cfg) {
   const actor = String(fields.actor || fields.requestedBy || "iphone").slice(0, 160);
   const choice = normalizeChoice(fields.choice || "okay_whats_next");
   const prompt =
+    questionResponse.prompt ||
     fields.prompt ||
     fields.reply_text ||
     fields.replyText ||
@@ -1808,6 +1834,12 @@ async function handleReplyRequest(req, res, requestUrl, cfg) {
     prompt,
     action: fields.action || "",
     replyText: fields.reply_text || fields.replyText || "",
+    ...(questionResponse.value
+      ? {
+          questionId: questionResponse.value.questionId,
+          questionResponse: questionResponse.value.response
+        }
+      : {}),
     taskTitle: task?.title || "",
     sessionId: task?.sessionId || "",
     cwd: task?.cwd || "",
@@ -1847,6 +1879,124 @@ function parseExpectedTaskVersion(value) {
   return { value: parsed };
 }
 
+function parseQuestionResponse(fields, taskQuestion) {
+  const questionId = String(fields.questionId || fields.question_id || "").trim();
+  const rawResponse = fields.response || fields.questionResponse || fields.question_response;
+  const hasQuestionFields = Boolean(
+    questionId || rawResponse || fields.choiceId || fields.choice_id || fields.responseText || fields.response_text
+  );
+
+  if (!taskQuestion) {
+    return hasQuestionFields
+      ? {
+          status: 400,
+          code: "question_not_available",
+          error: "This task does not have a structured question to answer."
+        }
+      : { value: null, prompt: "" };
+  }
+  if (!questionId) {
+    return {
+      status: 400,
+      code: "question_required",
+      error: "questionId is required when answering a structured question."
+    };
+  }
+  if (questionId !== taskQuestion.id) {
+    return {
+      status: 409,
+      code: "question_stale",
+      error: "This question changed before the response arrived. Refresh PhoneDex and review the latest context."
+    };
+  }
+
+  let response = rawResponse;
+  if (typeof response === "string") {
+    try {
+      response = JSON.parse(response);
+    } catch {
+      response = null;
+    }
+  }
+  if (!response || typeof response !== "object" || Array.isArray(response)) {
+    const choiceId = fields.choiceId || fields.choice_id;
+    const text = fields.responseText || fields.response_text;
+    response = choiceId ? { kind: "choice", choiceId } : text ? { kind: "text", text } : null;
+  }
+  if (!response || typeof response !== "object" || Array.isArray(response)) {
+    return {
+      status: 400,
+      code: "question_response_required",
+      error: "Choose an answer or provide a text response."
+    };
+  }
+
+  const kind = String(response.kind || "").trim();
+  const choiceId = String(response.choiceId || response.choice_id || "").trim();
+  const text = String(response.text || response.responseText || "").trim();
+  if (!["choice", "text"].includes(kind)) {
+    return {
+      status: 400,
+      code: "question_response_invalid",
+      error: "A structured response must declare kind 'choice' or 'text'."
+    };
+  }
+  if ((kind === "choice" && !choiceId) || (kind === "text" && !text)) {
+    return {
+      status: 400,
+      code: "question_response_required",
+      error: kind === "choice" ? "Choose one of the available options." : "Provide a non-empty text response."
+    };
+  }
+  if ((kind === "choice" && text) || (kind === "text" && choiceId)) {
+    return {
+      status: 400,
+      code: "question_response_ambiguous",
+      error: "A structured response must match its declared kind."
+    };
+  }
+  if (choiceId && text) {
+    return {
+      status: 400,
+      code: "question_response_ambiguous",
+      error: "A structured response must contain either a choice or text, not both."
+    };
+  }
+  if (choiceId) {
+    const choice = taskQuestion.choices.find((candidate) => candidate.id === choiceId);
+    if (!choice) {
+      return {
+        status: 422,
+        code: "question_choice_invalid",
+        error: "That choice is not available for this question."
+      };
+    }
+    return {
+      value: {
+        questionId,
+        response: { kind: "choice", choiceId }
+      },
+      prompt: choice.label
+    };
+  }
+  if (text && taskQuestion.allowsFreeText) {
+    return {
+      value: {
+        questionId,
+        response: { kind: "text", text: text.slice(0, 10000) }
+      },
+      prompt: text.slice(0, 10000)
+    };
+  }
+  return {
+    status: 422,
+    code: "question_text_unavailable",
+    error: taskQuestion.allowsFreeText
+      ? "Provide a non-empty text response."
+      : "This question only accepts one of its listed choices."
+  };
+}
+
 function findReplyByIdempotencyKey(dataDir, idempotencyKey) {
   const reply = readJsonl(dataDir, "replies.jsonl")
     .slice()
@@ -1875,7 +2025,10 @@ function createReplyCommand(reply, actor, state) {
     payload: {
       choice: reply.choice,
       prompt: reply.prompt,
-      replyText: reply.replyText || ""
+      replyText: reply.replyText || "",
+      ...(reply.questionId
+        ? { questionId: reply.questionId, response: reply.questionResponse }
+        : {})
     },
     requestedBy: actor,
     actor,
@@ -1941,6 +2094,9 @@ async function maybeForwardReplyToOrigin(cfg, task, reply) {
         choice: reply.choice,
         prompt: reply.prompt,
         reply_text: reply.replyText || "",
+        ...(reply.questionId
+          ? { questionId: reply.questionId, response: reply.questionResponse }
+          : {}),
         machineName: task.machineName || ""
       })
     });
@@ -2494,7 +2650,8 @@ function createTask(fields) {
     sessionId: fields.sessionId || "",
     messageId: fields.messageId || "",
     hookPayload: fields.hookPayload,
-    rawHookInputBytes: fields.rawHookInputBytes
+    rawHookInputBytes: fields.rawHookInputBytes,
+    ...(fields.question ? { question: normalizeTaskQuestion(fields.question) } : {})
   });
 }
 
@@ -2514,6 +2671,9 @@ function createIngestedTask(fields, cfg, req) {
     source: fields.source ? `remote-${fields.source}` : "remote-agent",
     title: fields.title || "Codex done",
     text: normalizeNotificationText(fields.text || fields.body || fields.message || "Task completed"),
+    status: fields.status,
+    version: fields.version,
+    updatedAt: fields.updatedAt,
     cwd: fields.cwd || "",
     machineName,
     deviceId,
@@ -2525,6 +2685,7 @@ function createIngestedTask(fields, cfg, req) {
     originReplyUrl: fields.replyUrl || fields.reply_url || "",
     originPublicUrl: fields.publicUrl || fields.public_url || "",
     originToken: fields.replyToken || fields.reply_token || "",
+    ...(fields.question ? { question: normalizeTaskQuestion(fields.question) } : {}),
     receivedAt: new Date().toISOString(),
     receivedFrom: req.socket.remoteAddress || "",
     hookPayload: fields.hookPayload,
@@ -2951,10 +3112,14 @@ function publicSyncTask(task) {
 }
 
 function redactPublicStrings(value) {
+  if (Array.isArray(value)) return value.map(redactPublicStrings);
+  if (!value || typeof value !== "object") {
+    return typeof value === "string" ? redactSensitiveText(value) : value;
+  }
   return Object.fromEntries(
     Object.entries(value).map(([key, childValue]) => [
       key,
-      typeof childValue === "string" ? redactSensitiveText(childValue) : childValue
+      redactPublicStrings(childValue)
     ])
   );
 }

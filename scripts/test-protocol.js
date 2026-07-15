@@ -24,12 +24,34 @@ const task = addTaskProtocolFields({
   text: "The simulator test passed.",
   machineName: "MacBook Air",
   deviceId: "macbook-air",
-  status: "completed",
-  sessionId: "session_fixture"
+  status: "needs_input",
+  sessionId: "session_fixture",
+  question: {
+    id: "next-step",
+    prompt: "What should happen next?",
+    choices: [{ id: "tests", label: "Run the focused tests" }],
+    allowsFreeText: true
+  }
 });
 assert.equal(validateProtocolRecord("task", task).valid, true);
 assert.equal(task.schema, SCHEMAS.task);
 assert.equal(task.origin.deviceId, "macbook-air");
+assert.equal(task.question.choices[0].id, "tests");
+
+assert.throws(
+  () => addTaskProtocolFields({
+    id: "task_invalid_question",
+    at: now,
+    title: "Invalid question",
+    question: {
+      id: "invalid",
+      prompt: "Choose",
+      choices: [{ id: "same", label: "One" }, { id: "same", label: "Two" }],
+      allowsFreeText: false
+    }
+  }),
+  /Invalid task question/
+);
 
 const capturedTask = addTaskProtocolFields({
   id: "task_capture",

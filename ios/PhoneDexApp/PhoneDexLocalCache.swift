@@ -79,6 +79,69 @@ struct PhoneDexPendingReply: Codable, Equatable, Identifiable {
     let sessionId: String?
     let machineName: String?
     let createdAt: Date
+    let questionId: String?
+    let questionResponse: PhoneDexQuestionResponse?
+
+    private enum CodingKeys: String, CodingKey {
+        case commandId, idempotencyKey, taskId, choice, prompt, expectedTaskVersion
+        case sessionId, machineName, createdAt, questionId, questionResponse
+    }
+
+    init(
+        commandId: String,
+        idempotencyKey: String,
+        taskId: String,
+        choice: String,
+        prompt: String,
+        expectedTaskVersion: Int,
+        sessionId: String?,
+        machineName: String?,
+        createdAt: Date,
+        questionId: String? = nil,
+        questionResponse: PhoneDexQuestionResponse? = nil
+    ) {
+        self.commandId = commandId
+        self.idempotencyKey = idempotencyKey
+        self.taskId = taskId
+        self.choice = choice
+        self.prompt = prompt
+        self.expectedTaskVersion = expectedTaskVersion
+        self.sessionId = sessionId
+        self.machineName = machineName
+        self.createdAt = createdAt
+        self.questionId = questionId
+        self.questionResponse = questionResponse
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        commandId = try container.decode(String.self, forKey: .commandId)
+        idempotencyKey = try container.decode(String.self, forKey: .idempotencyKey)
+        taskId = try container.decode(String.self, forKey: .taskId)
+        choice = try container.decode(String.self, forKey: .choice)
+        prompt = try container.decode(String.self, forKey: .prompt)
+        expectedTaskVersion = try container.decode(Int.self, forKey: .expectedTaskVersion)
+        sessionId = try container.decodeIfPresent(String.self, forKey: .sessionId)
+        machineName = try container.decodeIfPresent(String.self, forKey: .machineName)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        questionId = try container.decodeIfPresent(String.self, forKey: .questionId)
+        questionResponse = try container.decodeIfPresent(PhoneDexQuestionResponse.self, forKey: .questionResponse)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(commandId, forKey: .commandId)
+        try container.encode(idempotencyKey, forKey: .idempotencyKey)
+        try container.encode(taskId, forKey: .taskId)
+        try container.encode(choice, forKey: .choice)
+        try container.encode(prompt, forKey: .prompt)
+        try container.encode(expectedTaskVersion, forKey: .expectedTaskVersion)
+        try container.encodeIfPresent(sessionId, forKey: .sessionId)
+        try container.encodeIfPresent(machineName, forKey: .machineName)
+        try container.encode(createdAt, forKey: .createdAt)
+        try container.encodeIfPresent(questionId, forKey: .questionId)
+        try container.encodeIfPresent(questionResponse, forKey: .questionResponse)
+    }
 
     var id: String { idempotencyKey }
 }

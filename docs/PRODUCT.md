@@ -111,6 +111,8 @@ The repository already proves the core loop, but not the final product.
   repository/branch context when supplied, honest evidence availability, and a
   keyboard-safe composer with encrypted draft and logical reading-position
   restoration.
+- Structured `needs_input` tasks can show bounded choices and an optional free-
+  text answer field; answers preserve question identity through delivery.
 - Configuration and preview actions can be invoked through a custom URL scheme.
 - The project targets iOS 17 and includes unit and UI test targets for the
   native shell.
@@ -158,10 +160,10 @@ supported command path on the originating machine.
 | --- | --- | --- |
 | Find recent work | Unified, searchable tasks grouped by workspace and machine | **Target.** Extend the hub protocol and durable store. |
 | Read a completed response | Rich, readable transcript with machine and workspace context | **Current, partial.** Completion text exists; full transcript sync does not. |
-| Reply to a task | Send text or a constrained quick action with delivery state | **Current, partial.** Reply receipts, retries, and task-version conflict checks exist; structured agent commands remain partial. |
+| Reply to a task | Send text or a constrained quick action with delivery state | **Current, partial.** Reply receipts, retries, task-version conflict checks, and structured question responses exist; broader agent commands remain partial. |
 | See live progress | Running state, concise activity, and latest meaningful event | **Target.** Requires structured agent events; iOS cannot infer this from desktop UI. |
 | Start a task | Choose a machine/workspace, enter a prompt, and create a tracked run | **Target.** Requires a versioned agent command API and supported Codex adapter. |
-| Answer a question | Render explicit choices or text input and resume the same task | **Target.** Requires structured `needs_input` events and continuation support. |
+| Answer a question | Render explicit choices or text input and resume the same task | **Current, partial.** Bounded task questions and reply envelopes exist; richer event streams and adapter-native continuation remain future work. |
 | Review an approval | Show exact operation, scope, risk, and origin before approve/reject | **Target.** Only available when the adapter exposes a valid, expiring approval. |
 | Review changes | Mobile diff summary, file list, patch detail, and validation results | **Target.** Requires structured artifact and diff export from the agent. |
 | Cancel, retry, or queue | Issue idempotent lifecycle commands with visible receipts | **Target.** Requires adapter capability negotiation. |
