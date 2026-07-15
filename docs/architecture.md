@@ -267,7 +267,10 @@ Authenticated `GET /privacy` and `GET /privacy/export` expose bounded policy
 and redacted user data. `POST /privacy/retention` requires
 `APPLY_PHONEDEX_RETENTION`; `POST /privacy/delete` requires
 `DELETE_PHONEDEX_HISTORY`. Both controls are hub-owned and platform-neutral,
-and deletion retains device inventory for recovery diagnostics.
+and deletion retains device inventory for recovery diagnostics. Paired bearer
+identities need `privacy.read` for inspection and `privacy.manage` for changes;
+an explicitly granted `admin` scope satisfies both. The legacy shared token
+continues to act as the local hub-owner credential during migration.
 Secrets live in `.env`, which is ignored by git.
 
 ## Multi-Machine Plan
