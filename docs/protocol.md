@@ -48,6 +48,20 @@ legacy string flags in `capabilities` and add validated `capabilityDetails`
 records so older agents remain readable while iPhone can render only actions
 the agent has declared.
 
+### Supported Codex adapter boundary
+
+Each Mac or Windows PhoneDex agent reports a content-free
+`phonedex.adapter.v1` descriptor in `/health` and in its device heartbeat. The
+descriptor identifies the selected supported continuation mode (`cli` or
+`app-server`, with macOS-only foreground paste explicitly experimental), its
+ready/unavailable state, versioned capability records, and bounded limitations.
+It never reports private Codex Desktop UI state, credentials, executable paths,
+or unsupported lifecycle controls. An unavailable or unsupported adapter marks
+`task.reply.v1` unavailable so the iPhone can explain why a continuation
+cannot be sent instead of presenting a false control. Mac and Windows share
+the same adapter contract; platform-specific behavior is selected by the
+adapter, not inferred by the iPhone.
+
 ### Completion capture convergence
 
 Task records may include `messageId`, `logicalEventId`, and `captureSources`.

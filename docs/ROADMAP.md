@@ -354,7 +354,7 @@ Status: **Queued**
 Outcome: make remote controls truthful, versioned, idempotent, and portable
 across Mac and Windows.
 
-- [ ] Define the adapter boundary and capability test suite.
+- [x] Define the adapter boundary and capability test suite.
 - [ ] Implement structured task reply and question-response commands.
 - [ ] Implement task create, cancel, and retry where supported.
 - [ ] Export live lifecycle events without parsing desktop UI.
@@ -368,6 +368,16 @@ across Mac and Windows.
 
 Exit gate: acceptance scenarios 3, 4, 5, 9, and 10 pass on one Mac and one
 Windows machine, including sleep, reconnect, update, and revoke.
+
+Verification evidence for the completed adapter-boundary slice:
+`lib/phonedex-adapter.js` defines the `phonedex.adapter.v1` descriptor and a
+shared Mac/Windows capability matrix for CLI, app-server, and explicitly
+experimental macOS foreground modes. The bridge includes the descriptor in
+`/health`, reports its bounded state and limitations in device heartbeats, and
+does not queue auto-resume when the selected adapter cannot support
+`task.reply.v1`. `scripts/test-adapter.js` covers supported Mac and Windows
+continuation modes, unavailable Windows foreground handoff, unknown platforms,
+unsupported lifecycle controls, and descriptor validation.
 
 ## M5: Approvals and High-Risk Actions
 
