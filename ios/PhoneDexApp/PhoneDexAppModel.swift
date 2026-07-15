@@ -52,9 +52,7 @@ final class PhoneDexAppModel: ObservableObject {
 
         connectionState = .syncing
         do {
-            async let taskRequest = client.fetchTasks()
-            async let deviceRequest = client.fetchDevices()
-            let (fetchedTasks, fetchedDevices) = try await (taskRequest, deviceRequest)
+            let (fetchedTasks, fetchedDevices) = try await client.fetchSync()
             tasks = PhoneDexTask.latestPerConversation(fetchedTasks).sorted { lhs, rhs in
                 (lhs.displayDate ?? .distantPast) > (rhs.displayDate ?? .distantPast)
             }

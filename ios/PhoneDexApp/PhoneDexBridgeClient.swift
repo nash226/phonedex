@@ -28,6 +28,66 @@ struct PhoneDexBridgeClient {
         return try JSONDecoder().decode([PhoneDexDevice].self, from: data)
     }
 
+    func fetchSyncPage(cursor: String? = nil, limit: Int = 50) async throws -> PhoneDexSyncPage {
+        var components = URLComponents(
+            url: bridgeURL.appending(path: "sync"),
+            resolvingAgainstBaseURL: false
+        )
+        var queryItems = [URLQueryItem(name: "limit", value: String(limit))]
+        if let cursor, !cursor.isEmpty {
+            queryItems.append(URLQueryItem(name: "cursor", value: cursor))
+        }
+        components?.queryItems = queryItems
+        guard let url = components?.url else {
+            throw PhoneDexBridgeClientError.invalidURL
+        }
+
+        let request = authorizedRequest(url: url)
+        let (data, response) = try await session.data(for: request)
+        try validate(response: response, data: data)
+        return try JSONDecoder().decode(PhoneDexSyncPage.self, from: data)
+    }
+
+    func fetchSync(limit: Int = 50) async throws -> (tasks: [PhoneDexTask], devices: [PhoneDexDevice]) {
+        var cursor: String?
+        var tasksByID = [PhoneDexTask.ID: PhoneDexTask]()
+        var devicesByID = [PhoneDexDevice.ID: PhoneDexDevice]()
+
+        repeat {
+            let page = try await fetchSyncPage(cursor: cursor, limit: limit)
+            if let snapshot = page.snapshot {
+                for task in snapshot.tasks { tasksByID[task.id] = task }
+                for device in snapshot.devices { devicesByID[device.id] = device }
+            }
+            for change in page.changes {
+                switch change.kind {
+                case "task":
+                    if change.deleted {
+                        if let task = change.task { tasksByID.removeValue(forKey: task.id) }
+                        else { tasksByID.removeValue(forKey: change.id) }
+                    } else if let task = change.task {
+                        tasksByID[task.id] = task
+                    }
+                case "device":
+                    if change.deleted {
+                        if let device = change.device { devicesByID.removeValue(forKey: device.id) }
+                        else { devicesByID.removeValue(forKey: change.id) }
+                    } else if let device = change.device {
+                        devicesByID[device.id] = device
+                    }
+                default:
+                    continue
+                }
+            }
+            cursor = page.hasMore ? page.cursor : nil
+        } while cursor != nil
+
+        return (
+            tasks: Array(tasksByID.values),
+            devices: Array(devicesByID.values)
+        )
+    }
+
     func sendReply(
         choice: PhoneDexReplyChoice,
         prompt: String,
