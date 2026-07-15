@@ -558,7 +558,7 @@ Outcome: safely handle consequential Codex decisions from iPhone.
 - [x] Add explicit approve/reject controls with stale-state rejection.
 - [x] Add configurable Face ID or passcode confirmation for high-risk actions.
 - [x] Audit every decision without storing unnecessary sensitive content.
-- [ ] Add adversarial replay, expiry, compromised-device, and partial-failure
+- [x] Add adversarial replay, expiry, compromised-device, and partial-failure
   tests.
 
 Exit gate: acceptance scenarios 7 and 8 pass and an external security review
@@ -583,6 +583,14 @@ requires a matching origin receipt before persisting the approved or rejected
 projection. `scripts/test-approvals.js` covers forwarding, receipt validation,
 idempotent replay, stale-version rejection, expiry rejection, and unsupported
 capability behavior. No private Codex Desktop API or UI automation is required.
+
+Verification evidence for the completed approval-adversarial slice:
+`bin/codex-watch.js` requires the explicit `tasks.approve` scope for approval
+commands while retaining `tasks.reply` for ordinary replies. The focused
+`scripts/test-approval-adversarial.js` fixture proves least-privilege denial
+for a reply-only or revoked phone, idempotent and mutated replay rejection,
+expiry rejection, and origin outage or mismatched-receipt failures without
+projecting an unacknowledged decision into task state.
 
 Verification evidence for the completed approval-audit slice:
 `bin/codex-watch.js` writes a content-free `approval.decision` security audit
