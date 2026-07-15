@@ -156,6 +156,24 @@ response. URLs and local paths are optional metadata and must be filtered
 according to the retention and privacy policy before leaving the user's
 devices.
 
+### Approval requests and receipts
+
+An `awaiting_approval` task may include one bounded `approvalRequest` with an
+opaque `id`, the exact task `taskVersion`, public `operation` and `scope`,
+structured origin (`deviceId`, `machineName`, and optional `workspaceName`),
+the agent-provided `reason` and `risk`, plus `requestedAt`, `expiresAt`, and a
+state of `pending`, `approved`, `rejected`, `expired`, or `stale`. The request
+is invalid when its expiry is not after its request time or its task version
+does not match the containing task. Origins intentionally exclude local paths,
+credentials, and private desktop UI details.
+
+An `approve` or `reject` `phonedex.command.v1` payload must include the
+`approvalId` and the expected `taskVersion`. A corresponding
+`phonedex.command-receipt.v1` may include the approval id, resulting approval
+state, and declared expiry. This slice defines validation and read-only review;
+an agent must advertise `approval.respond.v1` and return a receipt before
+PhoneDex exposes an approve or reject control.
+
 `phonedex.event.v1` records are append-only lifecycle observations. The
 `sequence` is ordered within a task, `type` is a bounded lifecycle name such
 as `task_started`, `progress`, `needs_input`, `approval_requested`,
