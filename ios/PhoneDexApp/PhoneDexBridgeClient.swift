@@ -1,5 +1,21 @@
 import Foundation
 
+struct PhoneDexSyncResult {
+    let tasks: [PhoneDexTask]?
+    let devices: [PhoneDexDevice]?
+    let usedCompatibilityFallback: Bool
+    let fallbackMessage: String?
+
+    var isComplete: Bool {
+        tasks != nil && devices != nil
+    }
+
+    var availableDataSet: PhoneDexAppModel.DataSet {
+        if tasks != nil { return .tasks }
+        return .devices
+    }
+}
+
 struct PhoneDexBridgeClient {
     var bridgeURL: URL
     var token: String
@@ -88,6 +104,32 @@ struct PhoneDexBridgeClient {
         )
     }
 
+    func fetchResilientSync(limit: Int = 50) async throws -> PhoneDexSyncResult {
+        do {
+            let result = try await fetchSync(limit: limit)
+            return PhoneDexSyncResult(
+                tasks: result.tasks,
+                devices: result.devices,
+                usedCompatibilityFallback: false,
+                fallbackMessage: nil
+            )
+        } catch let syncError {
+            guard syncError.isCompatibilityFailure else { throw syncError }
+
+            async let legacyTasks = fetchTasksIfAvailable()
+            async let legacyDevices = fetchDevicesIfAvailable()
+            let (tasks, devices) = await (legacyTasks, legacyDevices)
+            guard tasks != nil || devices != nil else { throw syncError }
+
+            return PhoneDexSyncResult(
+                tasks: tasks,
+                devices: devices,
+                usedCompatibilityFallback: true,
+                fallbackMessage: "This hub does not expose durable sync yet. Compatible data is shown."
+            )
+        }
+    }
+
     func sendReply(
         choice: PhoneDexReplyChoice,
         prompt: String,
@@ -125,6 +167,14 @@ struct PhoneDexBridgeClient {
         return request
     }
 
+    private func fetchTasksIfAvailable() async -> [PhoneDexTask]? {
+        try? await fetchTasks()
+    }
+
+    private func fetchDevicesIfAvailable() async -> [PhoneDexDevice]? {
+        try? await fetchDevices()
+    }
+
     private func validate(response: URLResponse, data: Data) throws {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw PhoneDexBridgeClientError.invalidResponse
@@ -142,6 +192,16 @@ enum PhoneDexBridgeClientError: LocalizedError {
     case invalidResponse
     case httpStatus(Int, String)
 
+    var isCompatibilityFailure: Bool {
+        guard case .httpStatus(let status, _) = self else { return false }
+        return status == 404 || status == 405
+    }
+
+    var isRevoked: Bool {
+        guard case .httpStatus(let status, _) = self else { return false }
+        return status == 401 || status == 403
+    }
+
     var errorDescription: String? {
         switch self {
         case .invalidURL:
@@ -151,5 +211,27 @@ enum PhoneDexBridgeClientError: LocalizedError {
         case .httpStatus(let status, _):
             return "Bridge returned HTTP \(status)."
         }
+    }
+}
+
+extension Error {
+    var isRevoked: Bool {
+        (self as? PhoneDexBridgeClientError)?.isRevoked ?? false
+    }
+
+    var isCompatibilityFailure: Bool {
+        (self as? PhoneDexBridgeClientError)?.isCompatibilityFailure ?? false
+    }
+
+    var isOffline: Bool {
+        guard let urlError = self as? URLError else { return false }
+        return [
+            .cannotConnectToHost,
+            .cannotFindHost,
+            .dataNotAllowed,
+            .networkConnectionLost,
+            .notConnectedToInternet,
+            .timedOut
+        ].contains(urlError.code)
     }
 }

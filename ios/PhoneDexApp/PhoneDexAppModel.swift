@@ -2,11 +2,42 @@ import Foundation
 
 @MainActor
 final class PhoneDexAppModel: ObservableObject {
+    enum DataSet: Equatable {
+        case tasks
+        case devices
+
+        var title: String {
+            switch self {
+            case .tasks: return "conversations"
+            case .devices: return "devices"
+            }
+        }
+    }
+
     enum ConnectionState: Equatable {
         case idle
         case syncing
         case online(Date)
-        case failed(String)
+        case stale(Date)
+        case offline(Date?)
+        case revoked
+        case incompatible(message: String, lastSync: Date?)
+        case partial(DataSet, message: String, lastSync: Date?)
+        case failed(String, lastSync: Date?)
+
+        var isInitialLoading: Bool {
+            if case .syncing = self { return true }
+            return false
+        }
+
+        var blocksEmptyContent: Bool {
+            switch self {
+            case .syncing, .stale, .offline, .revoked, .incompatible, .partial, .failed:
+                return true
+            case .idle, .online:
+                return false
+            }
+        }
     }
 
     enum ReplyState: Equatable {
@@ -21,6 +52,9 @@ final class PhoneDexAppModel: ObservableObject {
     @Published var selectedTaskID: PhoneDexTask.ID?
     @Published var connectionState: ConnectionState = .idle
     @Published var replyState: ReplyState = .idle
+    @Published private(set) var lastSuccessfulSync: Date?
+
+    static let staleAfter: TimeInterval = 5 * 60
 
     let settings: PhoneDexSettings
 
@@ -46,26 +80,64 @@ final class PhoneDexAppModel: ObservableObject {
 
     func refresh() async {
         guard let client = bridgeClient else {
-            connectionState = .failed("Add a valid bridge URL in Settings.")
+            connectionState = .failed("Add a valid bridge URL in Settings.", lastSync: lastSuccessfulSync)
             return
         }
 
         connectionState = .syncing
         do {
-            let (fetchedTasks, fetchedDevices) = try await client.fetchSync()
-            tasks = PhoneDexTask.latestPerConversation(fetchedTasks).sorted { lhs, rhs in
-                (lhs.displayDate ?? .distantPast) > (rhs.displayDate ?? .distantPast)
+            let result = try await client.fetchResilientSync()
+            if let fetchedTasks = result.tasks {
+                tasks = PhoneDexTask.latestPerConversation(fetchedTasks).sorted { lhs, rhs in
+                    (lhs.displayDate ?? .distantPast) > (rhs.displayDate ?? .distantPast)
+                }
             }
-            devices = fetchedDevices.sorted { lhs, rhs in
-                if lhs.isOnline != rhs.isOnline { return lhs.isOnline }
-                return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
+            if let fetchedDevices = result.devices {
+                devices = fetchedDevices.sorted { lhs, rhs in
+                    if lhs.isOnline != rhs.isOnline { return lhs.isOnline }
+                    return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
+                }
             }
             if selectedTaskID == nil || !tasks.contains(where: { $0.id == selectedTaskID }) {
                 selectedTaskID = tasks.first?.id
             }
-            connectionState = .online(Date())
-        } catch {
-            connectionState = .failed(error.localizedDescription)
+
+            let now = Date()
+            if result.isComplete {
+                lastSuccessfulSync = now
+                if result.usedCompatibilityFallback {
+                    connectionState = .incompatible(
+                        message: result.fallbackMessage ?? "This hub is using a compatibility connection.",
+                        lastSync: now
+                    )
+                } else {
+                    connectionState = .online(now)
+                }
+            } else {
+                connectionState = .partial(
+                    result.availableDataSet,
+                    message: result.fallbackMessage ?? "Some PhoneDex data could not be refreshed.",
+                    lastSync: lastSuccessfulSync
+                )
+            }
+        } catch let error {
+            if error.isRevoked {
+                connectionState = .revoked
+            } else if error.isOffline {
+                if let lastSuccessfulSync,
+                   Date().timeIntervalSince(lastSuccessfulSync) >= Self.staleAfter {
+                    connectionState = .stale(lastSuccessfulSync)
+                } else {
+                    connectionState = .offline(lastSuccessfulSync)
+                }
+            } else if error.isCompatibilityFailure {
+                connectionState = .incompatible(
+                    message: "This hub does not support the sync contract required for a fresh connection.",
+                    lastSync: lastSuccessfulSync
+                )
+            } else {
+                connectionState = .failed(error.localizedDescription, lastSync: lastSuccessfulSync)
+            }
         }
     }
 
@@ -73,6 +145,10 @@ final class PhoneDexAppModel: ObservableObject {
         let text = (prompt ?? choice.prompt).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else {
             replyState = .failed("Write or dictate a reply first.")
+            return false
+        }
+        if case .revoked = connectionState {
+            replyState = .failed("Hub access has been revoked. Re-pair before sending replies.")
             return false
         }
         guard let client = bridgeClient else {
