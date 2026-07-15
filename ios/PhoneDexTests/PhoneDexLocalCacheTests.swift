@@ -10,6 +10,19 @@ final class PhoneDexLocalCacheTests: XCTestCase {
         let cache = PhoneDexEncryptedCache(fileURL: fileURL, keyStore: keyStore)
         defer { try? FileManager.default.removeItem(at: root) }
 
+        let pendingReply = PhoneDexPendingReply(
+            commandId: "command_123",
+            idempotencyKey: "reply_123",
+            taskId: "task_123",
+            choice: "custom",
+            prompt: "Keep going",
+            expectedTaskVersion: 3,
+            sessionId: "thread_123",
+            machineName: "Studio Mac",
+            createdAt: Date(timeIntervalSince1970: 1_750_000_001),
+            questionId: "next-step",
+            questionResponse: .choice("tests")
+        )
         let state = PhoneDexCachedState(
             cursor: "cursor.v1",
             tasks: [task(id: "task_123")],
@@ -18,18 +31,25 @@ final class PhoneDexLocalCacheTests: XCTestCase {
             lastSyncAt: Date(timeIntervalSince1970: 1_750_000_000),
             drafts: ["task_123": "Keep the next reply focused"],
             readingPositions: ["task_123": "activity"],
-            pendingReplies: [PhoneDexPendingReply(
-                commandId: "command_123",
-                idempotencyKey: "reply_123",
-                taskId: "task_123",
-                choice: "custom",
-                prompt: "Keep going",
-                expectedTaskVersion: 3,
-                sessionId: "thread_123",
-                machineName: "Studio Mac",
-                createdAt: Date(timeIntervalSince1970: 1_750_000_001),
-                questionId: "next-step",
-                questionResponse: .choice("tests")
+            pendingReplies: [pendingReply],
+            replyReceipts: [PhoneDexReplyDeliveryRecord(
+                receipt: PhoneDexReplyReceipt(
+                    schema: "phonedex.command-receipt.v1",
+                    protocolVersion: 1,
+                    commandId: "command_123",
+                    createdAt: "2026-07-15T12:00:02.000Z",
+                    state: "completed",
+                    taskId: "task_123",
+                    taskVersion: 4,
+                    idempotencyKey: "reply_123",
+                    message: "Delivered to Studio Mac",
+                    duplicateOf: nil,
+                    approvalId: nil,
+                    approvalState: nil,
+                    approvalExpiresAt: nil
+                ),
+                pending: pendingReply,
+                recordedAt: Date(timeIntervalSince1970: 1_750_000_002)
             )]
         )
 
@@ -39,6 +59,8 @@ final class PhoneDexLocalCacheTests: XCTestCase {
         XCTAssertEqual(try cache.load(), state)
         XCTAssertEqual(try cache.load()?.pendingReplies.first?.questionId, "next-step")
         XCTAssertEqual(try cache.load()?.pendingReplies.first?.questionResponse, .choice("tests"))
+        XCTAssertEqual(try cache.load()?.replyReceipts.first?.displayState, "Delivered to agent")
+        XCTAssertEqual(try cache.load()?.replyReceipts.first?.message, "Delivered to Studio Mac")
         XCTAssertEqual(try cache.load()?.events.first?.type, "progress")
         XCTAssertEqual(keyStore.key?.count, 32)
 
@@ -64,6 +86,7 @@ final class PhoneDexLocalCacheTests: XCTestCase {
 
         XCTAssertEqual(decoded.drafts["task_legacy"], "Draft")
         XCTAssertTrue(decoded.readingPositions.isEmpty)
+        XCTAssertTrue(decoded.replyReceipts.isEmpty)
     }
 
     func testTamperedCacheFailsClosedWithoutReturningPartialState() throws {

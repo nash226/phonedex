@@ -363,7 +363,10 @@ failure-then-retry, duplicate receipt handling, and no-double-forward behavior.
 `PhoneDexBridgeClient` sends the same command identity on retry, while
 `PhoneDexLocalCache` encrypts pending replies and `PhoneDexAppModel` restores,
 queues, retries, and removes them only after a successful or duplicate receipt.
-`PhoneDexLocalCacheTests.swift` covers pending-reply persistence and the
+It now also retains a bounded receipt history keyed by command id, restores the
+exact hub/agent state after relaunch, and keeps rejected receipts attached to
+the retryable outbox entry. `PhoneDexLocalCacheTests.swift` covers pending and
+receipt persistence, legacy cache decoding, and tamper rejection; the
 simulator iOS test suite covers receipt request/response decoding.
 
 Verification evidence for the completed device/workspace details slice:
