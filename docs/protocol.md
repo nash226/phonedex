@@ -214,7 +214,10 @@ PhoneDex adapter exports review metadata:
         "name": "Unsigned iOS build log",
         "kind": "log",
         "sourceRef": "artifacts/ios-build.log",
-        "sha256": "..."
+        "sizeBytes": 2048,
+        "sha256": "64 lowercase hexadecimal characters",
+        "downloadId": "opaque-artifact-id",
+        "mediaType": "text/plain"
       }
     ],
     "validations": [
@@ -240,8 +243,12 @@ deduplicates entries, limits each collection, and emits one
 be supplied through the explicit hook/`POST /tasks` task contract or through a
 `phonedex_evidence` session event emitted by a PhoneDex-owned adapter. The
 session watcher does not infer changed files or validations from private
-Codex Desktop UI. The native iPhone surface renders this metadata and receipts;
-full patch browsing and artifact downloads remain a later review milestone.
+Codex Desktop UI. An agent may include bounded base64 bytes with an artifact;
+the bridge stores them privately, verifies the declared size and SHA-256, and
+forwards them to the hub with authenticated `POST /artifacts`. The native
+iPhone downloads through authenticated `GET /artifacts/:downloadId`, verifies
+the digest again, and never executes the result. Artifact bytes are capped at
+5 MiB and are not a substitute for retention or export policy.
 
 ### Approval requests and receipts
 

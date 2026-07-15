@@ -24,6 +24,13 @@ const {
   normalizeTaskEvidence
 } = require("../lib/phonedex-evidence");
 const {
+  MAX_ARTIFACT_BYTES,
+  findArtifact,
+  prepareTaskEvidenceArtifacts,
+  readVerifiedArtifact,
+  storeArtifact
+} = require("../lib/phonedex-artifacts");
+const {
   APPROVAL_CAPABILITY,
   APPROVAL_KINDS,
   projectApprovalDecision,
@@ -516,7 +523,14 @@ async function handleHook() {
 
   const title = `Codex done: ${projectName}`;
   const text = buildTaskMessage(payload);
+  const taskId = makeId("task");
+  const evidence = prepareTaskEvidenceArtifacts(
+    cfg.dataDir,
+    payload.phonedexEvidence || payload.evidence || payload.phonedex?.evidence,
+    taskId
+  );
   const task = createTask({
+    id: taskId,
     source: "codex-stop-hook",
     title,
     text,
@@ -524,7 +538,7 @@ async function handleHook() {
     sessionId,
     messageId,
     lifecycleCapabilities: taskLifecycleCapabilities(cfg.adapter),
-    evidence: normalizeTaskEvidence(payload.phonedexEvidence || payload.evidence || payload.phonedex?.evidence),
+    evidence: normalizeTaskEvidence(evidence),
     ...(payload.approvalRequest || payload.approval_request
       ? { approvalRequest: payload.approvalRequest || payload.approval_request }
       : {}),
@@ -792,11 +806,15 @@ async function maybeForwardTaskToHub(cfg, task) {
       ok: response.ok,
       response: redactSensitiveText(responseText).slice(0, 500)
     });
-    return {
+    const result = {
       ok: response.ok,
       status: response.status,
       response: redactSensitiveText(responseText).slice(0, 500)
     };
+    if (response.ok) {
+      result.artifacts = await forwardArtifactsToHub(cfg, task);
+    }
+    return result;
   } catch (error) {
     appendJsonl(cfg.dataDir, "events.jsonl", {
       ...event,
@@ -808,6 +826,49 @@ async function maybeForwardTaskToHub(cfg, task) {
       error: redactSensitiveText(error.message)
     };
   }
+}
+
+async function forwardArtifactsToHub(cfg, task) {
+  const artifacts = task.evidence?.artifacts || [];
+  const results = [];
+  for (const artifact of artifacts) {
+    if (!artifact.downloadId) continue;
+    let local;
+    try {
+      local = readVerifiedArtifact(cfg.dataDir, artifact.downloadId);
+    } catch (error) {
+      results.push({ artifactId: artifact.id, ok: false, error: redactSensitiveText(error.message) });
+      continue;
+    }
+    if (!local) continue;
+
+    try {
+      const response = await fetch(`${cfg.hubUrl}/artifacts`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          ...(cfg.hubToken ? { authorization: `Bearer ${cfg.hubToken}` } : {}),
+          "x-phonedex-device-id": cfg.deviceId
+        },
+        body: JSON.stringify({
+          taskId: task.id,
+          artifactId: artifact.id,
+          downloadId: artifact.downloadId,
+          contentBase64: local.bytes.toString("base64")
+        })
+      });
+      const responseText = await response.text();
+      results.push({
+        artifactId: artifact.id,
+        ok: response.ok,
+        status: response.status,
+        response: redactSensitiveText(responseText).slice(0, 240)
+      });
+    } catch (error) {
+      results.push({ artifactId: artifact.id, ok: false, error: redactSensitiveText(error.message) });
+    }
+  }
+  return results;
 }
 
 async function sendWatchNotification(cfg, task) {
@@ -1064,6 +1125,14 @@ async function startServer(providedCfg) {
         return sendJson(res, 200, readJsonl(cfg.dataDir, "replies.jsonl").slice(-25));
       }
 
+      if (requestUrl.pathname === "/artifacts") {
+        return handleArtifactUploadRequest(req, res, requestUrl, cfg);
+      }
+
+      if (requestUrl.pathname.startsWith("/artifacts/")) {
+        return handleArtifactDownloadRequest(req, res, requestUrl, cfg);
+      }
+
       if (requestUrl.pathname === "/tasks") {
         if (req.method === "POST") {
           return handleTaskIngestRequest(req, res, requestUrl, cfg);
@@ -1168,6 +1237,8 @@ async function startServer(providedCfg) {
           "/command",
           "/task",
           "/replies",
+          "/artifacts",
+          "/artifacts/:downloadId",
           "/tasks",
           "/sync",
           "/devices",
@@ -1445,7 +1516,12 @@ async function handleTaskIngestRequest(req, res, requestUrl, cfg) {
   const incoming = fields.task && typeof fields.task === "object" ? fields.task : fields;
   let task;
   try {
-    task = createIngestedTask(incoming, cfg, req);
+    const taskId = incoming.id || incoming.taskId || incoming.task_id || makeId("task");
+    task = createIngestedTask(
+      { ...incoming, evidence: prepareTaskEvidenceArtifacts(cfg.dataDir, incoming.evidence, taskId) },
+      cfg,
+      req
+    );
   } catch (error) {
     if (Array.isArray(error.validationErrors)) {
       return sendJson(res, 400, {
@@ -1453,6 +1529,13 @@ async function handleTaskIngestRequest(req, res, requestUrl, cfg) {
         code: "invalid_task_question",
         error: "The task question is invalid.",
         details: error.validationErrors
+      });
+    }
+    if (error.code && String(error.code).startsWith("artifact_")) {
+      return sendJson(res, error.statusCode || 400, {
+        ok: false,
+        code: error.code,
+        error: error.message
       });
     }
     throw error;
@@ -1467,6 +1550,96 @@ async function handleTaskIngestRequest(req, res, requestUrl, cfg) {
     duplicate: !result.created,
     task: publicTask(result.task)
   });
+}
+
+async function handleArtifactUploadRequest(req, res, requestUrl, cfg) {
+  if (req.method !== "POST") {
+    return sendJson(res, 405, { ok: false, error: "POST required" });
+  }
+  if (!isRequestAuthorized(req, requestUrl, cfg, "tasks.ingest")) {
+    return sendJson(res, 401, { ok: false, error: "Invalid token" });
+  }
+
+  let body;
+  try {
+    body = await readHttpBody(req, Math.ceil((MAX_ARTIFACT_BYTES * 4) / 3) + 8192);
+  } catch (error) {
+    return sendJson(res, error.statusCode || 413, {
+      ok: false,
+      code: error.code || "artifact_upload_too_large",
+      error: error.message
+    });
+  }
+
+  let fields;
+  try {
+    fields = parseBodyFields(body, req.headers["content-type"] || "");
+  } catch {
+    return sendJson(res, 400, { ok: false, code: "artifact_request_invalid", error: "The artifact request is invalid JSON." });
+  }
+
+  const task = findTask(cfg.dataDir, fields.taskId || fields.task_id || "");
+  if (!task) {
+    return sendJson(res, 404, { ok: false, code: "task_not_found", error: "The task for this artifact was not found." });
+  }
+  const artifact = (task.evidence?.artifacts || []).find((candidate) =>
+    candidate.id === fields.artifactId && candidate.downloadId === fields.downloadId
+  );
+  if (!artifact) {
+    return sendJson(res, 409, {
+      ok: false,
+      code: "artifact_not_declared",
+      error: "The task did not declare this artifact download identity."
+    });
+  }
+
+  try {
+    const stored = storeArtifact(cfg.dataDir, {
+      taskId: task.id,
+      artifact: { ...artifact, downloadId: fields.downloadId },
+      contentBase64: fields.contentBase64
+    });
+    return sendJson(res, 201, { ok: true, artifact: stored });
+  } catch (error) {
+    return sendJson(res, error.statusCode || 400, {
+      ok: false,
+      code: error.code || "artifact_upload_invalid",
+      error: error.message
+    });
+  }
+}
+
+function handleArtifactDownloadRequest(req, res, requestUrl, cfg) {
+  if (req.method !== "GET") {
+    return sendJson(res, 405, { ok: false, error: "GET required" });
+  }
+  if (!isRequestAuthorized(req, requestUrl, cfg, "tasks.read")) {
+    return sendJson(res, 401, { ok: false, error: "Invalid token" });
+  }
+
+  const downloadId = decodeURIComponent(requestUrl.pathname.slice("/artifacts/".length));
+  if (!findArtifact(cfg.dataDir, downloadId)) {
+    return sendJson(res, 404, { ok: false, code: "artifact_not_found", error: "The exported artifact was not found." });
+  }
+
+  try {
+    const result = readVerifiedArtifact(cfg.dataDir, downloadId);
+    if (!result) {
+      return sendJson(res, 404, { ok: false, code: "artifact_not_found", error: "The exported artifact was not found." });
+    }
+    return sendBuffer(res, 200, result.bytes, result.record.mediaType, {
+      "cache-control": "no-store",
+      "content-disposition": `attachment; filename="${safeArtifactFileName(result.record.name)}"`,
+      "etag": `"${result.record.sha256}"`,
+      "x-content-type-options": "nosniff"
+    });
+  } catch (error) {
+    return sendJson(res, error.statusCode || 409, {
+      ok: false,
+      code: error.code || "artifact_integrity_failed",
+      error: error.message
+    });
+  }
 }
 
 async function handleDeviceHeartbeatRequest(req, res, requestUrl, cfg) {
@@ -3828,7 +4001,9 @@ function latestJsonl(dataDir, fileName) {
 }
 
 function findTask(dataDir, taskId) {
-  return readJsonl(dataDir, "tasks.jsonl").find((task) => task.id === taskId);
+  return readJsonl(dataDir, "tasks.jsonl").find((task) =>
+    task.id === taskId || task.originTaskId === taskId
+  );
 }
 
 function publicTask(task) {
@@ -5580,9 +5755,20 @@ async function readStdin() {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-async function readHttpBody(req) {
+async function readHttpBody(req, maxBytes = Number.POSITIVE_INFINITY) {
   const chunks = [];
-  for await (const chunk of req) chunks.push(Buffer.from(chunk));
+  let size = 0;
+  for await (const chunk of req) {
+    const bytes = Buffer.from(chunk);
+    size += bytes.length;
+    if (size > maxBytes) {
+      const error = new Error("The request body is too large.");
+      error.code = "request_body_too_large";
+      error.statusCode = 413;
+      throw error;
+    }
+    chunks.push(bytes);
+  }
   return Buffer.concat(chunks).toString("utf8");
 }
 
@@ -5908,6 +6094,14 @@ function sendBuffer(res, status, body, contentType, extraHeaders = {}) {
     ...extraHeaders
   });
   res.end(body);
+}
+
+function safeArtifactFileName(value) {
+  const normalized = String(value || "artifact")
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 120);
+  return normalized || "artifact";
 }
 
 function parseBoolean(value, defaultValue) {

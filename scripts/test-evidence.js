@@ -29,7 +29,7 @@ const evidence = normalizeTaskEvidence({
       kind: "log",
       sourceRef: "artifacts/ios-build.log",
       sizeBytes: 1024,
-      sha256: "abc123"
+      sha256: "ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789"
     },
     { id: "secret", name: "Secret", sourceRef: "https://example.test/download?token=secret" }
   ],
@@ -44,6 +44,7 @@ assert.equal(evidence.changedFiles[0].sourceRef, "ios/PhoneDexApp/ContentView.sw
 assert.equal(evidence.changedFiles[0].patch, "@@ -10,2 +10,3 @@\n-old line\n+new line\n");
 assert.equal(evidence.changedFiles[0].patchTruncated, undefined);
 assert.deepEqual(evidence.artifacts.map((artifact) => artifact.id), ["build-log"]);
+assert.equal(evidence.artifacts[0].sha256, "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789");
 assert.equal(evidence.validations.length, 1);
 assert.equal(evidence.validations[0].status, "passed");
 assert.equal(evidenceSummary(evidence), "1 changed file, 1 artifact, 1 validation receipt");
