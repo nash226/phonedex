@@ -1305,7 +1305,20 @@ async function handleReplyRequest(req, res, requestUrl, cfg) {
   }
 
   const latestTask = latestJsonl(cfg.dataDir, "tasks.jsonl");
-  const taskId = fields.taskId || fields.task_id || latestTask?.id || "";
+  const requestedTaskId = fields.taskId || fields.task_id || "";
+  const requestedSessionId = fields.sessionId || fields.session_id || "";
+  const task = requestedTaskId ? findTask(cfg.dataDir, requestedTaskId) : latestTask;
+  if (!task) {
+    return sendJson(res, 404, { ok: false, error: "The selected PhoneDex task no longer exists." });
+  }
+  if (requestedSessionId && task.sessionId !== requestedSessionId) {
+    return sendJson(res, 409, {
+      ok: false,
+      error: "The selected task no longer matches its Codex thread. Refresh PhoneDex and try again."
+    });
+  }
+
+  const taskId = task.id;
   const choice = normalizeChoice(fields.choice || "okay_whats_next");
   const prompt =
     fields.prompt ||
@@ -1313,8 +1326,6 @@ async function handleReplyRequest(req, res, requestUrl, cfg) {
     fields.replyText ||
     RESPONSE_CHOICES[choice] ||
     choice;
-  const task = taskId ? findTask(cfg.dataDir, taskId) || latestTask : latestTask;
-
   const reply = {
     id: makeId("reply"),
     at: new Date().toISOString(),

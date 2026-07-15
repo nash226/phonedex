@@ -24,6 +24,8 @@ The iOS app scaffold includes:
   and Settings tabs.
 - A Projects navigator that keeps matching workspace names distinct per device
   and opens each conversation in its reply-capable detail view.
+- One conversation row per Codex session, with replies bound to both the latest
+  task id and session id so side chats cannot silently cross-route.
 - A task conversation view with quick actions, a persistent custom composer,
   and visible reply delivery errors.
 - Chats scopes for Needs You, Running, and Recent, with searchable title,

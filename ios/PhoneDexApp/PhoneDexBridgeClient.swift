@@ -92,6 +92,7 @@ struct PhoneDexBridgeClient {
         choice: PhoneDexReplyChoice,
         prompt: String,
         taskId: String,
+        sessionId: String?,
         machineName: String?
     ) async throws {
         let url = bridgeURL.appending(path: "reply")
@@ -104,6 +105,7 @@ struct PhoneDexBridgeClient {
         request.httpBody = try JSONSerialization.data(withJSONObject: [
             "token": token,
             "taskId": taskId,
+            "sessionId": sessionId ?? "",
             "choice": choice.rawValue,
             "prompt": prompt,
             "reply_text": choice == .custom ? prompt : "",

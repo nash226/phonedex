@@ -23,6 +23,7 @@ final class PhoneDexBridgeClientTests: XCTestCase {
                 JSONSerialization.jsonObject(with: body) as? [String: String]
             )
             XCTAssertEqual(json["taskId"], "task_123")
+            XCTAssertEqual(json["sessionId"], "thread_456")
             XCTAssertEqual(json["choice"], "custom")
             XCTAssertEqual(json["prompt"], "Run the focused tests")
             XCTAssertEqual(json["reply_text"], "Run the focused tests")
@@ -49,6 +50,7 @@ final class PhoneDexBridgeClientTests: XCTestCase {
             choice: .custom,
             prompt: "Run the focused tests",
             taskId: "task_123",
+            sessionId: "thread_456",
             machineName: "Studio Mac"
         )
     }
