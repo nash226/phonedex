@@ -18,6 +18,11 @@ const {
   protocolRecord
 } = require("../lib/phonedex-protocol");
 const {
+  evidenceSummary,
+  mergeTaskEvidence,
+  normalizeTaskEvidence
+} = require("../lib/phonedex-evidence");
+const {
   SYNC_SCHEMA,
   normalizeSyncLimit
 } = require("../lib/phonedex-sync");
@@ -504,6 +509,7 @@ async function handleHook() {
     cwd,
     sessionId,
     messageId,
+    evidence: normalizeTaskEvidence(payload.phonedexEvidence || payload.evidence || payload.phonedex?.evidence),
     hookPayload: summarizePayload(payload),
     rawHookInputBytes: Buffer.byteLength(rawInput || "")
   });
@@ -541,6 +547,11 @@ async function recordTaskAndDispatch(cfg, task, options = {}) {
   const statusChanged = result.created || previousStatus !== result.task.status;
   const lifecycleEvent = options.event || (statusChanged ? eventForTaskStatus(result.task) : null);
   if (lifecycleEvent) appendTaskEvent(cfg, result.task, lifecycleEvent);
+  const evidenceChanged = JSON.stringify(result.previous?.evidence || null) !==
+    JSON.stringify(result.task.evidence || null);
+  if (evidenceChanged && result.task.evidence) {
+    appendTaskEvent(cfg, result.task, eventForEvidence(result.task));
+  }
   for (const event of options.events || []) appendTaskEvent(cfg, result.task, event);
 
   const forward =
@@ -594,6 +605,15 @@ function mergeTaskCaptures(existing, incoming) {
     merged.version = Math.max((existing.version || 1) + 1, merged.version || 1);
     merged.updatedAt = incoming.updatedAt || incoming.at || new Date().toISOString();
   }
+  const evidence = mergeTaskEvidence(existing.evidence, incoming.evidence);
+  if (JSON.stringify(evidence || null) !== JSON.stringify(existing.evidence || null)) {
+    if (evidence) merged.evidence = evidence;
+    else delete merged.evidence;
+    merged.version = Math.max((existing.version || 1) + 1, merged.version || 1);
+    merged.updatedAt = incoming.updatedAt || incoming.at || new Date().toISOString();
+  } else if (evidence) {
+    merged.evidence = evidence;
+  }
   if (!merged.hookPayload && incoming.hookPayload) merged.hookPayload = incoming.hookPayload;
   return merged;
 }
@@ -614,6 +634,15 @@ function eventForTaskStatus(task) {
     createdAt: task.updatedAt || task.createdAt || task.at,
     type,
     data: task.text ? { summary: task.text.slice(0, 1000) } : {}
+  };
+}
+
+function eventForEvidence(task) {
+  return {
+    id: `${task.id}:artifact_available:v${task.version || 1}`,
+    createdAt: task.updatedAt || task.createdAt || task.at,
+    type: "artifact_available",
+    data: { summary: `Evidence exported: ${evidenceSummary(task.evidence)}.` }
   };
 }
 
@@ -2893,6 +2922,7 @@ function createTask(fields) {
     updatedAt: fields.updatedAt,
     hookPayload: fields.hookPayload,
     rawHookInputBytes: fields.rawHookInputBytes,
+    ...(fields.evidence ? { evidence: normalizeTaskEvidence(fields.evidence) } : {}),
     ...(fields.question ? { question: normalizeTaskQuestion(fields.question) } : {})
   });
 }
@@ -2923,6 +2953,7 @@ function createIngestedTask(fields, cfg, req) {
     messageId: fields.messageId || fields.message_id || "",
     logicalEventId: fields.logicalEventId || fields.logical_event_id || "",
     captureSources: fields.captureSources,
+    ...(fields.evidence ? { evidence: normalizeTaskEvidence(fields.evidence) } : {}),
     originTaskId,
     originReplyUrl: fields.replyUrl || fields.reply_url || "",
     originPublicUrl: fields.publicUrl || fields.public_url || "",
@@ -4749,6 +4780,23 @@ async function scanSessions({ cfg, notify }) {
         continue;
       }
 
+      if (item.kind === "evidence") {
+        const task = createTask({
+          id: existing?.id || taskId,
+          source: "codex-session-watch",
+          title: existing?.title || `Codex running: ${path.basename(item.cwd || ROOT)}`,
+          text: existing?.text || "Evidence exported for this task.",
+          cwd: item.cwd || existing?.cwd || ROOT,
+          sessionId: item.sessionId,
+          status: existing?.status || "running",
+          messageId: item.messageId,
+          evidence: item.evidence,
+          hookPayload: { session_file: filePath, message_id: item.messageId, evidence: true }
+        });
+        await recordTaskAndDispatch(cfg, task, { notify: false });
+        continue;
+      }
+
       if (
         existing?.status === "completed" &&
         existing.text === normalizeNotificationText(item.text) &&
@@ -4861,6 +4909,21 @@ function readFinalSessionMessages(filePath) {
         text,
         cwd,
         sessionId
+      });
+      continue;
+    }
+
+    if (record.type === "event_msg" && payload.type === "phonedex_evidence") {
+      const evidence = normalizeTaskEvidence(payload.evidence);
+      if (!evidence) continue;
+      messages.push({
+        kind: "evidence",
+        id: `${filePath}:${record.timestamp || sequence}:phonedex_evidence`,
+        messageId: payload.message_id || record.timestamp || "",
+        at: record.timestamp || new Date().toISOString(),
+        cwd,
+        sessionId,
+        evidence
       });
       continue;
     }

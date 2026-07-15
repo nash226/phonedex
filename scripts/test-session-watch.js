@@ -54,6 +54,41 @@ try {
       },
       {
         type: "event_msg",
+        timestamp: "2026-06-30T02:01:30.000Z",
+        payload: {
+          type: "phonedex_evidence",
+          evidence: {
+            changedFiles: [
+              {
+                path: "ios/PhoneDexApp/ContentView.swift",
+                status: "modified",
+                additions: 12,
+                deletions: 3,
+                sourceRef: "ios/PhoneDexApp/ContentView.swift#L10-L30"
+              }
+            ],
+            artifacts: [
+              {
+                id: "simulator-log",
+                name: "Simulator log",
+                kind: "log",
+                sourceRef: "artifacts/simulator.log",
+                sha256: "abc123"
+              }
+            ],
+            validations: [
+              {
+                id: "ios-build",
+                name: "Unsigned iOS build",
+                status: "passed",
+                summary: "Build completed"
+              }
+            ]
+          }
+        }
+      },
+      {
+        type: "event_msg",
         timestamp: "2026-06-30T02:02:00.000Z",
         payload: {
           type: "task_complete",
@@ -68,7 +103,10 @@ try {
   const hook = runHook({
     sessionId: "019faaaa-1111-7222-8333-444444444444",
     messageId: "2026-06-30T01:01:00.000Z",
-    last_assistant_message: "Agent message final answer fixture"
+    last_assistant_message: "Agent message final answer fixture",
+    phonedexEvidence: {
+      changedFiles: [{ path: "README.md", status: "modified", sourceRef: "README.md#L1-L4" }]
+    }
   });
   if (hook.status !== 0) {
     process.stderr.write(hook.stdout);
@@ -123,7 +161,15 @@ try {
     "Agent message final answer fixture",
     ["codex-stop-hook", "codex-session-watch"]
   );
+  const hookEvidenceTask = initialStore.tasks.find((candidate) => candidate.text === "Agent message final answer fixture");
+  assert.equal(hookEvidenceTask.evidence.changedFiles[0].path, "README.md");
   assertCaptureSources(initialStore.tasks, "Task complete final answer fixture", ["codex-session-watch"]);
+  const evidenceTask = initialStore.tasks.find((candidate) => candidate.text === "Task complete final answer fixture");
+  assert.ok(evidenceTask?.evidence, "Expected explicit PhoneDex evidence to merge into the task");
+  assert.equal(evidenceTask.evidence.changedFiles[0].path, "ios/PhoneDexApp/ContentView.swift");
+  assert.equal(evidenceTask.evidence.artifacts[0].sourceRef, "artifacts/simulator.log");
+  assert.equal(evidenceTask.evidence.validations[0].status, "passed");
+  assert.equal(initialStore.events.some((event) => event.type === "artifact_available"), true);
 
   const hookAfterWatcher = runHook({
     sessionId: "019fbbbb-1111-7222-8333-555555555555",
