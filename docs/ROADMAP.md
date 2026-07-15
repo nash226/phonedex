@@ -408,7 +408,7 @@ Outcome: make remote controls truthful, versioned, idempotent, and portable
 across Mac and Windows.
 
 - [x] Define the adapter boundary and capability test suite.
-- [ ] Implement structured task reply and question-response commands.
+- [x] Implement structured task reply and question-response commands.
 - [ ] Implement task create, cancel, and retry where supported.
 - [ ] Export live lifecycle events without parsing desktop UI.
 - [ ] Export changed files, source-linked patches, artifacts, and validation
@@ -431,6 +431,18 @@ does not queue auto-resume when the selected adapter cannot support
 `task.reply.v1`. `scripts/test-adapter.js` covers supported Mac and Windows
 continuation modes, unavailable Windows foreground handoff, unknown platforms,
 unsupported lifecycle controls, and descriptor validation.
+
+Verification evidence for the completed structured question-response slice:
+`lib/phonedex-protocol.js` validates bounded task questions with unique choice
+ids and an explicit free-text policy. The bridge preserves questions in task
+ingest and sync projections, rejects missing/stale/unsupported answers, and
+forwards the same `questionId` and response envelope to the originating Mac or
+Windows agent while recording it in the durable command mirror. The native
+iPhone renders accessible choice controls and an optional free-text composer;
+its encrypted outbox retries the exact response identity. `scripts/test-question-response.js`,
+`scripts/test-protocol.js`,
+`PhoneDexBridgeClientTests`, and `PhoneDexSmokeTests` cover validation,
+forwarding, receipt persistence, decoding, and the iOS request shape.
 
 ## M5: Approvals and High-Risk Actions
 

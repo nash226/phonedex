@@ -16,11 +16,13 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
     let status: String?
     let branch: String?
     let repository: String?
+    let question: PhoneDexTaskQuestion?
     let captureSources: [PhoneDexCaptureSource]
 
     private enum CodingKeys: String, CodingKey {
         case id, at, createdAt, updatedAt, version, source, title, text, cwd, workspaceName
         case machineName, sessionId, status, branch, repository, captureSources
+        case question
     }
 
     init(from decoder: Decoder) throws {
@@ -40,6 +42,7 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
         status = try container.decodeIfPresent(String.self, forKey: .status)
         branch = try container.decodeIfPresent(String.self, forKey: .branch)
         repository = try container.decodeIfPresent(String.self, forKey: .repository)
+        question = try container.decodeIfPresent(PhoneDexTaskQuestion.self, forKey: .question)
         captureSources = try container.decodeIfPresent([PhoneDexCaptureSource].self, forKey: .captureSources) ?? []
     }
 
@@ -59,6 +62,7 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
         createdAt: String? = nil,
         updatedAt: String? = nil,
         version: Int? = nil,
+        question: PhoneDexTaskQuestion? = nil,
         captureSources: [PhoneDexCaptureSource] = []
     ) {
         self.id = id
@@ -76,6 +80,7 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
         self.status = status
         self.branch = branch
         self.repository = repository
+        self.question = question
         self.captureSources = captureSources
     }
 
@@ -194,6 +199,32 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
             }
         }
         return Array(latest.values)
+    }
+}
+
+struct PhoneDexTaskQuestion: Codable, Equatable {
+    let id: String
+    let prompt: String
+    let choices: [PhoneDexTaskQuestionChoice]
+    let allowsFreeText: Bool
+}
+
+struct PhoneDexTaskQuestionChoice: Codable, Equatable, Identifiable {
+    let id: String
+    let label: String
+}
+
+struct PhoneDexQuestionResponse: Codable, Equatable {
+    let kind: String
+    let choiceId: String?
+    let text: String?
+
+    static func choice(_ choiceId: String) -> Self {
+        Self(kind: "choice", choiceId: choiceId, text: nil)
+    }
+
+    static func text(_ text: String) -> Self {
+        Self(kind: "text", choiceId: nil, text: text)
     }
 }
 
