@@ -1,7 +1,7 @@
 # PhoneDex Threat Model
 
-Status: living engineering threat model  
-Last reviewed: 2026-07-15  
+Status: living engineering threat model
+Last reviewed: 2026-07-15
 Scope: the local-first PhoneDex hub, Mac/Windows agents, and native iPhone
 client described in [PRODUCT.md](PRODUCT.md)
 
