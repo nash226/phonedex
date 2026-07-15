@@ -428,7 +428,7 @@ across Mac and Windows.
 - [x] Implement structured task reply and question-response commands.
 - [x] Implement task create, cancel, and retry where supported.
 - [x] Export live lifecycle events without parsing desktop UI.
-- [ ] Export changed files, source-linked patches, artifacts, and validation
+- [x] Export changed files, source-linked patches, artifacts, and validation
   receipts.
 - [ ] Implement desktop handoff using stable supported task/session identity.
 - [ ] Build and validate the macOS adapter matrix.
@@ -460,6 +460,18 @@ its encrypted outbox retries the exact response identity. `scripts/test-question
 `scripts/test-protocol.js`,
 `PhoneDexBridgeClientTests`, and `PhoneDexSmokeTests` cover validation,
 forwarding, receipt persistence, decoding, and the iOS request shape.
+
+Verification evidence for the completed artifact-review export slice:
+`lib/phonedex-evidence.js` normalizes bounded relative changed-file metadata,
+opaque artifact references, and validation receipts while rejecting absolute
+paths, URLs, parent traversal, duplicates, and unbounded collections. The
+bridge accepts this explicit evidence through hook/task-ingest payloads and
+the PhoneDex-owned `phonedex_evidence` session event, merges it durably, and
+emits an `artifact_available` lifecycle event without parsing private desktop
+UI. `PhoneDexTaskDetailView` renders changed files, source references,
+artifacts, and validation states with accessible native rows. Node protocol,
+normalization, and session-watcher fixtures plus iOS model coverage verify the
+contract. Full patch browsing and artifact downloads remain M7 work.
 
 Verification evidence for the completed managed lifecycle slice:
 `lib/phonedex-lifecycle.js` runs allowlisted workspace prompts through the
