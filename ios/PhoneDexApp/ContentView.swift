@@ -1626,6 +1626,16 @@ private struct PhoneDexSettingsView: View {
                     PhoneDexConnectionHeader(state: model.connectionState)
                 }
 
+                Section {
+                    Toggle("Require Face ID or passcode", isOn: $settings.requireApprovalAuthentication)
+                        .accessibilityIdentifier("Require Face ID or passcode")
+                        .accessibilityHint("Protects approval and rejection decisions with device authentication before they are sent.")
+                } header: {
+                    Text("Approval safety")
+                } footer: {
+                    Text("When enabled, PhoneDex requires device-owner authentication before sending an approval decision. Passcode fallback remains available when supported by iOS.")
+                }
+
                 Section("Notifications") {
                     Button("Allow Notifications", systemImage: "bell.badge") {
                         Task {
