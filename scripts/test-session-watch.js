@@ -93,9 +93,57 @@ try {
     throw new Error(`Expected 2 fixture notifications, got ${parsed.notified}`);
   }
 
+  const statePath = path.join(dataDir, "session-watch-state.json");
+  const state = JSON.parse(fs.readFileSync(statePath, "utf8"));
+  state.seen = {};
+  fs.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}\n`);
+
+  const replay = runSessionScan();
+  if (replay.status !== 0) {
+    process.stderr.write(replay.stdout);
+    process.stderr.write(replay.stderr);
+    process.exit(replay.status || 1);
+  }
+
+  const replayResult = JSON.parse(replay.stdout);
+  if (replayResult.notified !== 0) {
+    throw new Error(`Expected file cursors to suppress replay, got ${replayResult.notified}`);
+  }
+  const eventsPath = path.join(dataDir, "events.jsonl");
+  const duplicateEvents = fs.existsSync(eventsPath)
+    ? readJsonl(eventsPath).filter((event) => event.type === "duplicate-task-ignored")
+    : [];
+  if (duplicateEvents.length !== 0) {
+    throw new Error(`Expected no duplicate-task audit writes, got ${duplicateEvents.length}`);
+  }
+
   console.log("session watcher fixture test passed");
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
+}
+
+function runSessionScan() {
+  return spawnSync(
+    process.execPath,
+    [path.join(root, "bin", "codex-watch.js"), "scan-sessions", "--notify-existing"],
+    {
+      cwd: root,
+      env: {
+        ...process.env,
+        CODEX_HOME: codexHome,
+        WATCH_BRIDGE_DATA_DIR: dataDir,
+        WATCH_BRIDGE_PROVIDER: "pushcut",
+        PUSHCUT_WEBHOOK_URL: "",
+        WATCH_BRIDGE_TOKEN: "test-token",
+        WATCHDEX_SESSION_WATCH_DEBOUNCE_MS: "0",
+        WATCHDEX_SESSION_WATCH_LOOKBACK_HOURS: "87600",
+        WATCHDEX_SESSION_WATCH_FILE_LIMIT: "20",
+        PHONEDEX_MACHINE_NAME: "Session Fixture",
+        PHONEDEX_DEVICE_ID: "session-fixture"
+      },
+      encoding: "utf8"
+    }
+  );
 }
 
 function writeJsonl(filePath, records) {
