@@ -72,6 +72,32 @@ async function main() {
   assert.match(grant.grant, /^[A-Za-z0-9_-]{16,}$/);
   assert.match(grant.verificationCode, /^\d{6}$/);
 
+  const invalidScopeGrant = spawnSync(
+    process.execPath,
+    [bridge, "pair:create", "--scopes", "tasks.read,not-a-phone-scope"],
+    { cwd: root, env, encoding: "utf8" }
+  );
+  assert.notEqual(invalidScopeGrant.status, 0);
+  assert.match(invalidScopeGrant.stderr, /Unsupported PhoneDex pairing scope/);
+
+  const adminGrantProcess = spawnSync(
+    process.execPath,
+    [
+      bridge,
+      "pair:create",
+      "--name",
+      "PhoneDex Admin",
+      "--scopes",
+      "tasks.read,privacy.read,privacy.manage,admin",
+      "--ttl-ms",
+      "600000"
+    ],
+    { cwd: root, env, encoding: "utf8" }
+  );
+  assert.equal(adminGrantProcess.status, 0, adminGrantProcess.stderr);
+  const adminGrant = JSON.parse(adminGrantProcess.stdout);
+  assert.deepEqual(adminGrant.scopes, ["tasks.read", "privacy.read", "privacy.manage", "admin"]);
+
   const hub = spawn(process.execPath, [bridge, "server"], {
     cwd: root,
     stdio: ["ignore", "pipe", "pipe"],
@@ -131,6 +157,54 @@ async function main() {
     });
     assert.equal(phoneIngest.response.status, 401);
 
+    const phonePrivacy = await request(`${hubUrl}/privacy`, {
+      headers: { authorization: `Bearer ${paired.json.credential}` }
+    });
+    assert.equal(phonePrivacy.response.status, 401);
+
+    const adminPaired = await request(`${hubUrl}/pair`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        grant: adminGrant.grant,
+        verificationCode: adminGrant.verificationCode,
+        deviceName: "PhoneDex Admin",
+        platform: "ios"
+      })
+    });
+    assert.equal(adminPaired.response.status, 201);
+    assert.deepEqual(adminPaired.json.identity.scopes, adminGrant.scopes);
+
+    const adminPrivacy = await request(`${hubUrl}/privacy`, {
+      headers: { authorization: `Bearer ${adminPaired.json.credential}` }
+    });
+    assert.equal(adminPrivacy.response.status, 200);
+
+    const phoneInstallReports = await request(`${hubUrl}/agent-installs`, {
+      headers: { authorization: `Bearer ${paired.json.credential}` }
+    });
+    assert.equal(phoneInstallReports.response.status, 401);
+
+    const adminInstallReports = await request(`${hubUrl}/agent-installs`, {
+      headers: { authorization: `Bearer ${adminPaired.json.credential}` }
+    });
+    assert.equal(adminInstallReports.response.status, 200);
+
+    const adminRetention = await request(`${hubUrl}/privacy/retention`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${adminPaired.json.credential}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({ retentionDays: 0, confirmation: "APPLY_PHONEDEX_RETENTION" })
+    });
+    assert.equal(adminRetention.response.status, 200);
+
+    const adminCredentialInURL = await request(
+      `${hubUrl}/privacy?token=${encodeURIComponent(adminPaired.json.credential)}`
+    );
+    assert.equal(adminCredentialInURL.response.status, 401);
+
     const listed = spawnSync(
       process.execPath,
       [bridge, "pair:list", "--json"],
@@ -138,8 +212,9 @@ async function main() {
     );
     assert.equal(listed.status, 0, listed.stderr);
     const identities = JSON.parse(listed.stdout);
-    assert.equal(identities.length, 1);
-    assert.equal(identities[0].id, paired.json.identity.id);
+    assert.equal(identities.length, 2);
+    assert.equal(identities.find((identity) => identity.id === paired.json.identity.id).name, "Nash iPhone");
+    assert.equal(identities.find((identity) => identity.id === adminPaired.json.identity.id).name, "PhoneDex Admin");
     assert.equal(listed.stdout.includes(paired.json.credential), false);
 
     const revoked = spawnSync(
@@ -167,7 +242,10 @@ async function main() {
       headers: { authorization: `Bearer ${env.WATCH_BRIDGE_TOKEN}` }
     });
     assert.equal(revokedDevices.response.status, 200);
-    assert.equal(revokedDevices.json[0].status, "revoked");
+    assert.equal(
+      revokedDevices.json.find((device) => device.deviceId === paired.json.identity.deviceId).status,
+      "revoked"
+    );
 
     const reused = await request(`${hubUrl}/pair`, {
       method: "POST",
