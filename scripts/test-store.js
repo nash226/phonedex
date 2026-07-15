@@ -83,6 +83,30 @@ try {
     true
   );
 
+  const merged = recovered.appendTask(
+    task("task_first", "first"),
+    (candidate) => candidate.id === "task_first",
+    (existing) => ({
+      ...existing,
+      captureSources: [{ source: "codex-stop-hook" }]
+    })
+  );
+  assert.equal(merged.created, false);
+  assert.equal(merged.merged, true);
+  assert.deepEqual(recovered.listTasks().find((candidate) => candidate.id === "task_first").captureSources, [
+    { source: "codex-stop-hook" }
+  ]);
+
+  const unchangedRevision = recovered.read().revision;
+  const unchanged = recovered.appendTask(
+    task("task_first", "first"),
+    (candidate) => candidate.id === "task_first",
+    (existing) => existing
+  );
+  assert.equal(unchanged.created, false);
+  assert.equal(unchanged.merged, false);
+  assert.equal(recovered.read().revision, unchangedRevision);
+
   const versionedDir = path.join(root, "versioned");
   fs.mkdirSync(versionedDir, { recursive: true });
   fs.writeFileSync(

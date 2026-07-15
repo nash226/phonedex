@@ -26,6 +26,28 @@ assert.equal(validateProtocolRecord("task", task).valid, true);
 assert.equal(task.schema, SCHEMAS.task);
 assert.equal(task.origin.deviceId, "macbook-air");
 
+const capturedTask = addTaskProtocolFields({
+  id: "task_capture",
+  at: now,
+  source: "codex-stop-hook",
+  title: "Captured completion",
+  text: "One logical event",
+  machineName: "MacBook Air",
+  deviceId: "macbook-air",
+  sessionId: "session_capture",
+  messageId: "turn_capture",
+  captureSources: [
+    { source: "codex-stop-hook", messageId: "turn_capture", observedAt: now },
+    { source: "codex-session-watch", messageId: "turn_capture", observedAt: now },
+    { source: "codex-stop-hook", messageId: "turn_capture", observedAt: now }
+  ]
+});
+assert.match(capturedTask.logicalEventId, /^completion_[0-9a-f]{32}$/);
+assert.deepEqual(
+  capturedTask.captureSources.map((capture) => capture.source),
+  ["codex-stop-hook", "codex-session-watch"]
+);
+
 const device = addDeviceProtocolFields({
   deviceId: "macbook-air",
   machineName: "MacBook Air",
