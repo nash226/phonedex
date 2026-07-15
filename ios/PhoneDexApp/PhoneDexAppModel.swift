@@ -292,6 +292,22 @@ final class PhoneDexAppModel: ObservableObject {
         await sendLifecycle(kind: "retry", task: task)
     }
 
+    func respondToApproval(_ decision: PhoneDexApprovalDecision, for task: PhoneDexTask) async -> Bool {
+        guard let request = task.approvalRequest,
+              request.state == "pending",
+              !request.isExpired,
+              task.supportsLifecycle("approval.respond.v1") else {
+            lifecycleState = .failed("This approval is no longer available from the originating agent. Refresh before trying again.")
+            return false
+        }
+        return await sendLifecycle(
+            kind: decision.rawValue,
+            task: task,
+            approvalId: request.id,
+            approvalTaskVersion: request.taskVersion
+        )
+    }
+
     func prepareDesktopHandoff(task: PhoneDexTask) async -> PhoneDexDesktopHandoff? {
         guard let client = bridgeClient else {
             lifecycleState = .failed("The bridge URL is invalid.")
@@ -354,7 +370,12 @@ final class PhoneDexAppModel: ObservableObject {
         }
     }
 
-    private func sendLifecycle(kind: String, task: PhoneDexTask) async -> Bool {
+    private func sendLifecycle(
+        kind: String,
+        task: PhoneDexTask,
+        approvalId: String? = nil,
+        approvalTaskVersion: Int? = nil
+    ) async -> Bool {
         guard let client = bridgeClient else {
             lifecycleState = .failed("The bridge URL is invalid.")
             return false
@@ -364,6 +385,8 @@ final class PhoneDexAppModel: ObservableObject {
             let result = try await client.sendLifecycleCommand(
                 kind: kind,
                 taskId: task.id,
+                approvalId: approvalId,
+                approvalTaskVersion: approvalTaskVersion,
                 expectedTaskVersion: task.version ?? 1
             )
             if let updatedTask = result.task { upsertLifecycleTask(updatedTask) }

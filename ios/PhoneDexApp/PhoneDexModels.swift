@@ -276,6 +276,15 @@ struct PhoneDexApprovalRequest: Codable, Equatable, Identifiable {
     }
 }
 
+enum PhoneDexApprovalDecision: String, Equatable {
+    case approve
+    case reject
+
+    var label: String {
+        self == .approve ? "Approve" : "Reject"
+    }
+}
+
 struct PhoneDexQuestionResponse: Codable, Equatable {
     let kind: String
     let choiceId: String?

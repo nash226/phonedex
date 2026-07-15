@@ -62,6 +62,25 @@ cannot be sent instead of presenting a false control. Mac and Windows share
 the same adapter contract; platform-specific behavior is selected by the
 adapter, not inferred by the iPhone.
 
+### Approval response contract
+
+Approval responses use the common `POST /command` envelope with `kind` set to
+`approve` or `reject`, `requestedCapability: "approval.respond.v1"`, the
+selected `taskId`, `approvalId`, `approvalTaskVersion`, and matching
+`expectedTaskVersion`. The hub accepts a response only while the request is
+pending and unexpired, only when the task advertises `approval.respond.v1`,
+and only when all task-version fields match. It rejects stale, replay-conflicting,
+expired, already-handled, and capability-unsupported requests without
+forwarding them.
+
+The originating agent must return a durable
+`phonedex.command-receipt.v1` with the same `approvalId`, the resulting
+`approvalState`, and a strictly newer `taskVersion`. The hub validates that
+receipt before updating its task projection. Reusing the same idempotency key
+returns a duplicate receipt without forwarding a second operation. A response
+is never treated as successful merely because an iPhone button was tapped, and
+the contract does not imply undocumented Codex Desktop approval APIs.
+
 ### Secure pairing
 
 The hub CLI creates a short-lived pairing grant with:
@@ -218,9 +237,10 @@ credentials, and private desktop UI details.
 An `approve` or `reject` `phonedex.command.v1` payload must include the
 `approvalId` and the expected `taskVersion`. A corresponding
 `phonedex.command-receipt.v1` may include the approval id, resulting approval
-state, and declared expiry. This slice defines validation and read-only review;
-an agent must advertise `approval.respond.v1` and return a receipt before
-PhoneDex exposes an approve or reject control.
+state, and declared expiry. PhoneDex exposes confirmation-gated approve and
+reject controls only when the agent advertises `approval.respond.v1`; the hub
+still requires a matching newer receipt before treating the response as
+successful.
 
 `phonedex.event.v1` records are append-only lifecycle observations. The
 `sequence` is ordered within a task, `type` is a bounded lifecycle name such

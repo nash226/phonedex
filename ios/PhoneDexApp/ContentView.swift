@@ -499,6 +499,8 @@ struct PhoneDexTaskDetailView: View {
     @State private var draftSaveTask: Task<Void, Never>?
     @State private var hasRestoredReadingPosition = false
     @State private var showCancelConfirmation = false
+    @State private var showApprovalConfirmation = false
+    @State private var selectedApprovalDecision: PhoneDexApprovalDecision?
     @State private var showDesktopHandoff = false
     @State private var desktopHandoff: PhoneDexDesktopHandoff?
     @FocusState private var composerFocused: Bool
@@ -636,6 +638,26 @@ struct PhoneDexTaskDetailView: View {
             Button("Keep working", role: .cancel) {}
         } message: {
             Text("PhoneDex will ask the originating agent to stop this managed run. The task will remain in your history.")
+        }
+        .confirmationDialog(
+            selectedApprovalDecision == .approve ? "Approve this operation?" : "Reject this operation?",
+            isPresented: $showApprovalConfirmation,
+            titleVisibility: .visible
+        ) {
+            if selectedApprovalDecision == .approve {
+                Button("Approve operation") {
+                    submitApproval(.approve)
+                }
+            } else {
+                Button("Reject operation", role: .destructive) {
+                    submitApproval(.reject)
+                }
+            }
+            Button("Keep reviewing", role: .cancel) {
+                selectedApprovalDecision = nil
+            }
+        } message: {
+            Text("PhoneDex will send the exact task-version-bound decision to \(task.displayMachine). Refresh if the request has changed or expired.")
         }
         .sheet(isPresented: $showDesktopHandoff) {
             if let desktopHandoff {
@@ -792,10 +814,35 @@ struct PhoneDexTaskDetailView: View {
                 }
 
                 if request.state == "pending" && !request.isExpired {
-                    Text("Approval response controls are unavailable until the originating agent advertises approval.respond.v1. Refresh before relying on this request.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .accessibilityLabel("Approval response controls are not available from this agent yet. Refresh before relying on this request.")
+                    if task.supportsLifecycle("approval.respond.v1") {
+                        HStack(spacing: 10) {
+                            Button {
+                                selectedApprovalDecision = .approve
+                                showApprovalConfirmation = true
+                            } label: {
+                                Label("Approve", systemImage: "checkmark")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.orange)
+                            .accessibilityHint("Opens a confirmation before sending this approval.")
+
+                            Button(role: .destructive) {
+                                selectedApprovalDecision = .reject
+                                showApprovalConfirmation = true
+                            } label: {
+                                Label("Reject", systemImage: "xmark")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                            .accessibilityHint("Opens a confirmation before rejecting this approval.")
+                        }
+                    } else {
+                        Text("Approval response controls are unavailable until the originating agent advertises approval.respond.v1. Refresh before relying on this request.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .accessibilityLabel("Approval response controls are not available from this agent yet. Refresh before relying on this request.")
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -809,6 +856,11 @@ struct PhoneDexTaskDetailView: View {
     private func approvalOriginText(_ request: PhoneDexApprovalRequest) -> String {
         let workspace = request.origin.workspaceName.map { " · \($0)" } ?? ""
         return "\(request.origin.machineName) (\(request.origin.deviceId))\(workspace)"
+    }
+
+    private func submitApproval(_ decision: PhoneDexApprovalDecision) {
+        selectedApprovalDecision = nil
+        Task { _ = await model.respondToApproval(decision, for: task) }
     }
 
     private func approvalRow(_ title: String, _ value: String, symbol: String) -> some View {

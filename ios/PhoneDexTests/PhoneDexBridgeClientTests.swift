@@ -123,6 +123,57 @@ final class PhoneDexBridgeClientTests: XCTestCase {
         XCTAssertEqual(response.task?.version, 8)
     }
 
+    func testSendApprovalResponseUsesTaskVersionBoundContract() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [URLProtocolStub.self]
+        let session = URLSession(configuration: configuration)
+
+        URLProtocolStub.handler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "http://bridge.test/command")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "authorization"), "Bearer secret")
+
+            let body = try request.httpBody ?? XCTUnwrap(request.httpBodyStream).readAllData()
+            let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(json["kind"] as? String, "approve")
+            XCTAssertEqual(json["taskId"] as? String, "task_approval")
+            XCTAssertEqual(json["approvalId"] as? String, "approval_1")
+            XCTAssertEqual(json["approvalTaskVersion"] as? Int, 4)
+            XCTAssertEqual(json["expectedTaskVersion"] as? Int, 4)
+            XCTAssertEqual(json["requestedCapability"] as? String, "approval.respond.v1")
+
+            return (
+                HTTPURLResponse(
+                    url: try XCTUnwrap(request.url),
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: ["content-type": "application/json"]
+                )!,
+                Data("""
+                {"state":"accepted","receipt":{"schema":"phonedex.command-receipt.v1","protocolVersion":1,"commandId":"approval_command","createdAt":"2026-07-15T12:00:00.000Z","state":"accepted","taskId":"task_approval","taskVersion":5,"idempotencyKey":"approval_key","approvalId":"approval_1","approvalState":"approved","approvalExpiresAt":"2099-07-15T12:15:00.000Z","message":"Approval recorded"}}
+                """.utf8)
+            )
+        }
+
+        let response = try await PhoneDexBridgeClient(
+            bridgeURL: URL(string: "http://bridge.test")!,
+            token: "secret",
+            session: session
+        ).sendLifecycleCommand(
+            kind: "approve",
+            taskId: "task_approval",
+            approvalId: "approval_1",
+            approvalTaskVersion: 4,
+            commandId: "approval_command",
+            idempotencyKey: "approval_key",
+            expectedTaskVersion: 4
+        )
+
+        XCTAssertEqual(response.receipt.approvalId, "approval_1")
+        XCTAssertEqual(response.receipt.approvalState, "approved")
+        XCTAssertEqual(response.receipt.taskVersion, 5)
+    }
+
     func testRedeemPairingUsesOneTimeGrantWithoutCredentialInRequest() async throws {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [URLProtocolStub.self]
