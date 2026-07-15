@@ -433,6 +433,12 @@ private struct PhoneDexSettingsView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
 
+                    if let credentialStorageError = settings.credentialStorageError {
+                        Label(credentialStorageError, systemImage: "lock.trianglebadge.exclamationmark")
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                    }
+
                     Button("Test Connection", systemImage: "bolt.horizontal.circle") {
                         Task { await model.refresh() }
                     }

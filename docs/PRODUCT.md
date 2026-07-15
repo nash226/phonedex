@@ -108,8 +108,9 @@ The repository already proves the core loop, but not the final product.
   sync, or reliable background refresh.
 - The iOS app has no task inbox, lifecycle model, live progress, approval UI,
   artifact review, command queue, search, or offline outbox.
-- The shared token is stored in `UserDefaults`, included in local notification
-  metadata, and can be accepted in URLs by the current bridge.
+- The shared token remains included in local notification metadata and can be
+  accepted in URLs by the current bridge; the iOS settings token is now stored
+  in device-only Keychain storage, with legacy `UserDefaults` migration.
 - The app allows arbitrary network loads and supports plaintext HTTP.
 - Notification reply errors are discarded and cannot be retried or audited by
   the user.
@@ -789,9 +790,10 @@ developer credential manager than a casual notification utility.
 ### Current security blockers
 
 Before external beta, the current shared token and custom configuration URL
-must be replaced by scoped pairing. The token must move out of `UserDefaults`
-and notification payloads. Query-token authentication and arbitrary ATS loads
-must be removed from production configuration. Plain JSONL content needs
+must be replaced by scoped pairing. The token must move out of notification
+payloads; the iOS settings token is no longer stored in `UserDefaults`.
+Query-token authentication and arbitrary ATS loads must be removed from
+production configuration. Plain JSONL content needs
 documented host protection, retention, and migration, and reply failures must
 become auditable command outcomes.
 

@@ -8,7 +8,9 @@ The iOS app scaffold includes:
 
 - A SwiftUI app target for requesting notification permission and sending a
   local preview notification.
-- Bridge URL/token settings stored on-device.
+- Bridge URL settings stored on-device; the bridge token is stored in the
+  device-only Keychain. Existing tokens from the legacy `UserDefaults` setting
+  are migrated once and removed.
 - A latest-task fetcher that reads from the PhoneDex bridge `/tasks` endpoint.
 - A notification content extension for category `PHONEDEX_TASK`.
 - A scrollable expanded notification body styled around the PhoneDex README
