@@ -265,12 +265,13 @@ labels, iconography, or signature layout.
 
 ## 7. Information Architecture
 
-The primary app uses four stable tabs. A notification or universal link opens
+The primary app uses five stable tabs. A notification or universal link opens
 the relevant destination inside this structure rather than a separate mini-app.
 
-### Inbox
+### Chats
 
-The default tab answers "what needs me now?"
+The default tab combines the actionable Inbox with persistent task
+conversations and answers "what needs me now?"
 
 - A segmented scope switches between **Needs You**, **Running**, and **Recent**.
 - Rows are grouped by urgency and recency, not by decorative containers.
@@ -294,6 +295,21 @@ Workspaces organize durable context across task runs.
 - Workspace detail shows task history, current runs, saved prompt drafts, and
   artifacts the agent has explicitly exported.
 - Starting work begins here when the selected agent advertises that capability.
+
+### Browser
+
+The built-in browser keeps research, documentation, pull requests, and task
+artifacts inside the PhoneDex working context.
+
+- It uses the native WebKit engine with familiar address, back, forward,
+  reload, and share controls.
+- Opening a task link preserves the originating task and workspace so the user
+  can return without reconstructing context.
+- Browser history and website data remain on-device under normal iOS controls.
+- PhoneDex does not inject credentials, bypass website security, or treat web
+  content as trusted Codex instructions.
+- Future task-aware browser actions must show exactly what context will be sent
+  back to Codex before submission.
 
 ### Devices
 
@@ -322,7 +338,7 @@ diagnostics, and support controls.
 
 - Notification deep links open a specific task, question, approval, or device
   incident.
-- Universal search is available from Inbox and Workspaces.
+- Universal search is available from Chats and Workspaces.
 - A global create command appears only when at least one reachable agent can
   create tasks. It opens a sheet rather than changing the tab model.
 - A compact sync indicator appears only for actionable degraded states.

@@ -133,14 +133,17 @@ Status: **Queued**
 
 Outcome: replace the utility screen with a polished, offline-aware native app.
 
-- [ ] Establish a design system using semantic color, native materials,
+- [x] Establish the first design-system foundation using semantic color, native materials,
   Dynamic Type, stable spacing, motion, and accessibility primitives.
-- [ ] Build four-tab navigation: Inbox, Workspaces, Devices, and Settings.
-- [ ] Build Inbox scopes for Needs You, Running, and Recent with search and
+- [x] Build the adaptive Chats, Workspaces, Browser, Devices, and Settings shell.
+- [x] Add an embedded WebKit browser with native navigation and sharing controls.
+- [ ] Build Chats scopes for Needs You, Running, and Recent with search and
   filters.
 - [ ] Add a durable encrypted local cache, cursor sync, and freshness state.
 - [ ] Build task detail with transcript, structured events, evidence, and a
   keyboard-safe composer.
+- [x] Add completion detail, quick replies, a dictation-ready composer, and
+  visible reply success/failure state for the current bridge contract.
 - [ ] Preserve drafts and reading position; announce new activity without
   jumping scroll position.
 - [ ] Build explicit loading, empty, stale, offline, revoked, incompatible, and

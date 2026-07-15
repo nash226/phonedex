@@ -18,10 +18,8 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
         }
 
         let userInfo = response.notification.request.content.userInfo
-        guard
-            let bridgeRaw = userInfo["bridgeUrl"] as? String,
-            let bridgeURL = URL(string: bridgeRaw)
-        else {
+        guard let bridgeURL = bridgeURL(from: userInfo) else {
+            NotificationReplyResult.record(.failed("The notification did not include a valid bridge URL."))
             return
         }
 
@@ -33,6 +31,7 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
         }
 
         guard !prompt.isEmpty else {
+            NotificationReplyResult.record(.failed("The reply was empty."))
             return
         }
 
@@ -41,12 +40,31 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
             token: userInfo["token"] as? String ?? ""
         )
 
-        try? await client.sendReply(
-            choice: choice,
-            prompt: prompt,
-            taskId: userInfo["taskId"] as? String ?? "",
-            machineName: userInfo["machineName"] as? String
-        )
+        do {
+            try await client.sendReply(
+                choice: choice,
+                prompt: prompt,
+                taskId: userInfo["taskId"] as? String ?? "",
+                machineName: userInfo["machineName"] as? String
+            )
+            NotificationReplyResult.record(.sent(prompt))
+        } catch {
+            NotificationReplyResult.record(.failed(error.localizedDescription))
+        }
+    }
+
+    private func bridgeURL(from userInfo: [AnyHashable: Any]) -> URL? {
+        if let raw = userInfo["bridgeUrl"] as? String,
+           let url = URL(string: raw) {
+            return url
+        }
+
+        guard let raw = userInfo["replyUrl"] as? String,
+              let url = URL(string: raw)
+        else {
+            return nil
+        }
+        return url.lastPathComponent == "reply" ? url.deletingLastPathComponent() : url
     }
 
     private func choice(for actionIdentifier: String) -> PhoneDexReplyChoice? {
@@ -60,5 +78,42 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
         default:
             return nil
         }
+    }
+}
+
+enum NotificationReplyResult: Equatable {
+    case sent(String)
+    case failed(String)
+
+    static let didChange = Notification.Name("PhoneDexNotificationReplyResultDidChange")
+
+    static var latest: NotificationReplyResult? {
+        let defaults = UserDefaults.standard
+        guard let state = defaults.string(forKey: Keys.state),
+              let message = defaults.string(forKey: Keys.message)
+        else {
+            return nil
+        }
+        return state == "sent" ? .sent(message) : .failed(message)
+    }
+
+    static func record(_ result: NotificationReplyResult) {
+        let defaults = UserDefaults.standard
+        switch result {
+        case .sent(let message):
+            defaults.set("sent", forKey: Keys.state)
+            defaults.set(message, forKey: Keys.message)
+        case .failed(let message):
+            defaults.set("failed", forKey: Keys.state)
+            defaults.set(message, forKey: Keys.message)
+        }
+        defaults.set(Date().timeIntervalSince1970, forKey: Keys.updatedAt)
+        NotificationCenter.default.post(name: didChange, object: nil)
+    }
+
+    private enum Keys {
+        static let state = "phonedex.notificationReply.state"
+        static let message = "phonedex.notificationReply.message"
+        static let updatedAt = "phonedex.notificationReply.updatedAt"
     }
 }
