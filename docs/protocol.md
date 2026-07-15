@@ -432,6 +432,19 @@ request returns `state: "duplicate"` without forwarding the reply again.
 Requests that reuse an idempotency key for another task fail with
 `idempotency_conflict`.
 
+### Diagnostics and correlation
+
+Every bridge JSON response includes an opaque, bounded
+`X-PhoneDex-Correlation-Id` response header and a matching top-level
+`correlationId`. Clients may provide the same header on a request; invalid or
+missing values are replaced with a new id. Events, lifecycle commands, and
+command receipts persist an opaque correlation id so a user can connect a visible failure to
+content-free diagnostics without copying prompts, source text, credentials,
+or local paths. Authenticated clients with `tasks.read` can read `/diagnostics`.
+The response reports request latency/error aggregates and distinguishes app,
+hub, push, agent, adapter, and origin-task health; unsupported components stay
+`unknown` rather than being presented as healthy.
+
 The iPhone writes pending reply commands into its AES-GCM encrypted local cache
 before attempting transport. Offline and timeout failures remain queued, and
 reconnection retries the exact command identity. Stale replies are removed
