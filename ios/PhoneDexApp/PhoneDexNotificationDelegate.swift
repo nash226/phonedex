@@ -45,6 +45,7 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
                 choice: choice,
                 prompt: prompt,
                 taskId: userInfo["taskId"] as? String ?? "",
+                sessionId: userInfo["sessionId"] as? String,
                 machineName: userInfo["machineName"] as? String
             )
             NotificationReplyResult.record(.sent(prompt))
