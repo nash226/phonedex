@@ -40,6 +40,7 @@
     "agent:invite": "node ./bin/codex-watch.js agent-invite",
     "agent:invites": "node ./bin/codex-watch.js agent-invite --list",
     "agent:installs": "node ./bin/codex-watch.js agent-installs",
+    "test": "npm run test:session-watch && npm run test:device-coverage && npm run test:coverage-alert && npm run test:agent-enrollment && npm run test:agent-bootstrap-server && npm run test:agent-installs && npm run test:agent-self-test",
     "test:session-watch": "node ./scripts/test-session-watch.js",
     "test:device-coverage": "node ./scripts/test-device-coverage.js",
     "test:coverage-alert": "node ./scripts/test-coverage-alert.js",
