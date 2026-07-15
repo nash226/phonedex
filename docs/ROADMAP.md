@@ -706,7 +706,7 @@ Outcome: turn the complete system into an operable public product.
 
 - [ ] Reproducible signing, entitlements, semantic versioning, and build
   provenance.
-- [ ] Staged migration, backup, rollback, and disaster-recovery drills.
+- [x] Staged migration, backup, rollback, and disaster-recovery drills.
 - [ ] Content-free observability with correlation IDs and component health.
 - [ ] Privacy manifest, App Store privacy answers, privacy policy, retention,
   deletion, security contact, and incident-response process.
@@ -718,6 +718,15 @@ Outcome: turn the complete system into an operable public product.
 
 Exit gate: the release owner records a go decision with known limitations,
 metrics, rollback plan, and verification evidence.
+
+Verification evidence for the completed migration and recovery slice:
+`scripts/test-recovery.js` exercises legacy JSONL import, current-schema
+upgrade, transactional-backup rollback after a failed migration, rejection of
+future schemas, and restoration of a quiesced data-directory copy containing
+compatibility command/receipt logs. `docs/RECOVERY.md` defines the staged
+upgrade stop conditions, complete backup boundary, read-only recovery smoke
+checks, and rerun evidence required before writers resume. The drill does not
+require Apple credentials, a hosted service, or private Codex APIs.
 
 ## Human-Decision Queue
 
