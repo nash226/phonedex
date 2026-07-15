@@ -185,6 +185,39 @@ final class PhoneDexSmokeTests: XCTestCase {
         XCTAssertEqual(event.sequence, 2)
     }
 
+    func testDesktopHandoffDecodesStableTaskContext() throws {
+        let response = try JSONDecoder().decode(
+            PhoneDexLifecycleResponse.self,
+            from: Data("""
+            {
+              "state": "completed",
+              "handoff": {
+                "schema": "phonedex.desktop-handoff.v1",
+                "protocolVersion": 1,
+                "capability": "desktop.handoff.v1",
+                "taskId": "task_1",
+                "sessionId": "session_1",
+                "machineName": "Windows PC",
+                "workspaceName": "PhoneDex",
+                "platform": "windows",
+                "adapterId": "codex.app-server",
+                "adapterMode": "app-server",
+                "branch": "main"
+              },
+              "receipt": {
+                "commandId": "command_1",
+                "state": "completed"
+              }
+            }
+            """.utf8)
+        )
+
+        XCTAssertEqual(response.handoff?.capability, "desktop.handoff.v1")
+        XCTAssertEqual(response.handoff?.sessionId, "session_1")
+        XCTAssertEqual(response.handoff?.copyText.contains("/"), false)
+        XCTAssertEqual(response.receipt.state, "completed")
+    }
+
     func testTaskEvidenceDecodesReviewMetadataWithoutWorkspacePaths() throws {
         let task = try JSONDecoder().decode(
             PhoneDexTask.self,
