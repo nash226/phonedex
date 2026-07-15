@@ -544,7 +544,7 @@ Outcome: safely handle consequential Codex decisions from iPhone.
 - [x] Define expiring, task-version-bound approval requests and receipts.
 - [x] Render exact operation, scope, origin, reason, risk, and expiry.
 - [x] Add explicit approve/reject controls with stale-state rejection.
-- [ ] Add configurable Face ID or passcode confirmation for high-risk actions.
+- [x] Add configurable Face ID or passcode confirmation for high-risk actions.
 - [ ] Audit every decision without storing unnecessary sensitive content.
 - [ ] Add adversarial replay, expiry, compromised-device, and partial-failure
   tests.
@@ -571,6 +571,19 @@ requires a matching origin receipt before persisting the approved or rejected
 projection. `scripts/test-approvals.js` covers forwarding, receipt validation,
 idempotent replay, stale-version rejection, expiry rejection, and unsupported
 capability behavior. No private Codex Desktop API or UI automation is required.
+
+Verification evidence for the completed iPhone authentication slice:
+`ios/PhoneDexApp/PhoneDexApprovalAuthenticator.swift` gates capability-backed
+approve and reject decisions with `LocalAuthentication`'s device-owner policy,
+using Face ID when available and passcode fallback without exposing task,
+approval, or system error details. `PhoneDexSettings` stores the configurable
+policy in `UserDefaults` with authentication enabled by default, and Settings
+explains the effect accessibly. `Info.plist` declares the Face ID usage reason.
+`PhoneDexApprovalAuthenticatorTests.swift` covers privacy-safe cancellation,
+fail-closed command gating, and the settings default/override. The unsigned
+iPhone 17 / iOS 26.3.1 simulator scheme test passed; simulator hardware cannot
+exercise a real biometric prompt, so device-owner authentication remains a
+real-device release verification item.
 
 ## M6: Remote Notifications and Background Sync
 

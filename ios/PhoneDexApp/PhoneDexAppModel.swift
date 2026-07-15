@@ -71,15 +71,21 @@ final class PhoneDexAppModel: ObservableObject {
 
     let settings: PhoneDexSettings
     private let cache: any PhoneDexCacheStoring
+    private let approvalAuthenticator: any PhoneDexApprovalAuthenticating
+    private let injectedBridgeClient: PhoneDexBridgeClient?
     private var syncTasks: [PhoneDexTask] = []
     private var syncCursor: String?
 
     init(
         settings: PhoneDexSettings,
-        cache: any PhoneDexCacheStoring = PhoneDexEncryptedCache()
+        cache: any PhoneDexCacheStoring = PhoneDexEncryptedCache(),
+        approvalAuthenticator: any PhoneDexApprovalAuthenticating = PhoneDexApprovalAuthenticator(),
+        bridgeClient: PhoneDexBridgeClient? = nil
     ) {
         self.settings = settings
         self.cache = cache
+        self.approvalAuthenticator = approvalAuthenticator
+        self.injectedBridgeClient = bridgeClient
         restoreCachedState()
         loadNotificationReplyResult()
     }
@@ -300,6 +306,16 @@ final class PhoneDexAppModel: ObservableObject {
             lifecycleState = .failed("This approval is no longer available from the originating agent. Refresh before trying again.")
             return false
         }
+
+        if settings.requireApprovalAuthentication {
+            do {
+                try await approvalAuthenticator.authenticate()
+            } catch {
+                lifecycleState = .failed(error.localizedDescription)
+                return false
+            }
+        }
+
         return await sendLifecycle(
             kind: decision.rawValue,
             task: task,
@@ -510,6 +526,9 @@ final class PhoneDexAppModel: ObservableObject {
     }
 
     private var bridgeClient: PhoneDexBridgeClient? {
+        if let injectedBridgeClient {
+            return injectedBridgeClient
+        }
         guard let bridgeURL = settings.normalizedBridgeURL else { return nil }
         return PhoneDexBridgeClient(bridgeURL: bridgeURL, token: settings.token)
     }

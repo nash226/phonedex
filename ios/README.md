@@ -39,6 +39,9 @@ The iOS app scaffold includes:
 - A native diff review surface for bounded agent-exported patches, with file
   navigation, lazy line rendering, line numbers, copy, share, and truncation
   guidance.
+- Capability-backed approval and rejection controls require Face ID or device
+  passcode by default, with an accessible Settings override and passcode
+  fallback; the bridge receipt remains the source of truth for success.
 - Chats scopes for Needs You, Running, and Recent, with searchable title,
   transcript, workspace, machine, branch, and repository context plus machine
   and workspace filters. Unknown legacy task statuses remain visible in Recent.

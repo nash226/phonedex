@@ -27,11 +27,13 @@
 		CC0105A4E0261E4B304E1DEF /* PhoneDexSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECE2BFEEB938CE1690FB6C27 /* PhoneDexSettings.swift */; };
 		DB9C445386976265F0EF2A64 /* PhoneDexDiffTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF96594F585D5AFCF6D1F544 /* PhoneDexDiffTests.swift */; };
 		DBB7D6C4A14CA4D6B0AA87D9 /* PhoneDexChatFilteringTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CEF129750D2F0BCA2C8A4FD /* PhoneDexChatFilteringTests.swift */; };
+		DCCCC385181AF2657519B366 /* PhoneDexApprovalAuthenticatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3ED1F00294559FDEF6385488 /* PhoneDexApprovalAuthenticatorTests.swift */; };
 		E3170EE92AC334B16981C74E /* PhoneDexDeviceDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73934912DDDC32DCE39FC6FA /* PhoneDexDeviceDetailView.swift */; };
 		E5051DCD0753963C6EB8743D /* PhoneDexNotificationExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 25C82207BC440A87334B4671 /* PhoneDexNotificationExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		EDCA3CD5D1091B69E242B1A5 /* PhoneDexBridgeClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 215494D6ACCADDC5644E6D3F /* PhoneDexBridgeClient.swift */; };
 		F0771711552D4703F3A341D9 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 066AC8504790A55980D802E5 /* Assets.xcassets */; };
 		F0D7EB376A371851815721E1 /* PhoneDexAppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADCCFEBF0527DD1B51D91321 /* PhoneDexAppModel.swift */; };
+		F2746646CFDDB77090DC7C8B /* PhoneDexApprovalAuthenticator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CA874EB39C929E11680364D /* PhoneDexApprovalAuthenticator.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -81,6 +83,7 @@
 		25C82207BC440A87334B4671 /* PhoneDexNotificationExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = PhoneDexNotificationExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		3240FEAD2F5618D959AFEE78 /* PhoneDexApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexApp.swift; sourceTree = "<group>"; };
 		3CEF129750D2F0BCA2C8A4FD /* PhoneDexChatFilteringTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexChatFilteringTests.swift; sourceTree = "<group>"; };
+		3ED1F00294559FDEF6385488 /* PhoneDexApprovalAuthenticatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexApprovalAuthenticatorTests.swift; sourceTree = "<group>"; };
 		47C36F125C6C567BFBAEBA8F /* PhoneDexModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexModels.swift; sourceTree = "<group>"; };
 		4A8E9F4AFF570E7FCB8FF856 /* PhoneDexDiagnosticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexDiagnosticsTests.swift; sourceTree = "<group>"; };
 		54150915655642C1927495EF /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -88,6 +91,7 @@
 		5DA3B7D5BFCEF5C3D552B1AD /* PhoneDexNotificationScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexNotificationScheduler.swift; sourceTree = "<group>"; };
 		66252EC798BD1847756B72CA /* PhoneDexLocalCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexLocalCacheTests.swift; sourceTree = "<group>"; };
 		6C4DA9B2C010C3DD5BAF8926 /* PhoneDexSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexSettingsTests.swift; sourceTree = "<group>"; };
+		6CA874EB39C929E11680364D /* PhoneDexApprovalAuthenticator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexApprovalAuthenticator.swift; sourceTree = "<group>"; };
 		73934912DDDC32DCE39FC6FA /* PhoneDexDeviceDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneDexDeviceDetailView.swift; sourceTree = "<group>"; };
 		73FF60BB337122A42682971A /* PhoneDex.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = PhoneDex.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		83D661FED750D9AC2CA53D1B /* PhoneDexUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = PhoneDexUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -134,6 +138,7 @@
 				591360A3AD685BF9A3A4BDCE /* Info.plist */,
 				3240FEAD2F5618D959AFEE78 /* PhoneDexApp.swift */,
 				ADCCFEBF0527DD1B51D91321 /* PhoneDexAppModel.swift */,
+				6CA874EB39C929E11680364D /* PhoneDexApprovalAuthenticator.swift */,
 				215494D6ACCADDC5644E6D3F /* PhoneDexBridgeClient.swift */,
 				1BEE64FCB7F6C20249393730 /* PhoneDexBrowserView.swift */,
 				1553D7462D31D1E5ABA0E62F /* PhoneDexCredentialStore.swift */,
@@ -152,6 +157,7 @@
 		8974DA8E45DB055B52788EE4 /* PhoneDexTests */ = {
 			isa = PBXGroup;
 			children = (
+				3ED1F00294559FDEF6385488 /* PhoneDexApprovalAuthenticatorTests.swift */,
 				C116F1A84DE193986E04AF6B /* PhoneDexBridgeClientTests.swift */,
 				3CEF129750D2F0BCA2C8A4FD /* PhoneDexChatFilteringTests.swift */,
 				4A8E9F4AFF570E7FCB8FF856 /* PhoneDexDiagnosticsTests.swift */,
@@ -319,6 +325,7 @@
 				1229201577C351A245C15779 /* ContentView.swift in Sources */,
 				96CDAE56CA505EB72AF1B62E /* PhoneDexApp.swift in Sources */,
 				F0D7EB376A371851815721E1 /* PhoneDexAppModel.swift in Sources */,
+				F2746646CFDDB77090DC7C8B /* PhoneDexApprovalAuthenticator.swift in Sources */,
 				EDCA3CD5D1091B69E242B1A5 /* PhoneDexBridgeClient.swift in Sources */,
 				875549C8A1F06FE7D9FD6418 /* PhoneDexBrowserView.swift in Sources */,
 				40F7F901FEC0B24B6F40E18D /* PhoneDexCredentialStore.swift in Sources */,
@@ -353,6 +360,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DCCCC385181AF2657519B366 /* PhoneDexApprovalAuthenticatorTests.swift in Sources */,
 				93D4773FC5D09E84EB25CF98 /* PhoneDexBridgeClientTests.swift in Sources */,
 				DBB7D6C4A14CA4D6B0AA87D9 /* PhoneDexChatFilteringTests.swift in Sources */,
 				4ABCA9E6BAB9285AAE961757 /* PhoneDexDiagnosticsTests.swift in Sources */,
