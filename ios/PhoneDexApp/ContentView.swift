@@ -112,13 +112,19 @@ private struct PhoneDexChatsView: View {
     @ViewBuilder
     private var emptyState: some View {
         if filteredTasks.isEmpty {
-            ContentUnavailableView {
-                Label(filter.scope.emptyTitle, systemImage: "bubble.left.and.bubble.right")
-            } description: {
-                Text(filter.hasFilters ? "Try a different search or filter." : filter.scope.emptyDescription)
-            } actions: {
-                if filter.hasFilters {
-                    Button("Clear filters") { clearFilters() }
+            if model.tasks.isEmpty && model.connectionState.blocksEmptyContent {
+                PhoneDexSyncUnavailableView(state: model.connectionState) {
+                    Task { await model.refresh() }
+                }
+            } else {
+                ContentUnavailableView {
+                    Label(filter.scope.emptyTitle, systemImage: "bubble.left.and.bubble.right")
+                } description: {
+                    Text(filter.hasFilters ? "Try a different search or filter." : filter.scope.emptyDescription)
+                } actions: {
+                    if filter.hasFilters {
+                        Button("Clear filters") { clearFilters() }
+                    }
                 }
             }
         }
@@ -222,22 +228,32 @@ struct PhoneDexConnectionHeader: View {
     let state: PhoneDexAppModel.ConnectionState
 
     var body: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(color)
-                .frame(width: 7, height: 7)
-            Text(label)
+        HStack(alignment: .top, spacing: 7) {
+            Image(systemName: symbol)
+                .foregroundStyle(color)
+                .frame(width: 14)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                if let detail {
+                    Text(detail)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
         }
         .textCase(nil)
         .font(.caption)
         .foregroundStyle(.secondary)
+        .accessibilityElement(children: .combine)
     }
 
     private var color: Color {
         switch state {
         case .online: return .green
-        case .failed: return .red
-        case .syncing: return .orange
+        case .stale, .offline, .partial: return .orange
+        case .revoked, .incompatible, .failed: return .red
+        case .syncing: return .blue
         case .idle: return .secondary
         }
     }
@@ -245,10 +261,124 @@ struct PhoneDexConnectionHeader: View {
     private var label: String {
         switch state {
         case .online: return "Hub connected"
-        case .failed: return "Hub unavailable"
-        case .syncing: return "Syncing"
+        case .stale: return "Cached data is stale"
+        case .offline: return "Working offline"
+        case .revoked: return "Hub access revoked"
+        case .incompatible: return "Hub needs an update"
+        case .partial(let dataSet, _, _): return "Partial sync · \(dataSet.title.capitalized) available"
+        case .failed: return "Refresh failed"
+        case .syncing: return "Loading PhoneDex data"
         case .idle: return "Waiting for hub"
         }
+    }
+
+    private var symbol: String {
+        switch state {
+        case .online: return "checkmark.circle.fill"
+        case .stale: return "clock.badge.exclamationmark.fill"
+        case .offline: return "wifi.exclamationmark"
+        case .revoked: return "lock.slash.fill"
+        case .incompatible: return "arrow.triangle.2.circlepath.circle"
+        case .partial: return "exclamationmark.circle.fill"
+        case .failed: return "exclamationmark.triangle.fill"
+        case .syncing: return "arrow.triangle.2.circlepath"
+        case .idle: return "circle.dashed"
+        }
+    }
+
+    private var detail: String? {
+        switch state {
+        case .online(let date): return "Synced \(relative(date))"
+        case .stale(let date): return "Last synced \(relative(date)); refresh when the hub is reachable."
+        case .offline(let date): return date.map { "Last synced \(relative($0))" } ?? "No cached sync yet"
+        case .incompatible(let message, let date): return date.map { "\(message) Last read \(relative($0))." } ?? message
+        case .partial(_, let message, let date): return date.map { "\(message) Last complete sync \(relative($0))." } ?? message
+        case .failed(let message, let date): return date.map { "\(message) Last synced \(relative($0))." } ?? message
+        case .revoked: return "Re-pair this iPhone before sending replies."
+        case .syncing, .idle: return nil
+        }
+    }
+
+    private func relative(_ date: Date) -> String {
+        RelativeDateTimeFormatter().localizedString(for: date, relativeTo: Date())
+    }
+}
+
+struct PhoneDexSyncUnavailableView: View {
+    let state: PhoneDexAppModel.ConnectionState
+    let retry: () -> Void
+
+    var body: some View {
+        switch state {
+        case .syncing:
+            VStack(spacing: 12) {
+                ProgressView()
+                    .controlSize(.large)
+                Text("Loading PhoneDex data")
+                    .font(.headline)
+                Text("The latest conversations and device status will appear here.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(24)
+            .accessibilityElement(children: .combine)
+        default:
+            ContentUnavailableView {
+                Label(title, systemImage: symbol)
+            } description: {
+                Text(message)
+            } actions: {
+                Button("Try again", action: retry)
+            }
+        }
+    }
+
+    private var title: String {
+        switch state {
+        case .stale: return "Stale cached data"
+        case .offline: return "Working offline"
+        case .revoked: return "Access revoked"
+        case .incompatible: return "Hub needs an update"
+        case .partial(let dataSet, _, _): return "Only \(dataSet.title) are available"
+        case .failed: return "Couldn’t refresh"
+        case .idle, .online, .syncing: return "PhoneDex is ready"
+        }
+    }
+
+    private var symbol: String {
+        switch state {
+        case .stale: return "clock.badge.exclamationmark.fill"
+        case .offline: return "wifi.exclamationmark"
+        case .revoked: return "lock.slash.fill"
+        case .incompatible: return "arrow.triangle.2.circlepath.circle"
+        case .partial: return "exclamationmark.circle.fill"
+        case .failed: return "exclamationmark.triangle.fill"
+        case .idle, .online, .syncing: return "bubble.left.and.bubble.right"
+        }
+    }
+
+    private var message: String {
+        switch state {
+        case .stale(let date):
+            return "The hub cannot be reached and the cached data is from \(relative(date)). Refresh before relying on current task or device state."
+        case .offline(let date):
+            return date.map { "The hub cannot be reached. Cached data from \(relative($0)) remains available when it exists." } ?? "The hub cannot be reached and no cached data is available yet."
+        case .revoked:
+            return "The hub no longer trusts this iPhone. Re-pair it before relying on task state or sending replies."
+        case .incompatible(let message, _):
+            return message
+        case .partial(let dataSet, let message, _):
+            return "\(message) Previously loaded data remains visible while \(dataSet.title) recover."
+        case .failed(let message, _):
+            return message
+        case .idle, .online, .syncing:
+            return "Refresh to check the hub."
+        }
+    }
+
+    private func relative(_ date: Date) -> String {
+        RelativeDateTimeFormatter().localizedString(for: date, relativeTo: Date())
     }
 }
 
@@ -449,7 +579,13 @@ private struct PhoneDexProjectsView: View {
             .refreshable { await model.refresh() }
             .overlay {
                 if model.projects.isEmpty {
-                    ContentUnavailableView("No projects", systemImage: "folder")
+                    if model.tasks.isEmpty && model.connectionState.blocksEmptyContent {
+                        PhoneDexSyncUnavailableView(state: model.connectionState) {
+                            Task { await model.refresh() }
+                        }
+                    } else {
+                        ContentUnavailableView("No projects", systemImage: "folder")
+                    }
                 }
             }
         }
@@ -495,7 +631,13 @@ private struct PhoneDexDevicesView: View {
             .refreshable { await model.refresh() }
             .overlay {
                 if model.devices.isEmpty {
-                    ContentUnavailableView("No devices", systemImage: "desktopcomputer")
+                    if model.connectionState.blocksEmptyContent {
+                        PhoneDexSyncUnavailableView(state: model.connectionState) {
+                            Task { await model.refresh() }
+                        }
+                    } else {
+                        ContentUnavailableView("No devices", systemImage: "desktopcomputer")
+                    }
                 }
             }
         }

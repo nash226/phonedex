@@ -157,6 +157,17 @@ workspace filters, stable selection, and contextual empty states. The
 cover status partitioning, legacy records, context search, combined filters,
 and stable filter options.
 
+Verification evidence for the completed iOS sync-state slice:
+`ios/PhoneDexApp/PhoneDexAppModel.swift` preserves the last complete in-memory
+result while distinguishing loading, stale, offline, revoked, incompatible,
+partial, and generic refresh failures. `PhoneDexBridgeClient` falls back only when a
+hub does not expose `/sync`, reports which legacy data set was recovered, and
+keeps HTTP response bodies out of user-facing errors. `ContentView.swift`
+renders accessible loading and degraded empty states plus freshness details in
+Chats, Projects, Devices, and Settings. `PhoneDexBridgeClientTests.swift`
+covers compatibility fallback, partial data, and transport classification;
+the iOS test target also retains its smoke and diagnostics coverage.
+
 Verification evidence for the completed device/workspace details slice:
 `ios/PhoneDexApp/PhoneDexDeviceDetailView.swift` provides read-only device
 identity, heartbeat health, visible-work counts, copyable device identity, and
@@ -185,7 +196,7 @@ Outcome: replace the utility screen with a polished, offline-aware native app.
   visible reply success/failure state for the current bridge contract.
 - [ ] Preserve drafts and reading position; announce new activity without
   jumping scroll position.
-- [ ] Build explicit loading, empty, stale, offline, revoked, incompatible, and
+- [x] Build explicit loading, empty, stale, offline, revoked, incompatible, and
   partial-failure states.
 - [ ] Add reply delivery receipts, retry, stale-version handling, and encrypted
   outbox behavior.
