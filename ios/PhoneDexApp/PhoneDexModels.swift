@@ -1,6 +1,6 @@
 import Foundation
 
-struct PhoneDexTask: Decodable, Identifiable, Equatable {
+struct PhoneDexTask: Codable, Identifiable, Equatable {
     let id: String
     let at: String?
     let source: String?
@@ -203,7 +203,7 @@ struct PhoneDexTaskFilter: Equatable {
     }
 }
 
-struct PhoneDexDevice: Decodable, Identifiable, Equatable {
+struct PhoneDexDevice: Codable, Identifiable, Equatable {
     let deviceId: String
     let machineName: String?
     let platform: String?
