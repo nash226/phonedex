@@ -13,9 +13,10 @@ struct PhoneDexCachedState: Codable, Equatable {
     let devices: [PhoneDexDevice]
     let lastSyncAt: Date?
     let drafts: [String: String]
+    let readingPositions: [String: String]
 
     private enum CodingKeys: String, CodingKey {
-        case schema, version, cursor, tasks, devices, lastSyncAt, drafts
+        case schema, version, cursor, tasks, devices, lastSyncAt, drafts, readingPositions
     }
 
     init(
@@ -24,6 +25,7 @@ struct PhoneDexCachedState: Codable, Equatable {
         devices: [PhoneDexDevice],
         lastSyncAt: Date?,
         drafts: [String: String] = [:],
+        readingPositions: [String: String] = [:],
         schema: String = PhoneDexCachedState.currentSchema,
         version: Int = PhoneDexCachedState.currentVersion
     ) {
@@ -34,6 +36,7 @@ struct PhoneDexCachedState: Codable, Equatable {
         self.devices = devices
         self.lastSyncAt = lastSyncAt
         self.drafts = drafts
+        self.readingPositions = readingPositions
     }
 
     init(from decoder: Decoder) throws {
@@ -45,6 +48,7 @@ struct PhoneDexCachedState: Codable, Equatable {
         devices = try container.decode([PhoneDexDevice].self, forKey: .devices)
         lastSyncAt = try container.decodeIfPresent(Date.self, forKey: .lastSyncAt)
         drafts = try container.decodeIfPresent([String: String].self, forKey: .drafts) ?? [:]
+        readingPositions = try container.decodeIfPresent([String: String].self, forKey: .readingPositions) ?? [:]
     }
 
     func encode(to encoder: Encoder) throws {
@@ -56,6 +60,7 @@ struct PhoneDexCachedState: Codable, Equatable {
         try container.encode(devices, forKey: .devices)
         try container.encodeIfPresent(lastSyncAt, forKey: .lastSyncAt)
         try container.encode(drafts, forKey: .drafts)
+        try container.encode(readingPositions, forKey: .readingPositions)
     }
 }
 

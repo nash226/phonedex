@@ -15,7 +15,8 @@ final class PhoneDexLocalCacheTests: XCTestCase {
             tasks: [task(id: "task_123")],
             devices: [],
             lastSyncAt: Date(timeIntervalSince1970: 1_750_000_000),
-            drafts: ["task_123": "Keep the next reply focused"]
+            drafts: ["task_123": "Keep the next reply focused"],
+            readingPositions: ["task_123": "activity"]
         )
 
         try cache.save(state)
@@ -27,6 +28,25 @@ final class PhoneDexLocalCacheTests: XCTestCase {
         try cache.remove()
         XCTAssertNil(try cache.load())
         XCTAssertNil(keyStore.key)
+    }
+
+    func testLegacyCacheWithoutReadingPositionRemainsReadable() throws {
+        let state = PhoneDexCachedState(
+            cursor: "cursor.v1",
+            tasks: [task(id: "task_legacy")],
+            devices: [],
+            lastSyncAt: nil,
+            drafts: ["task_legacy": "Draft"]
+        )
+        let encoded = try JSONEncoder().encode(state)
+        var legacyObject = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        legacyObject.removeValue(forKey: "readingPositions")
+        let legacyData = try JSONSerialization.data(withJSONObject: legacyObject)
+
+        let decoded = try JSONDecoder().decode(PhoneDexCachedState.self, from: legacyData)
+
+        XCTAssertEqual(decoded.drafts["task_legacy"], "Draft")
+        XCTAssertTrue(decoded.readingPositions.isEmpty)
     }
 
     func testTamperedCacheFailsClosedWithoutReturningPartialState() throws {

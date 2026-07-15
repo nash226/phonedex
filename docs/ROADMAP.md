@@ -241,6 +241,13 @@ from the encrypted cache and offers a "Show new activity" affordance instead
 of moving the reader when refreshed task metadata changes. Full session-event,
 diff, and validation exports remain gated on later agent contracts.
 
+Verification evidence for the completed reading-position slice:
+`ios/PhoneDexApp/PhoneDexLocalCache.swift` stores the selected task-detail
+section in the existing encrypted cache, and `ContentView.swift` restores that
+logical position after relaunch without jumping when newer activity arrives.
+`PhoneDexLocalCacheTests.swift` covers encrypted round-trip persistence and
+reading legacy cache payloads that predate the optional position map.
+
 Verification evidence for the completed device/workspace details slice:
 `ios/PhoneDexApp/PhoneDexDeviceDetailView.swift` provides read-only device
 identity, heartbeat health, visible-work counts, copyable device identity, and
@@ -269,7 +276,7 @@ Outcome: replace the utility screen with a polished, offline-aware native app.
   visible reply success/failure state for the current bridge contract.
 - [x] Preserve composer drafts in the encrypted local cache and announce new
   activity without jumping scroll position.
-- [ ] Preserve task reading position across relaunch.
+- [x] Preserve task reading position across relaunch.
 - [x] Build explicit loading, empty, stale, offline, revoked, incompatible, and
   partial-failure states.
 - [ ] Add reply delivery receipts, retry, stale-version handling, and encrypted
