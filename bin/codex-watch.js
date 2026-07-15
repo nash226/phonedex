@@ -32,8 +32,10 @@ const {
 } = require("../lib/phonedex-privacy");
 const {
   DEFAULT_PAIRING_TTL_MS,
+  assertSupportedScopes,
   createIdentity,
   createPairingGrant,
+  hasScope,
   hashSecret,
   normalizeRole,
   publicIdentity,
@@ -324,10 +326,14 @@ function createPairingGrantCommand(args) {
   ensureDataDir(cfg.dataDir);
   const flags = parseFlags(args);
   const role = normalizeRole(flags.role || "phone");
+  const scopes = flags.scopes === undefined
+    ? undefined
+    : assertSupportedScopes(String(flags.scopes).split(",").map((scope) => scope.trim()).filter(Boolean));
   const grant = createPairingGrant({
     role,
     name: flags.name || (role === "phone" ? "PhoneDex iPhone" : "PhoneDex agent"),
     platform: flags.platform || (role === "phone" ? "ios" : "unknown"),
+    scopes,
     ttlMs: positiveNumber(flags.ttlMs || flags["ttl-ms"] || flags.ttl, cfg.pairingTtlMs)
   });
   durableStore(cfg.dataDir).createPairingGrant(grant.stored);
@@ -703,22 +709,14 @@ function buildPushcutBody(cfg, task) {
   };
 }
 
-function isRequestTokenValid(req, requestUrl, cfg) {
+function isScopedBearerAuthorized(req, cfg, scope) {
   if (!cfg.token) return true;
-
-  const queryToken = requestUrl.searchParams.get("token") || "";
   const authHeader = req.headers.authorization || "";
   const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
   const bearerToken = bearerMatch ? bearerMatch[1].trim() : "";
+  if (bearerToken === cfg.token) return true;
 
-  return queryToken === cfg.token || bearerToken === cfg.token;
-}
-
-function isBearerTokenValid(req, cfg) {
-  if (!cfg.token) return true;
-  const authHeader = req.headers.authorization || "";
-  const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
-  return Boolean(bearerMatch && bearerMatch[1].trim() === cfg.token);
+  return hasScope(findIdentityForRequest(req, cfg), scope);
 }
 
 function isRequestAuthorized(req, requestUrl, cfg, scope) {
@@ -731,7 +729,7 @@ function isRequestAuthorized(req, requestUrl, cfg, scope) {
   if (bearerToken === cfg.token) return true;
 
   const identity = findIdentityForRequest(req, cfg);
-  return Boolean(identity && identity.status === "active" && (!scope || identity.scopes.includes(scope)));
+  return Boolean(identity && (!scope || hasScope(identity, scope)));
 }
 
 function findIdentityForRequest(req, cfg) {
@@ -887,7 +885,7 @@ async function startServer(providedCfg) {
         if (req.method === "POST") {
           return handleAgentInstallReportRequest(req, res, requestUrl, cfg);
         }
-        if (!isRequestAuthorized(req, requestUrl, cfg, "devices.heartbeat")) {
+        if (!isRequestAuthorized(req, requestUrl, cfg, "admin")) {
           return sendJson(res, 401, { ok: false, error: "Invalid token" });
         }
         return sendJson(
@@ -949,7 +947,8 @@ async function startServer(providedCfg) {
 }
 
 async function handlePrivacyRequest(req, res, requestUrl, cfg) {
-  if (!isBearerTokenValid(req, cfg)) {
+  const requiredScope = req.method === "GET" ? "privacy.read" : "privacy.manage";
+  if (!isScopedBearerAuthorized(req, cfg, requiredScope)) {
     return sendJson(res, 401, { ok: false, error: "Invalid token" });
   }
 
@@ -1286,7 +1285,7 @@ async function handleAgentBootstrapRequest(req, res, requestUrl, cfg) {
     });
   }
 
-  if (!isRequestTokenValid(req, requestUrl, cfg)) {
+  if (!isRequestAuthorized(req, requestUrl, cfg, "admin")) {
     return sendJson(res, 401, { ok: false, error: "Invalid token" });
   }
 

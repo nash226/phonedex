@@ -197,7 +197,7 @@ Outcome: remove shared bearer-token setup from the production path.
 
 - [x] Create revocable identities for phone, hub, and computer agents.
 - [x] Implement short-lived, single-use pairing grants with verification codes.
-- [ ] Add scoped permissions for read, reply, approve, and administration.
+- [x] Add scoped permissions for read, reply, approve, and administration.
 - [x] Move iOS credentials from `UserDefaults` to Keychain.
 - [ ] Remove credentials from URLs, notification metadata, logs, and support
   output.
@@ -247,6 +247,17 @@ Keychain. `scripts/test-pairing.js` and
 `PhoneDexBridgeClientTests.testRedeemPairingUsesOneTimeGrantWithoutCredentialInRequest`
 cover the end-to-end contract, failed verification, one-time use, scoped
 authorization, and secret redaction.
+
+Verification evidence for the completed scoped-permissions slice:
+`lib/phonedex-identity.js` defines the supported read, reply, ingest, heartbeat,
+approval, privacy, and administration scopes. `pair:create --scopes` accepts
+only that allowlist, keeps least-privilege phone and agent defaults, and permits
+an explicitly granted `admin` identity to read or manage the privacy control
+plane and administrative install reports. Paired bearer credentials are checked
+against the requested scope, revoked identities fail closed, and query-string
+credentials remain rejected by privacy endpoints. `scripts/test-pairing.js`
+covers invalid-scope rejection, default phone denial, explicit admin access,
+confirmation-gated mutation, and URL credential rejection.
 
 Verification evidence for the completed identity-revocation slice:
 `lib/phonedex-store.js` persists an idempotent revoked state for a paired phone

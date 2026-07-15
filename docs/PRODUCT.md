@@ -826,6 +826,11 @@ pairing grants that mint a scoped phone or agent credential without putting
 the durable credential in the pairing request; this does not claim account-wide
 Codex API access.
 
+Paired identities now enforce least-privilege read, reply, ingest, heartbeat,
+privacy, and administration scopes at the hub boundary. Administrative access
+is opt-in through an allowlisted pairing grant; a phone's default read/reply
+credential cannot inspect or mutate privacy controls.
+
 ### Current security blockers
 
 Before external beta, legacy shared-token setup must be retired in favor of
