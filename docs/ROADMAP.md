@@ -99,7 +99,7 @@ device, and command control plane while retaining migration from current data.
 - [x] Converge hook and session-watcher captures into one logical task event.
 - [x] Separate device reachability, agent health, and Codex adapter health.
 - [x] Add capability negotiation and protocol compatibility errors.
-- [ ] Add retention, redaction, export, and deletion controls.
+- [x] Add retention, redaction, export, and deletion controls.
 - [ ] Preserve a compatibility adapter for current `/tasks` and `/reply`
   clients during migration.
 
@@ -165,6 +165,17 @@ capability with accessible available/unavailable status. `scripts/test-protocol.
 `scripts/test-sync-server.js`, `PhoneDexBridgeClientTests`, and
 `PhoneDexDiagnosticsTests` cover normalization, negotiation, fail-closed errors,
 legacy compatibility, and device presentation.
+
+Verification evidence for the completed privacy-controls slice:
+`lib/phonedex-privacy.js` defines the `phonedex.privacy.v1` policy/export
+contract, redacts credentials and local paths from exports, applies an explicit
+bounded retention window across durable tasks and activity logs, and requires
+`DELETE_PHONEDEX_HISTORY` before deleting task history. The authenticated
+`/privacy`, `/privacy/export`, `/privacy/retention`, and `/privacy/delete`
+endpoints work for the shared Mac/Windows-compatible hub;
+`PHONEDEX_RETENTION_DAYS` can enforce a configured startup policy.
+`scripts/test-privacy.js` covers export redaction, retention, authentication,
+confirmation failures, history deletion, and device inventory preservation.
 
 ## M2: Secure Identity and Pairing
 

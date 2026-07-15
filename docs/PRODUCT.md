@@ -807,6 +807,17 @@ developer credential manager than a casual notification utility.
 - Publish a privacy policy, security contact, incident response process, and
   dependency update policy before public distribution.
 
+The current hub provides an authenticated privacy control plane for the safe
+subset that does not require a new identity system: `GET /privacy` reports
+policy and bounded counts, `GET /privacy/export` returns a credential- and
+local-path-redacted export, `POST /privacy/retention` applies an explicitly
+confirmed retention window, and `POST /privacy/delete` removes task history
+and activity only after the exact `DELETE_PHONEDEX_HISTORY` confirmation.
+Device inventory is retained so a user can still diagnose and recover the hub
+after history deletion. These controls are shared by Mac and Windows agents
+through the user-owned hub and do not claim scoped pairing or account-wide
+Codex API access.
+
 ### Current security blockers
 
 Before external beta, the current shared token and custom configuration URL
