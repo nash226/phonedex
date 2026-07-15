@@ -1545,13 +1545,15 @@ async function submitPromptToForegroundCodex(cfg, task, prompt) {
   const foregroundApp =
     process.env.PHONEDEX_FOREGROUND_APP ||
     (fs.existsSync("/Applications/ChatGPT.app") ? "ChatGPT" : "Codex");
+  const threadUrl = codexThreadUrl(task.sessionId);
   appendJsonl(cfg.dataDir, "events.jsonl", {
     at: new Date().toISOString(),
     type: "foreground-resume-worker-started",
     taskId: task.id,
     sessionId: task.sessionId || "",
     cwd: task.cwd || ROOT,
-    foregroundApp
+    foregroundApp,
+    threadUrl
   });
 
   const script = `
@@ -1575,9 +1577,16 @@ end run
 `;
 
   try {
-    await runChild("open", ["-a", foregroundApp], {
+    await runChild("open", threadUrl ? [threadUrl] : ["-a", foregroundApp], {
       cwd: task.cwd || ROOT
     });
+    if (threadUrl) {
+      const delayMs = Math.max(
+        0,
+        Number(process.env.PHONEDEX_FOREGROUND_THREAD_OPEN_DELAY_MS || "1200") || 0
+      );
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
     await runChild("osascript", ["-e", script, prompt, foregroundApp], {
       cwd: task.cwd || ROOT
     });
@@ -1597,6 +1606,11 @@ end run
     });
     throw error;
   }
+}
+
+function codexThreadUrl(sessionId) {
+  const value = String(sessionId || "").trim();
+  return value ? `codex://threads/${encodeURIComponent(value)}` : "";
 }
 
 async function runAppServerTurn(cfg, task, prompt) {
