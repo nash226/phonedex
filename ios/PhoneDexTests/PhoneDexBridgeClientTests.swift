@@ -135,6 +135,129 @@ final class PhoneDexBridgeClientTests: XCTestCase {
         XCTAssertTrue(result.devices.isEmpty)
     }
 
+    func testIncrementalSyncAppliesReplacementAndTombstone() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [URLProtocolStub.self]
+        let session = URLSession(configuration: configuration)
+
+        URLProtocolStub.handler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "http://bridge.test/sync?limit=50&cursor=cursor.old")
+            return (
+                HTTPURLResponse(
+                    url: try XCTUnwrap(request.url),
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: ["content-type": "application/json"]
+                )!,
+                Data("""
+                {"snapshot":null,"changes":[
+                  {"position":8,"kind":"task","id":"task_123","deleted":false,"record":{"id":"task_123","title":"Updated","text":"New result"}},
+                  {"position":9,"kind":"device","id":"device_old","deleted":true}
+                ],"cursor":"cursor.new","hasMore":false}
+                """.utf8)
+            )
+        }
+
+        let oldTask = PhoneDexTask(
+            id: "task_123",
+            at: nil,
+            source: nil,
+            title: "Old",
+            text: "Old result",
+            cwd: nil,
+            workspaceName: nil,
+            machineName: nil,
+            sessionId: nil,
+            status: nil,
+            branch: nil,
+            repository: nil
+        )
+        let oldDevice = PhoneDexDevice(
+            deviceId: "device_old",
+            machineName: "Old Mac",
+            platform: "macos",
+            role: "agent",
+            status: "online",
+            lastSeenAt: nil,
+            version: nil,
+            publicUrl: nil,
+            expected: nil
+        )
+
+        let result = try await PhoneDexBridgeClient(
+            bridgeURL: URL(string: "http://bridge.test")!,
+            token: "secret",
+            session: session
+        ).fetchSyncState(
+            cursor: "cursor.old",
+            tasks: [oldTask],
+            devices: [oldDevice]
+        )
+
+        XCTAssertEqual(result.tasks?.first?.title, "Updated")
+        XCTAssertTrue(result.devices?.isEmpty == true)
+        XCTAssertEqual(result.cursor, "cursor.new")
+    }
+
+    func testStaleCursorRestartsFromFreshSnapshot() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [URLProtocolStub.self]
+        let session = URLSession(configuration: configuration)
+        var requestURLs: [String] = []
+
+        URLProtocolStub.handler = { request in
+            requestURLs.append(request.url?.absoluteString ?? "")
+            if requestURLs.count == 1 {
+                return (
+                    HTTPURLResponse(
+                        url: try XCTUnwrap(request.url),
+                        statusCode: 409,
+                        httpVersion: nil,
+                        headerFields: nil
+                    )!,
+                    Data("{\"code\":\"sync_snapshot_changed\"}".utf8)
+                )
+            }
+            return (
+                HTTPURLResponse(
+                    url: try XCTUnwrap(request.url),
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: ["content-type": "application/json"]
+                )!,
+                Data("""
+                {"snapshot":{"complete":true,"tasks":[{"id":"fresh","title":"Fresh","text":"State"}],"devices":[]},"changes":[],"cursor":"cursor.fresh","hasMore":false}
+                """.utf8)
+            )
+        }
+
+        let result = try await PhoneDexBridgeClient(
+            bridgeURL: URL(string: "http://bridge.test")!,
+            token: "secret",
+            session: session
+        ).fetchSyncState(cursor: "cursor.stale", tasks: [PhoneDexTask(
+            id: "old",
+            at: nil,
+            source: nil,
+            title: "Old",
+            text: "Old",
+            cwd: nil,
+            workspaceName: nil,
+            machineName: nil,
+            sessionId: nil,
+            status: nil,
+            branch: nil,
+            repository: nil
+        )])
+
+        XCTAssertEqual(requestURLs, [
+            "http://bridge.test/sync?limit=50&cursor=cursor.stale",
+            "http://bridge.test/sync?limit=50"
+        ])
+        XCTAssertEqual(result.tasks?.map(\.id), ["fresh"])
+        XCTAssertTrue(result.restartedFromSnapshot)
+    }
+
     func testResilientSyncFallsBackWithoutHidingPartialData() async throws {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [URLProtocolStub.self]

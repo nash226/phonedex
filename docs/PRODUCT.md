@@ -96,22 +96,22 @@ The repository already proves the core loop, but not the final product.
 - A native SwiftUI shell provides Chats, Workspaces, Browser, Devices, and
   Settings, with read-only workspace and device detail surfaces for machine
   context, task counts, heartbeat health, and actionable diagnostics.
-- The app stores one bridge URL and token and fetches the latest task.
+- The app stores one bridge URL and token, restores an encrypted local task/device
+  cache, and reconciles from the hub's opaque cursor while foregrounded.
 - The app schedules a local notification and registers three reply actions.
 - A notification content extension renders a long, scrollable result.
 - Notification actions post canned or typed/dictated replies to the bridge.
 - Configuration and preview actions can be invoked through a custom URL scheme.
-- The project targets iOS 17 and has no app test target in the current project
-  definition.
+- The project targets iOS 17 and includes an iOS unit-test target.
 
 ### Not production-ready today
 
-- There is no APNs provider path, remote push registration, durable foreground
-  sync, or reliable background refresh.
-- The iOS app now distinguishes loading, stale, offline, revoked, incompatible, and
-  partial refresh states and keeps successfully loaded content visible during
-  a degraded refresh; this is an in-memory continuity layer, not yet the
-  durable encrypted cache or command outbox described below.
+- There is no APNs provider path, remote push registration, or reliable
+  background refresh.
+- The iOS app restores an encrypted local cache, resumes foreground sync from a
+  durable cursor, and distinguishes loading, stale, offline, revoked,
+  incompatible, and partial refresh states; command outbox behavior remains
+  future work.
 - The iOS app has no durable lifecycle model, live progress, approval UI,
   artifact review, command queue, or offline outbox; its current task inbox,
   search, and read-only device/workspace details remain bridge-contract
@@ -124,8 +124,9 @@ The repository already proves the core loop, but not the final product.
   the user.
 - Legacy bridge endpoints still expose a recent slice of append-only JSONL data,
   but the authenticated `/sync` contract now provides versioned snapshot pages,
-  opaque cursors, stable ordering, and tombstones. Per-client durable cursor
-  storage and encrypted cache remain future iOS work.
+  opaque cursors, stable ordering, and tombstones. The native iPhone client
+  persists its cursor and encrypted cache; command receipts and outbox replay
+  remain future work.
 - Starting, canceling, retrying, approving, or streaming a Codex task is not a
   defined cross-platform agent contract.
 - Foreground UI automation is Mac-specific, permission-sensitive, and brittle.

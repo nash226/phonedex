@@ -3,6 +3,8 @@ import Foundation
 struct PhoneDexSyncResult {
     let tasks: [PhoneDexTask]?
     let devices: [PhoneDexDevice]?
+    let cursor: String?
+    let restartedFromSnapshot: Bool
     let usedCompatibilityFallback: Bool
     let fallbackMessage: String?
 
@@ -65,13 +67,38 @@ struct PhoneDexBridgeClient {
     }
 
     func fetchSync(limit: Int = 50) async throws -> (tasks: [PhoneDexTask], devices: [PhoneDexDevice]) {
-        var cursor: String?
-        var tasksByID = [PhoneDexTask.ID: PhoneDexTask]()
-        var devicesByID = [PhoneDexDevice.ID: PhoneDexDevice]()
+        let result = try await fetchSyncState(limit: limit)
+        return (tasks: result.tasks ?? [], devices: result.devices ?? [])
+    }
 
-        repeat {
-            let page = try await fetchSyncPage(cursor: cursor, limit: limit)
+    func fetchSyncState(
+        cursor: String? = nil,
+        tasks: [PhoneDexTask] = [],
+        devices: [PhoneDexDevice] = [],
+        limit: Int = 50
+    ) async throws -> PhoneDexSyncResult {
+        var currentCursor = cursor?.isEmpty == true ? nil : cursor
+        var restartedFromSnapshot = false
+        var tasksByID = Dictionary(uniqueKeysWithValues: currentCursor == nil ? [] : tasks.map { ($0.id, $0) })
+        var devicesByID = Dictionary(uniqueKeysWithValues: currentCursor == nil ? [] : devices.map { ($0.id, $0) })
+
+        while true {
+            let page: PhoneDexSyncPage
+            do {
+                page = try await fetchSyncPage(cursor: currentCursor, limit: limit)
+            } catch let error where currentCursor != nil && error.isRestartableSyncCursor {
+                currentCursor = nil
+                tasksByID.removeAll()
+                devicesByID.removeAll()
+                restartedFromSnapshot = true
+                continue
+            }
+
             if let snapshot = page.snapshot {
+                if currentCursor == nil {
+                    tasksByID.removeAll()
+                    devicesByID.removeAll()
+                }
                 for task in snapshot.tasks { tasksByID[task.id] = task }
                 for device in snapshot.devices { devicesByID[device.id] = device }
             }
@@ -95,24 +122,28 @@ struct PhoneDexBridgeClient {
                     continue
                 }
             }
-            cursor = page.hasMore ? page.cursor : nil
-        } while cursor != nil
-
-        return (
-            tasks: Array(tasksByID.values),
-            devices: Array(devicesByID.values)
-        )
+            currentCursor = page.cursor
+            if !page.hasMore {
+                return PhoneDexSyncResult(
+                    tasks: Array(tasksByID.values),
+                    devices: Array(devicesByID.values),
+                    cursor: currentCursor,
+                    restartedFromSnapshot: restartedFromSnapshot,
+                    usedCompatibilityFallback: false,
+                    fallbackMessage: nil
+                )
+            }
+        }
     }
 
-    func fetchResilientSync(limit: Int = 50) async throws -> PhoneDexSyncResult {
+    func fetchResilientSync(
+        cursor: String? = nil,
+        tasks: [PhoneDexTask] = [],
+        devices: [PhoneDexDevice] = [],
+        limit: Int = 50
+    ) async throws -> PhoneDexSyncResult {
         do {
-            let result = try await fetchSync(limit: limit)
-            return PhoneDexSyncResult(
-                tasks: result.tasks,
-                devices: result.devices,
-                usedCompatibilityFallback: false,
-                fallbackMessage: nil
-            )
+            return try await fetchSyncState(cursor: cursor, tasks: tasks, devices: devices, limit: limit)
         } catch let syncError {
             guard syncError.isCompatibilityFailure else { throw syncError }
 
@@ -124,6 +155,8 @@ struct PhoneDexBridgeClient {
             return PhoneDexSyncResult(
                 tasks: tasks,
                 devices: devices,
+                cursor: nil,
+                restartedFromSnapshot: false,
                 usedCompatibilityFallback: true,
                 fallbackMessage: "This hub does not expose durable sync yet. Compatible data is shown."
             )
@@ -197,6 +230,11 @@ enum PhoneDexBridgeClientError: LocalizedError {
         return status == 404 || status == 405
     }
 
+    var isRestartableSyncCursor: Bool {
+        guard case .httpStatus(let status, _) = self else { return false }
+        return status == 400 || status == 409
+    }
+
     var isRevoked: Bool {
         guard case .httpStatus(let status, _) = self else { return false }
         return status == 401 || status == 403
@@ -221,6 +259,10 @@ extension Error {
 
     var isCompatibilityFailure: Bool {
         (self as? PhoneDexBridgeClientError)?.isCompatibilityFailure ?? false
+    }
+
+    var isRestartableSyncCursor: Bool {
+        (self as? PhoneDexBridgeClientError)?.isRestartableSyncCursor ?? false
     }
 
     var isOffline: Bool {

@@ -1,0 +1,73 @@
+import XCTest
+@testable import PhoneDex
+
+final class PhoneDexLocalCacheTests: XCTestCase {
+    func testCacheEncryptsAndRestoresCursorAndState() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("PhoneDexLocalCacheTests-\(UUID().uuidString)", isDirectory: true)
+        let fileURL = root.appendingPathComponent("cache.bin")
+        let keyStore = InMemoryCacheKeyStore()
+        let cache = PhoneDexEncryptedCache(fileURL: fileURL, keyStore: keyStore)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let state = PhoneDexCachedState(
+            cursor: "cursor.v1",
+            tasks: [task(id: "task_123")],
+            devices: [],
+            lastSyncAt: Date(timeIntervalSince1970: 1_750_000_000)
+        )
+
+        try cache.save(state)
+        let encrypted = try Data(contentsOf: fileURL)
+        XCTAssertFalse(String(data: encrypted, encoding: .utf8)?.contains("private result") == true)
+        XCTAssertEqual(try cache.load(), state)
+        XCTAssertEqual(keyStore.key?.count, 32)
+
+        try cache.remove()
+        XCTAssertNil(try cache.load())
+        XCTAssertNil(keyStore.key)
+    }
+
+    func testTamperedCacheFailsClosedWithoutReturningPartialState() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("PhoneDexLocalCacheTests-\(UUID().uuidString)", isDirectory: true)
+        let fileURL = root.appendingPathComponent("cache.bin")
+        let keyStore = InMemoryCacheKeyStore()
+        let cache = PhoneDexEncryptedCache(fileURL: fileURL, keyStore: keyStore)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        try cache.save(PhoneDexCachedState(cursor: "cursor", tasks: [task(id: "private")], devices: [], lastSyncAt: nil))
+        var bytes = try Data(contentsOf: fileURL)
+        bytes[bytes.startIndex] ^= 0xff
+        try bytes.write(to: fileURL)
+
+        XCTAssertThrowsError(try cache.load()) { error in
+            XCTAssertEqual(error as? PhoneDexCacheError, .invalidData)
+        }
+    }
+
+    private func task(id: String) -> PhoneDexTask {
+        PhoneDexTask(
+            id: id,
+            at: "2026-07-15T12:00:00.000Z",
+            source: "codex",
+            title: "Private task",
+            text: "private result",
+            cwd: nil,
+            workspaceName: "PhoneDex",
+            machineName: "Studio Mac",
+            sessionId: nil,
+            status: "completed",
+            branch: nil,
+            repository: nil
+        )
+    }
+}
+
+private final class InMemoryCacheKeyStore: PhoneDexCacheKeyStoring {
+    var key: Data?
+
+    func readKey() throws -> Data? { key }
+    func writeKey(_ key: Data) throws { self.key = key }
+    func removeKey() throws { key = nil }
+}

@@ -57,9 +57,17 @@ final class PhoneDexAppModel: ObservableObject {
     static let staleAfter: TimeInterval = 5 * 60
 
     let settings: PhoneDexSettings
+    private let cache: any PhoneDexCacheStoring
+    private var syncTasks: [PhoneDexTask] = []
+    private var syncCursor: String?
 
-    init(settings: PhoneDexSettings) {
+    init(
+        settings: PhoneDexSettings,
+        cache: any PhoneDexCacheStoring = PhoneDexEncryptedCache()
+    ) {
         self.settings = settings
+        self.cache = cache
+        restoreCachedState()
         loadNotificationReplyResult()
     }
 
@@ -86,9 +94,14 @@ final class PhoneDexAppModel: ObservableObject {
 
         connectionState = .syncing
         do {
-            let result = try await client.fetchResilientSync()
+            let result = try await client.fetchResilientSync(
+                cursor: syncCursor,
+                tasks: syncTasks,
+                devices: devices
+            )
             if let fetchedTasks = result.tasks {
-                tasks = PhoneDexTask.latestPerConversation(fetchedTasks).sorted { lhs, rhs in
+                syncTasks = fetchedTasks
+                tasks = PhoneDexTask.latestPerConversation(syncTasks).sorted { lhs, rhs in
                     (lhs.displayDate ?? .distantPast) > (rhs.displayDate ?? .distantPast)
                 }
             }
@@ -105,6 +118,8 @@ final class PhoneDexAppModel: ObservableObject {
             let now = Date()
             if result.isComplete {
                 lastSuccessfulSync = now
+                syncCursor = result.usedCompatibilityFallback ? nil : result.cursor
+                persistCachedState(lastSyncAt: now)
                 if result.usedCompatibilityFallback {
                     connectionState = .incompatible(
                         message: result.fallbackMessage ?? "This hub is using a compatibility connection.",
@@ -114,6 +129,8 @@ final class PhoneDexAppModel: ObservableObject {
                     connectionState = .online(now)
                 }
             } else {
+                if result.usedCompatibilityFallback { syncCursor = nil }
+                persistCachedState(lastSyncAt: lastSuccessfulSync)
                 connectionState = .partial(
                     result.availableDataSet,
                     message: result.fallbackMessage ?? "Some PhoneDex data could not be refreshed.",
@@ -186,5 +203,34 @@ final class PhoneDexAppModel: ObservableObject {
     private var bridgeClient: PhoneDexBridgeClient? {
         guard let bridgeURL = settings.normalizedBridgeURL else { return nil }
         return PhoneDexBridgeClient(bridgeURL: bridgeURL, token: settings.token)
+    }
+
+    private func restoreCachedState() {
+        do {
+            guard let cached = try cache.load() else { return }
+            syncTasks = cached.tasks
+            tasks = PhoneDexTask.latestPerConversation(syncTasks).sorted { lhs, rhs in
+                (lhs.displayDate ?? .distantPast) > (rhs.displayDate ?? .distantPast)
+            }
+            devices = cached.devices
+            syncCursor = cached.cursor
+            lastSuccessfulSync = cached.lastSyncAt
+            connectionState = .offline(cached.lastSyncAt)
+            selectedTaskID = tasks.first?.id
+        } catch {
+            // A corrupt or unavailable cache must never prevent a fresh sync.
+        }
+    }
+
+    private func persistCachedState(lastSyncAt: Date?) {
+        guard let lastSyncAt else { return }
+        try? cache.save(
+            PhoneDexCachedState(
+                cursor: syncCursor,
+                tasks: syncTasks,
+                devices: devices,
+                lastSyncAt: lastSyncAt
+            )
+        )
     }
 }

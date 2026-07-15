@@ -73,3 +73,10 @@ start and kept as a compatibility mirror for local tooling. A failed or
 corrupt current snapshot is recovered from the backup only when the backup
 validates; future store versions fail closed instead of being silently
 downgraded.
+
+The native iPhone client stores the last complete task/device projection and
+the opaque cursor in an AES-GCM encrypted cache. Its 256-bit cache key is a
+device-only Keychain item and the cache file uses iOS data protection. A
+rejected or changed cursor causes a fresh snapshot bootstrap; legacy endpoint
+fallbacks deliberately clear the durable cursor so compatibility data cannot be
+mistaken for an acknowledged sync position.
