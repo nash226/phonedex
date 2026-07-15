@@ -77,7 +77,7 @@ Status: **Queued**
 Outcome: replace the notification-shaped JSONL API with a durable task, event,
 device, and command control plane while retaining migration from current data.
 
-- [ ] Define versioned schemas for tasks, events, devices, workspaces,
+- [x] Define versioned schemas for tasks, events, devices, workspaces,
   capabilities, commands, and command receipts.
 - [ ] Introduce a transactional embedded store with migrations and backup.
 - [ ] Add snapshot-plus-cursor sync with pagination, tombstones, and stable
@@ -91,6 +91,13 @@ device, and command control plane while retaining migration from current data.
 
 Exit gate: restart, duplicate delivery, pagination, migration, and rollback
 tests prove no task or acknowledged command is silently lost.
+
+Verification evidence for the completed schema slice: `lib/phonedex-protocol.js`
+defines and validates the seven `phonedex.*.v1` record types, while
+`scripts/test-protocol.js` covers valid task, event, device, workspace,
+capability, command, and receipt records plus rejected protocol versions,
+unknown schemas, invalid command states, and missing targets. New bridge task
+and device records carry the v1 identity without removing legacy JSONL fields.
 
 ## M2: Secure Identity and Pairing
 
@@ -266,4 +273,3 @@ A roadmap slice is done only when:
    reviewed in proportion to the change.
 5. The pull request includes validation evidence and no unrelated churn.
 6. Required CI is green and the PR is safely merged under `AGENTS.md`.
-

@@ -103,9 +103,13 @@ async function main() {
     assert.equal(report.heartbeatForward.ok, true);
     assert.equal(report.taskForward.ok, true);
     assert.equal(report.sessionWatch.ok, true);
+    assert.equal(report.task.schema, "phonedex.task.v1");
     assert.equal(report.hubDevice.deviceId, "agent-one");
+    assert.equal(report.hubDevice.schema, "phonedex.device.v1");
     assert.equal(report.hubTask.originTaskId, report.task.id);
+    assert.equal(report.hubTask.schema, "phonedex.task.v1");
     assert.equal(report.hubSessionTask.originTaskId, report.sessionWatch.taskId);
+    assert.equal(report.hubSessionTask.schema, "phonedex.task.v1");
     assert.equal(report.hubSessionTask.sessionId, report.sessionWatch.sessionId);
   } finally {
     hub.kill();
