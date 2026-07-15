@@ -515,7 +515,7 @@ enum PhoneDexBridgeClientError: LocalizedError {
         case .invalidResponse:
             return "Bridge returned an invalid response."
         case .httpStatus(let status, _):
-            return "Bridge returned HTTP \(status)."
+            return PhoneDexLocalization.bridgeHTTPStatus(status)
         case .protocolIncompatible(let message):
             return message
         case .staleTask(let message):

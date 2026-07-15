@@ -20,6 +20,16 @@ verification on the machine where they run.
 The repository does not promise support for private Codex Desktop APIs, remote
 desktop control, or arbitrary platform versions outside this matrix.
 
+### Localization readiness
+
+SwiftUI text literals are intentionally kept in native `Text` initializers so
+Xcode can extract them for localization. Copy passed to UIKit, Local
+Authentication, or `LocalizedError` must go through `PhoneDexLocalization`,
+with a stable key and English fallback. Date and relative-time presentation
+uses the system locale. Adding a translated locale requires copy review and
+the full iOS unit/UI validation matrix; the project does not claim a
+translated locale until that review is complete.
+
 ## Reproducible checks
 
 From the repository root, run the bridge checks with either supported Node.js

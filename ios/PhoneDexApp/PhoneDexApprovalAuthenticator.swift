@@ -17,7 +17,7 @@ struct PhoneDexApprovalAuthenticator: PhoneDexApprovalAuthenticating {
         do {
             let authenticated = try await context.evaluatePolicy(
                 .deviceOwnerAuthentication,
-                localizedReason: "Confirm this approval decision in PhoneDex."
+                localizedReason: PhoneDexLocalization.approvalReason()
             )
             guard authenticated else {
                 throw PhoneDexApprovalAuthenticationError.failed
