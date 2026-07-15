@@ -105,7 +105,8 @@ async function main() {
           platform: "windows",
           role: "agent",
           lastSeenAt: "2026-07-15T12:00:00.000Z",
-          codexHome: "C:\\Users\\private"
+          codexHome: "C:\\Users\\private",
+          health: { agent: "healthy", adapter: "unknown" }
         }
       })
     });
@@ -135,6 +136,11 @@ async function main() {
     assert.equal(tasks.every((task) => task.workspaceName === "repo"), true);
     assert.equal(tasks.every((task) => !Object.hasOwn(task, "cwd")), true);
     assert.equal(JSON.stringify(devices).includes("private"), false);
+    assert.deepEqual(devices[0].health, {
+      reachability: "online",
+      agent: "healthy",
+      adapter: "unknown"
+    });
 
     const ingested = await request(`${hubUrl}/tasks`, {
       method: "POST",

@@ -90,6 +90,8 @@ The repository already proves the core loop, but not the final product.
 - Replies can route to an origin machine. On Mac they can optionally resume a
   CLI or app-server session or paste into the foreground Codex app.
 - Agent enrollment, install reporting, and device coverage checks exist.
+- Device records preserve separate reachability, PhoneDex agent, and Codex
+  adapter health; unsupported adapter health is shown as unknown.
 
 ### Current iOS prototype
 
