@@ -201,6 +201,64 @@ final class PhoneDexAppModel: ObservableObject {
         return await attemptPendingReply(pending, client: client)
     }
 
+    func sendQuestionResponse(
+        task: PhoneDexTask,
+        questionId: String,
+        response: PhoneDexQuestionResponse
+    ) async -> Bool {
+        guard let question = task.question, question.id == questionId else {
+            replyState = .failed("This question is no longer available. Refresh PhoneDex and try again.")
+            return false
+        }
+
+        let prompt: String
+        switch response.kind {
+        case "choice":
+            guard let choiceId = response.choiceId,
+                  let choice = question.choices.first(where: { $0.id == choiceId }) else {
+                replyState = .failed("That choice is no longer available. Refresh PhoneDex and try again.")
+                return false
+            }
+            prompt = choice.label
+        case "text":
+            guard question.allowsFreeText,
+                  let text = response.text?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !text.isEmpty else {
+                replyState = .failed("This question only accepts its listed choices.")
+                return false
+            }
+            prompt = text
+        default:
+            replyState = .failed("This question response is not supported by PhoneDex.")
+            return false
+        }
+
+        guard let client = bridgeClient else {
+            replyState = .failed("The bridge URL is invalid.")
+            return false
+        }
+        let pending = pendingReplies.first(where: {
+            $0.taskId == task.id && $0.questionId == questionId && $0.questionResponse == response
+        }) ?? PhoneDexPendingReply(
+            commandId: UUID().uuidString,
+            idempotencyKey: "ios-\(UUID().uuidString)",
+            taskId: task.id,
+            choice: PhoneDexReplyChoice.custom.rawValue,
+            prompt: prompt,
+            expectedTaskVersion: task.version ?? 1,
+            sessionId: task.sessionId,
+            machineName: task.machineName,
+            createdAt: Date(),
+            questionId: questionId,
+            questionResponse: response
+        )
+        if !pendingReplies.contains(where: { $0.id == pending.id }) {
+            pendingReplies.append(pending)
+            persistCachedState(lastSyncAt: lastSuccessfulSync)
+        }
+        return await attemptPendingReply(pending, client: client)
+    }
+
     func retryPendingReply(for task: PhoneDexTask) async -> Bool {
         guard let pending = pendingReplies.first(where: { $0.taskId == task.id }),
               let client = bridgeClient else {
@@ -228,7 +286,9 @@ final class PhoneDexAppModel: ObservableObject {
                 machineName: pending.machineName,
                 commandId: pending.commandId,
                 idempotencyKey: pending.idempotencyKey,
-                expectedTaskVersion: pending.expectedTaskVersion
+                expectedTaskVersion: pending.expectedTaskVersion,
+                questionId: pending.questionId,
+                questionResponse: pending.questionResponse
             )
             guard receipt.isSuccessful else {
                 replyState = .failed(receipt.message ?? "The originating agent did not accept this reply.")
