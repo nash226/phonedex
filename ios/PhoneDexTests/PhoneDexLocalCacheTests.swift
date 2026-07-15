@@ -26,7 +26,9 @@ final class PhoneDexLocalCacheTests: XCTestCase {
                 expectedTaskVersion: 3,
                 sessionId: "thread_123",
                 machineName: "Studio Mac",
-                createdAt: Date(timeIntervalSince1970: 1_750_000_001)
+                createdAt: Date(timeIntervalSince1970: 1_750_000_001),
+                questionId: "next-step",
+                questionResponse: .choice("tests")
             )]
         )
 
@@ -34,6 +36,8 @@ final class PhoneDexLocalCacheTests: XCTestCase {
         let encrypted = try Data(contentsOf: fileURL)
         XCTAssertFalse(String(data: encrypted, encoding: .utf8)?.contains("private result") == true)
         XCTAssertEqual(try cache.load(), state)
+        XCTAssertEqual(try cache.load()?.pendingReplies.first?.questionId, "next-step")
+        XCTAssertEqual(try cache.load()?.pendingReplies.first?.questionResponse, .choice("tests"))
         XCTAssertEqual(keyStore.key?.count, 32)
 
         try cache.remove()

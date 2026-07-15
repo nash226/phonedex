@@ -31,6 +31,10 @@ final class PhoneDexBridgeClientTests: XCTestCase {
             XCTAssertEqual(json["commandId"] as? String, "command_123")
             XCTAssertEqual(json["idempotencyKey"] as? String, "reply_123")
             XCTAssertEqual(json["expectedTaskVersion"] as? Int, 3)
+            XCTAssertEqual(json["questionId"] as? String, "next-step")
+            let response = try XCTUnwrap(json["response"] as? [String: Any])
+            XCTAssertEqual(response["kind"] as? String, "choice")
+            XCTAssertEqual(response["choiceId"] as? String, "tests")
             XCTAssertNil(json["token"])
 
             return (
@@ -60,7 +64,9 @@ final class PhoneDexBridgeClientTests: XCTestCase {
             machineName: "Studio Mac",
             commandId: "command_123",
             idempotencyKey: "reply_123",
-            expectedTaskVersion: 3
+            expectedTaskVersion: 3,
+            questionId: "next-step",
+            questionResponse: .choice("tests")
         )
         XCTAssertEqual(receipt.state, "completed")
         XCTAssertEqual(receipt.taskVersion, 3)
