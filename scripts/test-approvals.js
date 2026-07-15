@@ -191,6 +191,35 @@ async function main() {
     assert.equal(approved.json.task.approvalRequest.state, "approved");
     assert.equal(originRequests.length, 1);
 
+    const rejectedIngest = await request(`${hubURL}/tasks`, {
+      method: "POST",
+      headers: { authorization: "Bearer hub-token", "content-type": "application/json" },
+      body: JSON.stringify({
+        task: {
+          ...baseTask,
+          title: "Rejected approval",
+          approvalRequest: approvalRequest("approval_rejected")
+        }
+      })
+    });
+    const rejected = await request(`${hubURL}/command`, {
+      method: "POST",
+      headers: { authorization: "Bearer hub-token", "content-type": "application/json" },
+      body: JSON.stringify({
+        kind: "reject",
+        taskId: rejectedIngest.json.task.id,
+        approvalId: "approval_rejected",
+        approvalTaskVersion: 5,
+        expectedTaskVersion: 5,
+        commandId: "approval-command-rejected",
+        idempotencyKey: "approval-key-rejected"
+      })
+    });
+    assert.equal(rejected.response.status, 200, rejected.text);
+    assert.equal(rejected.json.receipt.approvalState, "rejected");
+    assert.equal(rejected.json.task.approvalRequest.state, "rejected");
+    assert.equal(originRequests.length, 2);
+
     const duplicate = await request(`${hubURL}/command`, {
       method: "POST",
       headers: { authorization: "Bearer hub-token", "content-type": "application/json" },
@@ -206,7 +235,7 @@ async function main() {
     });
     assert.equal(duplicate.response.status, 200);
     assert.equal(duplicate.json.duplicate, true);
-    assert.equal(originRequests.length, 1);
+    assert.equal(originRequests.length, 2);
 
     const stale = await request(`${hubURL}/command`, {
       method: "POST",
@@ -223,7 +252,7 @@ async function main() {
     });
     assert.equal(stale.response.status, 409);
     assert.equal(stale.json.code, "task_stale");
-    assert.equal(originRequests.length, 1);
+    assert.equal(originRequests.length, 2);
 
     const badReceiptIngest = await request(`${hubURL}/tasks`, {
       method: "POST",
@@ -251,7 +280,7 @@ async function main() {
     });
     assert.equal(badReceipt.response.status, 502);
     assert.equal(badReceipt.json.code, "origin_invalid_receipt");
-    assert.equal(originRequests.length, 2);
+    assert.equal(originRequests.length, 3);
 
     const expiredIngest = await request(`${hubURL}/tasks`, {
       method: "POST",
@@ -285,7 +314,7 @@ async function main() {
     });
     assert.equal(expired.response.status, 409);
     assert.equal(expired.json.code, "approval_expired");
-    assert.equal(originRequests.length, 2);
+    assert.equal(originRequests.length, 3);
 
     const noCapability = await request(`${hubURL}/tasks`, {
       method: "POST",
@@ -314,7 +343,23 @@ async function main() {
     });
     assert.equal(unsupported.response.status, 409);
     assert.equal(unsupported.json.code, "capability_unsupported");
-    assert.equal(originRequests.length, 2);
+    assert.equal(originRequests.length, 3);
+
+    const audit = fs.readFileSync(path.join(dataDir, "security-audit.jsonl"), "utf8")
+      .trim()
+      .split(/\r?\n/)
+      .map((line) => JSON.parse(line))
+      .filter((entry) => entry.action === "approval.decision");
+    assert.ok(audit.some((entry) => entry.outcome === "approved" && entry.reason === "origin_receipt_accepted"));
+    assert.ok(audit.some((entry) => entry.outcome === "rejected" && entry.reason === "origin_receipt_accepted"));
+    assert.ok(audit.some((entry) => entry.outcome === "blocked" && entry.reason === "task_stale"));
+    assert.ok(audit.some((entry) => entry.outcome === "blocked" && entry.reason === "origin_invalid_receipt"));
+    assert.ok(audit.some((entry) => entry.outcome === "blocked" && entry.reason === "approval_expired"));
+    assert.ok(audit.some((entry) => entry.outcome === "blocked" && entry.reason === "capability_unsupported"));
+    assert.equal(JSON.stringify(audit).includes("Write files"), false);
+    assert.equal(JSON.stringify(audit).includes("PhoneDex workspace"), false);
+    assert.equal(JSON.stringify(audit).includes("Writes generated files"), false);
+    assert.equal(JSON.stringify(audit).includes("Security fixture"), false);
   } finally {
     server.kill();
     await new Promise((resolve) => origin.close(resolve));
