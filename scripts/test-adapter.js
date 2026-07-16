@@ -61,6 +61,23 @@ assert.equal(supportsAdapterCapability(macForeground, "desktop.handoff"), false)
 assert.match(macForeground.limitations.join(" "), /experimental.*cannot manage task lifecycle/i);
 assert.doesNotMatch(macForeground.limitations.join(" "), /Configure PHONEDEX_WORKSPACE_ROOTS/);
 assertAdapterDescriptor(macForeground);
+assert.throws(
+  () => assertAdapterDescriptor({ ...macForeground, experimental: false }),
+  /experimental flag does not match its mode/
+);
+assert.throws(
+  () => assertAdapterDescriptor({ ...macForeground, platform: "windows" }),
+  /supported only on macOS/
+);
+assert.throws(
+  () => assertAdapterDescriptor({
+    ...macForeground,
+    capabilities: macForeground.capabilities.map((capability) =>
+      capability.id === "task.cancel" ? { ...capability, supported: true } : capability
+    )
+  }),
+  /cannot advertise lifecycle or handoff capabilities/
+);
 
 const macCliWithoutExecutable = createCodexAdapter({
   platform: "macos",
