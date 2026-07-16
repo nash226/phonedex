@@ -38,6 +38,11 @@ final class PhoneDexAppModel: ObservableObject {
                 return false
             }
         }
+
+        var supportsAutomaticRefreshReset: Bool {
+            if case .online = self { return true }
+            return false
+        }
     }
 
     enum ReplyState: Equatable {

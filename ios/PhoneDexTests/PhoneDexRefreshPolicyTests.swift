@@ -2,7 +2,11 @@ import XCTest
 @testable import PhoneDex
 
 final class PhoneDexRefreshPolicyTests: XCTestCase {
-    private let policy = PhoneDexRefreshPolicy(automaticMinimumInterval: 30)
+    private let policy = PhoneDexRefreshPolicy(
+        automaticMinimumInterval: 30,
+        automaticMaximumInterval: 120,
+        jitterFraction: 0.2
+    )
     private let baseline = Date(timeIntervalSince1970: 1_000)
 
     func testInitialLaunchAlwaysRefreshes() {
@@ -26,6 +30,35 @@ final class PhoneDexRefreshPolicyTests: XCTestCase {
             trigger: .becameActive,
             now: baseline.addingTimeInterval(30),
             lastAutomaticRefreshAt: baseline
+        ))
+    }
+
+    func testFailuresBackOffAutomaticallyButRespectMaximum() {
+        XCTAssertEqual(policy.automaticDelay(consecutiveFailures: 0), 30)
+        XCTAssertEqual(policy.automaticDelay(consecutiveFailures: 1), 60)
+        XCTAssertEqual(policy.automaticDelay(consecutiveFailures: 2), 120)
+        XCTAssertEqual(policy.automaticDelay(consecutiveFailures: 8), 120)
+    }
+
+    func testJitterIsBoundedAndAppliedToTheBackoffWindow() {
+        XCTAssertEqual(policy.automaticDelay(consecutiveFailures: 0, jitter: -1), 30)
+        XCTAssertEqual(policy.automaticDelay(consecutiveFailures: 1, jitter: -1), 48)
+        XCTAssertEqual(policy.automaticDelay(consecutiveFailures: 1, jitter: 1), 72)
+        XCTAssertEqual(policy.automaticDelay(consecutiveFailures: 1, jitter: 4), 72)
+    }
+
+    func testFailureBackoffDelaysForegroundRefresh() {
+        XCTAssertFalse(policy.shouldRefresh(
+            trigger: .becameActive,
+            now: baseline.addingTimeInterval(59.9),
+            lastAutomaticRefreshAt: baseline,
+            consecutiveFailures: 1
+        ))
+        XCTAssertTrue(policy.shouldRefresh(
+            trigger: .becameActive,
+            now: baseline.addingTimeInterval(60),
+            lastAutomaticRefreshAt: baseline,
+            consecutiveFailures: 1
         ))
     }
 
