@@ -90,8 +90,9 @@ The repository already proves the core loop, but not the final product.
 - The hub stores recent tasks, replies, events, and device state in local files.
 - Authenticated HTTP endpoints expose recent tasks and devices and accept task
   ingestion and replies.
-- Replies can route to an origin machine. On Mac they can optionally resume a
-  CLI or app-server session or paste into the foreground Codex app.
+- Replies can route to an origin machine. On Mac they can resume a CLI or
+  app-server session; an explicitly enabled foreground Codex paste fallback is
+  available only when the negotiated experimental capability is present.
 - Agent enrollment, install reporting, and device coverage checks exist.
 - Device records preserve separate reachability, PhoneDex agent, and Codex
   adapter health; unsupported adapter health is shown as unknown.
