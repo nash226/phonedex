@@ -796,6 +796,14 @@ cases. This reduces redundant foreground network and parsing work without
 pretending that a background refresh or APNs provider exists; real-device
 battery profiling remains required before the M8 battery gate can be checked off.
 
+Crash verification for the in-progress release-readiness slice:
+Settings and the embedded browser no longer force-unwrap user-visible sharing
+URLs. Invalid browser addresses now hide the share action instead of falling
+back through another force unwrap, and `PhoneDexBrowserTests` covers both valid
+and malformed addresses. This removes two production crash paths; crash-free
+session measurement and real-device validation remain required before the
+combined M8 release-readiness gate can be checked off.
+
 Verification evidence for the completed migration and recovery slice:
 `scripts/test-recovery.js` exercises legacy JSONL import, current-schema
 upgrade, transactional-backup rollback after a failed migration, rejection of
