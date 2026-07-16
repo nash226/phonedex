@@ -225,15 +225,19 @@ struct PhoneDexTaskRow: View {
             .frame(width: 42, height: 42)
 
             VStack(alignment: .leading, spacing: 4) {
-                HStack(alignment: .firstTextBaseline) {
+                HStack(alignment: .top, spacing: 8) {
                     Text(task.title)
                         .font(.headline)
-                        .lineLimit(1)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 8)
                     if let date = task.displayDate {
                         Text(date, style: .relative)
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.trailing)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
 
@@ -249,7 +253,8 @@ struct PhoneDexTaskRow: View {
                 Label("\(task.displayWorkspace) · \(task.displayMachine)", systemImage: "desktopcomputer")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(.vertical, 6)

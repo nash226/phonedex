@@ -774,8 +774,13 @@ Accessibility verification for the in-progress release-readiness slice:
 system audit at the largest Dynamic Type size with Reduce Motion and dark
 appearance enabled. The shell fixes keep validation guidance readable, remove
 the fixed-size composer icon, and allow long branch labels to wrap instead of
-clipping. This is evidence for the accessibility portion of the combined M8
-gate; performance, battery, localization, and crash validation remain open.
+clipping. Conversation rows now wrap task titles, relative timestamps, and
+machine/workspace context at accessibility sizes, and
+`PhoneDexShellUITests.testSettingsActionsRemainReachableAtAccessibilitySize`
+keeps pairing, connection, and notification actions reachable after the
+settings form grows. This is evidence for the accessibility portion of the
+combined M8 gate; performance, battery, localization, and crash validation
+remain open.
 
 Performance verification for the in-progress release-readiness slice:
 `PhoneDexDiffTests.testFiveThousandLineReviewPathStaysWithinInteractiveOpenBudget`
