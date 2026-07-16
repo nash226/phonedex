@@ -686,6 +686,13 @@ authentication, forwarding storage, headers, tamper rejection, and native
 digest failure. Retention policy for artifact bytes remains a separate release
 gate.
 
+Verification evidence for the completed recovery-drill slice: `docs/RECOVERY.md`
+documents the safe operator procedure for the user-managed Mac/Windows hub,
+including evidence preservation, malformed-snapshot recovery, unsupported
+future-version handling, and iPhone cache boundaries. `scripts/test-recovery.js`
+proves backup rotation, corruption archival and recovery, and fail-closed
+rollback behavior without overwriting a newer store version.
+
 Verification evidence for the completed review-retention and export-policy
 slice: `lib/phonedex-privacy.js` applies the configured bounded retention
 window to verified artifact bytes and their opaque index records, removes
@@ -706,7 +713,7 @@ Outcome: turn the complete system into an operable public product.
 
 - [ ] Reproducible signing, entitlements, semantic versioning, and build
   provenance.
-- [ ] Staged migration, backup, rollback, and disaster-recovery drills.
+- [x] Staged migration, backup, rollback, and disaster-recovery drills.
 - [ ] Content-free observability with correlation IDs and component health.
 - [ ] Privacy manifest, App Store privacy answers, privacy policy, retention,
   deletion, security contact, and incident-response process.
