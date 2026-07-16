@@ -208,7 +208,7 @@ PhoneDex has three ways to continue Codex from a phone reply:
 
 | Mode | How It Works | Current Use |
 | --- | --- | --- |
-| `foreground` | Activates Codex.app, pastes the reply, presses Return. | Current preferred mode on Mac. |
+| `foreground` | Activates Codex.app, pastes the reply, presses Return. | Explicitly opt-in experimental Mac fallback. |
 | `app-server` | Uses Codex app-server to resume a session in the background. | Works, but does not render in the visible thread. |
 | `cli` | Runs `codex exec resume <session> <prompt>`. | Useful fallback if CLI resume is enough. |
 

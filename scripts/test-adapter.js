@@ -57,6 +57,7 @@ assert.equal(supportsAdapterCapability(macForeground, "task.reply"), true);
 assert.equal(supportsAdapterCapability(macForeground, "task.create"), false);
 assert.equal(supportsAdapterCapability(macForeground, "task.cancel"), false);
 assert.equal(supportsAdapterCapability(macForeground, "task.retry"), false);
+assert.equal(supportsAdapterCapability(macForeground, "approval.respond"), false);
 assert.equal(supportsAdapterCapability(macForeground, "desktop.handoff"), false);
 assert.match(macForeground.limitations.join(" "), /experimental.*cannot manage task lifecycle/i);
 assert.doesNotMatch(macForeground.limitations.join(" "), /Configure PHONEDEX_WORKSPACE_ROOTS/);

@@ -436,7 +436,7 @@ across Mac and Windows.
 - [x] Implement desktop handoff using stable supported task/session identity.
 - [x] Build and validate the macOS adapter matrix.
 - [x] Build and validate the Windows adapter matrix.
-- [ ] Keep foreground macOS paste as an explicitly experimental fallback.
+- [x] Keep foreground macOS paste as an explicitly experimental fallback.
 - [x] Hide or explain every unsupported action based on negotiated capability.
 
 Exit gate: acceptance scenarios 3, 4, 5, 9, and 10 pass on one Mac and one
@@ -460,6 +460,20 @@ lifecycle or desktop-handoff capabilities even when workspace roots are
 configured. `scripts/test-adapter.js` covers macOS CLI, app-server, foreground,
 and missing-executable cases, including capability and limitation assertions;
 the same fixture continues to cover the Windows fail-closed foreground case.
+
+Verification evidence for the completed experimental foreground-fallback slice:
+`lib/phonedex-adapter.js` marks the macOS `foreground` mode experimental and
+limits it to task replies. It cannot advertise task creation, cancellation,
+retry, approval, or desktop-handoff capabilities, even when workspace roots are
+configured; Windows foreground mode fails closed as unavailable. The bridge's
+foreground submit path opens the exact exported Codex thread when a stable
+session id is present, uses literal reply text, and requires explicit
+`WATCH_BRIDGE_AUTO_RESUME=true` opt-in. `scripts/test-adapter.js`,
+`scripts/test-windows-adapter.js`, and `scripts/test-foreground-submit.js`
+cover capability isolation, Windows rejection, exact-thread routing, and
+bounded foreground submission. Accessibility permission and the visible Mac
+application remain real-device/manual release checks; this fallback is not a
+production dependency or private Codex Desktop API.
 
 Verification evidence for the completed Windows adapter-matrix slice:
 `scripts/test-windows-adapter.js` exercises both `win32` and canonical

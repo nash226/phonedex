@@ -87,11 +87,13 @@ session and submit the phone reply as a new turn. `Okay, what's next` is wrapped
 as a status-only prompt so it does not start new background work; `Let's do
 that` is the action-oriented reply.
 
-If you want the phone reply to appear in the currently open Codex desktop
-thread, use `foreground` mode. It activates Codex.app, pastes the literal phone
-reply text into the visible input, and submits it through the UI. macOS must allow the
-process running PhoneDex, plus `osascript` when prompted, to control the
-computer in **Privacy & Security > Accessibility**.
+If you explicitly opt in to the experimental `foreground` mode, a phone reply
+can appear in the currently open Codex desktop thread. It activates Codex.app,
+pastes the literal phone reply text into the visible input, and submits it
+through the UI. macOS must allow the process running PhoneDex, plus `osascript`
+when prompted, to control the computer in **Privacy & Security > Accessibility**.
+This fallback supports replies only; it does not provide lifecycle controls or
+desktop handoff and is not a production dependency.
 When a completion includes a Codex thread id, foreground mode opens that exact
 Desktop thread before submitting the phone reply; tasks without a thread id
 fall back to the currently open ChatGPT/Codex window.
