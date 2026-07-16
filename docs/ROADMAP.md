@@ -795,8 +795,12 @@ for short and 160-character mixed hunk/addition/deletion/context exports. The
 shared `PhoneDexDiffParser.interactiveOpenBudget` contract fails when local
 preparation exceeds one second. These are regression guards for the documented
 interactive-open target, not proof of oldest-device p95 behavior; TestFlight
-and real-device profiling remain required before the M8 performance gate can
-be checked off.
+and real-device profiling remain required before the M7 performance checkbox
+or the combined M8 performance gate can be checked off. `PhoneDexDiffContent`
+caches the parsed and changed-only documents for the selected file so SwiftUI
+body updates do not repeat the bounded parse on context toggles, Dynamic Type,
+or accessibility state changes; the view identity is reset per selected file
+so that cache cannot be reused for the wrong patch.
 
 Observability verification for the completed release-readiness slice:
 `lib/phonedex-observability.js` defines the content-free

@@ -157,6 +157,10 @@ struct PhoneDexDiffViewer: View {
 
                 if let selectedFile {
                     PhoneDexDiffContent(file: selectedFile)
+                        // Reset the parsed 5,000-line cache when selection
+                        // changes so a reused SwiftUI identity cannot show
+                        // the previous file's projection.
+                        .id(selectedFile.id)
                 } else {
                     ContentUnavailableView("No patch available", systemImage: "doc.text.magnifyingglass")
                 }
