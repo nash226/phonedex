@@ -133,6 +133,9 @@ The repository already proves the core loop, but not the final product.
   durable cursor, and distinguishes loading, stale, offline, revoked,
   incompatible, and partial refresh states; reply commands are now persisted
   in the same encrypted cache for offline retry.
+- Settings exposes a local-only cache inventory with encrypted storage size,
+  cached record counts, pending command count, and last successful sync time;
+  it never displays task text, paths, credentials, or server diagnostics.
 - The iOS app has no complete live-progress model, full artifact viewer, or
   general lifecycle command queue; task detail renders
   bounded approval review metadata when exported by the bridge, with the

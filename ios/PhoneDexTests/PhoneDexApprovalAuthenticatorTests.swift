@@ -103,6 +103,7 @@ private final class InMemoryCache: PhoneDexCacheStoring {
     func load() throws -> PhoneDexCachedState? { nil }
     func save(_ state: PhoneDexCachedState) throws {}
     func remove() throws {}
+    func storageSummary() -> PhoneDexCacheStorageSummary { .empty }
 }
 
 private final class InMemoryTokenStore: PhoneDexTokenStoring {
