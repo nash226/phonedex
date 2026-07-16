@@ -850,6 +850,15 @@ and malformed addresses. This removes two production crash paths; crash-free
 session measurement and real-device validation remain required before the
 combined M8 release-readiness gate can be checked off.
 
+Deep-link privacy verification for the in-progress release-readiness slice:
+Unsupported `phonedex://` URLs now record only their scheme, host, and path in
+local diagnostics. Query values and user information are excluded so malformed
+configuration links cannot persist bridge credentials or other URL secrets in
+`UserDefaults`; `PhoneDexSmokeTests.testDeepLinkDiagnosticsExcludeCredentialsAndQueryValues`
+covers the redaction boundary. This is implementation evidence only; final
+privacy disclosures and real-device release validation remain release-owner
+gates.
+
 Verification evidence for the completed migration and recovery slice:
 `scripts/test-recovery.js` exercises legacy JSONL import, current-schema
 upgrade, transactional-backup rollback after a failed migration, rejection of

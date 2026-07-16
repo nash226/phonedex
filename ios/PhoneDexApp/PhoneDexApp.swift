@@ -44,7 +44,7 @@ struct PhoneDexApp: App {
         default:
             await recordDeepLinkResult(
                 action: "ignored",
-                error: "Unsupported PhoneDex URL: \(url.absoluteString)"
+                error: "Unsupported PhoneDex URL: \(PhoneDexDeepLinkDiagnostics.redactedDescription(for: url))"
             )
         }
     }
@@ -126,6 +126,23 @@ struct PhoneDexApp: App {
         static let authorizationStatus = "phonedex.lastNotificationAuthorizationStatus"
         static let updatedAt = "phonedex.lastDeepLinkUpdatedAt"
         static let error = "phonedex.lastDeepLinkError"
+    }
+}
+
+enum PhoneDexDeepLinkDiagnostics {
+    static func redactedDescription(for url: URL) -> String {
+        guard let scheme = url.scheme?.lowercased() else {
+            return "unknown URL"
+        }
+
+        var description = "\(scheme):"
+        if let host = url.host, !host.isEmpty {
+            description += "//\(host)"
+        }
+        if !url.path.isEmpty {
+            description += url.path
+        }
+        return description
     }
 }
 

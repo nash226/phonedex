@@ -2,6 +2,17 @@ import XCTest
 @testable import PhoneDex
 
 final class PhoneDexSmokeTests: XCTestCase {
+    func testDeepLinkDiagnosticsExcludeCredentialsAndQueryValues() {
+        let url = URL(string: "phonedex://configure?bridgeUrl=https%3A%2F%2Fbridge.test&token=secret")!
+
+        let description = PhoneDexDeepLinkDiagnostics.redactedDescription(for: url)
+
+        XCTAssertEqual(description, "phonedex://configure")
+        XCTAssertFalse(description.contains("bridge.test"))
+        XCTAssertFalse(description.contains("secret"))
+        XCTAssertFalse(description.contains("?"))
+    }
+
     func testAppLaunchAndTaskModelDecode() throws {
         _ = PhoneDexApp()
 
