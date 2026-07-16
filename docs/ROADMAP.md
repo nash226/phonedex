@@ -540,6 +540,17 @@ capabilities, while Chats offers a workspace-scoped create sheet.
 delivery, cancellation, retry, and stale-version rejection with a fake CLI
 adapter.
 
+Verification evidence for the completed iPhone offline lifecycle queue slice:
+`PhoneDexPendingLifecycleCommand` stores only bounded task-control fields in the
+encrypted local cache, preserving the original command and idempotency keys.
+The native model queues offline `create_task`, `cancel`, and `retry` requests,
+flushes them after a complete sync, and removes stale or rejected commands
+without retrying them blindly. Approval decisions and desktop handoff remain
+online-only because they require a fresh deliberate review. Cache tests cover
+round-trip persistence and legacy decoding; command delivery continues to use
+the existing task-version and capability-gated bridge contract. General
+multi-device scheduling remains target work.
+
 Verification evidence for the completed lifecycle-event export slice:
 `bin/codex-watch.js` consumes supported Codex session JSONL lifecycle records
 at the local agent boundary, converges hook and watcher updates into stable

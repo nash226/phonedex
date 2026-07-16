@@ -1339,11 +1339,23 @@ struct PhoneDexTaskDetailView: View {
         case .sending:
             HStack(spacing: 8) {
                 ProgressView().controlSize(.small)
-                Text("Preparing desktop handoff…")
+                Text("Sending command…")
             }
             .font(.subheadline)
             .foregroundStyle(.secondary)
             .accessibilityElement(children: .combine)
+        case .queued(let message):
+            HStack(spacing: 10) {
+                Label(message, systemImage: "clock.arrow.circlepath")
+                    .foregroundStyle(.orange)
+                    .font(.subheadline)
+                Spacer(minLength: 0)
+                Button("Retry") {
+                    Task { await model.retryPendingLifecycleCommands() }
+                }
+                .buttonStyle(.bordered)
+            }
+            .accessibilityElement(children: .contain)
         case .accepted(let message):
             Label(message, systemImage: "checkmark.circle.fill")
                 .foregroundStyle(.green)

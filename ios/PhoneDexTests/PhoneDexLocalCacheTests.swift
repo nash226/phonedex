@@ -23,6 +23,17 @@ final class PhoneDexLocalCacheTests: XCTestCase {
             questionId: "next-step",
             questionResponse: .choice("tests")
         )
+        let pendingLifecycleCommand = PhoneDexPendingLifecycleCommand(
+            commandId: "lifecycle_command_123",
+            idempotencyKey: "lifecycle_key_123",
+            kind: "cancel",
+            taskId: "task_123",
+            deviceId: "mac_123",
+            workspaceName: nil,
+            prompt: nil,
+            expectedTaskVersion: 3,
+            createdAt: Date(timeIntervalSince1970: 1_750_000_001)
+        )
         let state = PhoneDexCachedState(
             cursor: "cursor.v1",
             tasks: [task(id: "task_123")],
@@ -32,6 +43,7 @@ final class PhoneDexLocalCacheTests: XCTestCase {
             drafts: ["task_123": "Keep the next reply focused"],
             readingPositions: ["task_123": "activity"],
             pendingReplies: [pendingReply],
+            pendingLifecycleCommands: [pendingLifecycleCommand],
             replyReceipts: [PhoneDexReplyDeliveryRecord(
                 receipt: PhoneDexReplyReceipt(
                     schema: "phonedex.command-receipt.v1",
@@ -59,6 +71,7 @@ final class PhoneDexLocalCacheTests: XCTestCase {
         XCTAssertEqual(try cache.load(), state)
         XCTAssertEqual(try cache.load()?.pendingReplies.first?.questionId, "next-step")
         XCTAssertEqual(try cache.load()?.pendingReplies.first?.questionResponse, .choice("tests"))
+        XCTAssertEqual(try cache.load()?.pendingLifecycleCommands, [pendingLifecycleCommand])
         XCTAssertEqual(try cache.load()?.replyReceipts.first?.displayState, "Delivered to agent")
         XCTAssertEqual(try cache.load()?.replyReceipts.first?.message, "Delivered to Studio Mac")
         XCTAssertEqual(try cache.load()?.events.first?.type, "progress")
@@ -87,6 +100,7 @@ final class PhoneDexLocalCacheTests: XCTestCase {
         XCTAssertEqual(decoded.drafts["task_legacy"], "Draft")
         XCTAssertTrue(decoded.readingPositions.isEmpty)
         XCTAssertTrue(decoded.replyReceipts.isEmpty)
+        XCTAssertTrue(decoded.pendingLifecycleCommands.isEmpty)
     }
 
     func testTamperedCacheFailsClosedWithoutReturningPartialState() throws {
