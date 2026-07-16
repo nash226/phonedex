@@ -37,7 +37,7 @@ Milestone labels:
 
 ## M0: Foundation and Continuous Delivery
 
-Status: **Next**
+Status: **Current**
 
 Outcome: every later change has a stable product contract, reproducible build,
 tests, and a trustworthy small-PR path.
@@ -86,7 +86,7 @@ either confirm that no human decision is needed or link a
 
 ## M1: Versioned Hub and Durable State
 
-Status: **Queued**
+Status: **Current**
 
 Outcome: replace the notification-shaped JSONL API with a durable task, event,
 device, and command control plane while retaining migration from current data.
@@ -191,7 +191,7 @@ device listing, and restart persistence.
 
 ## M2: Secure Identity and Pairing
 
-Status: **Queued**
+Status: **Current**
 
 Outcome: remove shared bearer-token setup from the production path.
 
@@ -380,7 +380,7 @@ covers state mapping, revoked-device recovery guidance, and workspace counts.
 
 ## M3: Native iPhone Core
 
-Status: **Queued**
+Status: **Current**
 
 Outcome: replace the utility screen with a polished, offline-aware native app.
 
@@ -422,7 +422,7 @@ simulator without signing credentials.
 
 ## M4: Supported Codex Control Adapters
 
-Status: **Queued**
+Status: **Current**
 
 Outcome: make remote controls truthful, versioned, idempotent, and portable
 across Mac and Windows.
@@ -590,7 +590,7 @@ and does not claim private Codex Desktop API parity.
 
 ## M5: Approvals and High-Risk Actions
 
-Status: **Queued**
+Status: **Current**
 
 Outcome: safely handle consequential Codex decisions from iPhone.
 
@@ -656,7 +656,7 @@ real-device release verification item.
 
 ## M6: Remote Notifications and Background Sync
 
-Status: **Queued**
+Status: **Human gate**
 
 Outcome: deliver timely remote awareness without treating push as durable state.
 
@@ -750,7 +750,7 @@ scope is introduced.
 
 ## M8: Beta, Operations, and App Store Release
 
-Status: **Queued**
+Status: **Next**
 
 Outcome: turn the complete system into an operable public product.
 
