@@ -44,6 +44,7 @@ struct PhoneDexDiffDocument: Equatable {
 
 enum PhoneDexDiffParser {
     static let defaultLineLimit = 5_000
+    static let interactiveOpenBudget: TimeInterval = 1.0
 
     static func parse(_ patch: String, lineLimit: Int = defaultLineLimit) -> PhoneDexDiffDocument {
         // Keep source rows as substrings and materialize only rows that can be

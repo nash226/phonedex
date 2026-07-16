@@ -57,8 +57,36 @@ final class PhoneDexDiffTests: XCTestCase {
         XCTAssertEqual(visibleDocument.lines.count, PhoneDexDiffParser.defaultLineLimit / 2)
         XCTAssertLessThan(
             elapsed,
-            1.0,
+            PhoneDexDiffParser.interactiveOpenBudget,
             "Parsing and preparing the bounded review document took \(elapsed)s"
+        )
+    }
+
+    func testWorstCaseFiveThousandLineReviewPathStaysWithinInteractiveOpenBudget() {
+        let payload = String(repeating: "x", count: 160)
+        let patch = (0..<PhoneDexDiffParser.defaultLineLimit)
+            .map { index in
+                switch index % 4 {
+                case 0: return "@@ -\(index + 1),1 +\(index + 1),1 @@"
+                case 1: return "+added \(index) \(payload)"
+                case 2: return "-removed \(index) \(payload)"
+                default: return " context \(index) \(payload)"
+                }
+            }
+            .joined(separator: "\n")
+
+        let start = CFAbsoluteTimeGetCurrent()
+        let document = PhoneDexDiffParser.parse(patch)
+        let changedDocument = document.document(showingContext: false)
+        let elapsed = CFAbsoluteTimeGetCurrent() - start
+
+        XCTAssertEqual(document.lines.count, PhoneDexDiffParser.defaultLineLimit)
+        XCTAssertEqual(changedDocument.lines.count, PhoneDexDiffParser.defaultLineLimit * 3 / 4)
+        XCTAssertFalse(document.isTruncated)
+        XCTAssertLessThan(
+            elapsed,
+            PhoneDexDiffParser.interactiveOpenBudget,
+            "Worst-case parsing and projection took \(elapsed)s"
         )
     }
 
