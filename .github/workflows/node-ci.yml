@@ -64,3 +64,6 @@ jobs:
 
       - name: Validate Windows adapter and Scheduled Tasks contract
         run: npm run test:windows-adapter
+
+      - name: Validate Windows service lifecycle
+        run: npm run test:windows-service-lifecycle

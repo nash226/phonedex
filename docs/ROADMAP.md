@@ -486,8 +486,11 @@ unavailable experimental foreground path. On Windows runners it also invokes
 the scheduled-task `status` action read-only, proving the built-in
 ScheduledTasks contract without changing user task state. The `windows-adapter`
 job in `.github/workflows/node-ci.yml` runs this fixture on `windows-latest`
-with Node 18.x and 22.x. Full install, update, sleep/reconnect, session-file,
-and revoke validation remain real Windows release-matrix work.
+with Node 18.x and 22.x. The same job runs
+`scripts/test-windows-service-lifecycle.js`, which installs, starts, stops, and
+removes the disposable Scheduled Task and verifies that status reports it as
+absent afterward. Full update, sleep/reconnect, session-file, and revoke
+validation remain real Windows release-matrix work.
 
 Verification evidence for the completed capability-aware action presentation
 slice: `PhoneDexTask.controlAvailability` derives task controls from the

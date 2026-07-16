@@ -50,6 +50,7 @@
     "test:sync": "node ./scripts/test-sync.js && node ./scripts/test-sync-server.js",
     "test:adapter": "node ./scripts/test-adapter.js",
     "test:windows-adapter": "node ./scripts/test-windows-adapter.js",
+    "test:windows-service-lifecycle": "node ./scripts/test-windows-service-lifecycle.js",
     "test:lifecycle": "node ./scripts/test-lifecycle.js",
     "test:reply-delivery": "node ./scripts/test-reply-delivery.js",
     "test:session-watch": "node ./scripts/test-session-watch.js",
