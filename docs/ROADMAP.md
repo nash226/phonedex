@@ -852,6 +852,17 @@ support record template. Neither document requests secrets or claims private
 Codex Desktop API parity; provider, signing, and real-device release decisions
 remain explicit human gates.
 
+Verification evidence for the release-readiness preflight slice:
+`scripts/release-preflight.js` emits the content-free
+`phonedex.release-preflight.v1` report and verifies repository-owned release
+identity, generated Xcode settings, the iOS privacy manifest, release
+runbooks, CI coverage, and revision-addressable provenance. It reports the
+remaining signing, privacy-policy, APNs, and real-device gates as explicit
+blockers, with `--strict` available for automation. The focused
+`scripts/test-release-preflight.js` fixture covers the repository checks,
+blocker issue mapping, and secret/path-free output; it does not claim that
+local checks replace release-owner or real-device validation.
+
 ## Human-Decision Queue
 
 Create or update a GitHub issue labeled `needs-human-decision` only when work

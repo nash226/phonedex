@@ -11,6 +11,7 @@ Run the release checks from a clean checkout:
 ```sh
 npm run release:verify
 npm run release:manifest > release-manifest.json
+npm run release:preflight
 ```
 
 The manifest uses the current Git revision, reports whether the source tree was
@@ -30,3 +31,11 @@ npm run release:verify
 
 Apple signing, TestFlight, real-device validation, and final App Store privacy
 decisions remain release-owner work and are not automated by this manifest.
+
+`release:preflight` emits the machine-verifiable
+`phonedex.release-preflight.v1` report. It checks repository-owned release
+identity, generated Xcode settings, the privacy manifest, runbooks, CI
+coverage, and content-free provenance, then lists the remaining release-owner
+blockers. Use `--strict` when automation should fail while any check or known
+blocker remains. The default report is non-destructive and does not contact
+Apple, APNs, or a remote hub.
