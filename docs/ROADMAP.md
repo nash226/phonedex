@@ -839,6 +839,15 @@ cases. This reduces redundant foreground network and parsing work without
 pretending that a background refresh or APNs provider exists; real-device
 battery profiling remains required before the M8 battery gate can be checked off.
 
+Cache transparency verification for the in-progress release-readiness slice:
+the native Settings surface reports the encrypted local cache footprint,
+cached conversation/computer/event counts, pending command count, and last
+successful sync using only local state. `PhoneDexEncryptedCache` reports the
+opaque encrypted file size without reading or exposing task content, paths,
+credentials, or server diagnostics. This is read-only visibility; retention
+window changes and destructive cache deletion remain separate privacy and
+release decisions.
+
 Crash verification for the in-progress release-readiness slice:
 Settings and the embedded browser no longer force-unwrap user-visible sharing
 URLs. Invalid browser addresses now hide the share action instead of falling

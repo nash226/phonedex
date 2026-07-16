@@ -84,6 +84,16 @@ struct PhoneDexCachedState: Codable, Equatable {
     }
 }
 
+struct PhoneDexCacheStorageSummary: Equatable {
+    let encryptedBytes: Int
+
+    static let empty = PhoneDexCacheStorageSummary(encryptedBytes: 0)
+
+    var displaySize: String {
+        ByteCountFormatter.string(fromByteCount: Int64(encryptedBytes), countStyle: .file)
+    }
+}
+
 struct PhoneDexReplyDeliveryRecord: Codable, Equatable, Identifiable {
     let commandId: String
     let idempotencyKey: String?
@@ -207,6 +217,7 @@ protocol PhoneDexCacheStoring {
     func load() throws -> PhoneDexCachedState?
     func save(_ state: PhoneDexCachedState) throws
     func remove() throws
+    func storageSummary() -> PhoneDexCacheStorageSummary
 }
 
 protocol PhoneDexCacheKeyStoring {
@@ -295,6 +306,15 @@ struct PhoneDexEncryptedCache: PhoneDexCacheStoring {
         } catch {
             throw PhoneDexCacheError.persistenceFailed
         }
+    }
+
+    func storageSummary() -> PhoneDexCacheStorageSummary {
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: fileURL.path),
+              let fileSize = attributes[.size] as? NSNumber
+        else {
+            return .empty
+        }
+        return PhoneDexCacheStorageSummary(encryptedBytes: fileSize.intValue)
     }
 
     private func encryptionKey() throws -> SymmetricKey {

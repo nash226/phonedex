@@ -62,6 +62,7 @@ final class PhoneDexAppModel: ObservableObject {
     @Published private(set) var readingPositions: [PhoneDexTask.ID: String] = [:]
     @Published private(set) var pendingReplies: [PhoneDexPendingReply] = []
     @Published private(set) var replyReceipts: [PhoneDexReplyDeliveryRecord] = []
+    @Published private(set) var cacheStorageSummary = PhoneDexCacheStorageSummary.empty
     @Published var selectedTaskID: PhoneDexTask.ID?
     @Published var connectionState: ConnectionState = .idle
     @Published var replyState: ReplyState = .idle
@@ -563,6 +564,7 @@ final class PhoneDexAppModel: ObservableObject {
     }
 
     private func restoreCachedState() {
+        cacheStorageSummary = cache.storageSummary()
         do {
             guard let cached = try cache.load() else { return }
             syncTasks = cached.tasks
@@ -599,5 +601,6 @@ final class PhoneDexAppModel: ObservableObject {
                 handledNotificationResponses: (try? cache.load())?.handledNotificationResponses ?? [:]
             )
         )
+        cacheStorageSummary = cache.storageSummary()
     }
 }

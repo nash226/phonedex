@@ -65,10 +65,12 @@ final class PhoneDexLocalCacheTests: XCTestCase {
         XCTAssertEqual(try cache.load()?.events.first?.type, "progress")
         XCTAssertEqual(try cache.load()?.handledNotificationResponses.count, 1)
         XCTAssertEqual(keyStore.key?.count, 32)
+        XCTAssertGreaterThan(cache.storageSummary().encryptedBytes, 0)
 
         try cache.remove()
         XCTAssertNil(try cache.load())
         XCTAssertNil(keyStore.key)
+        XCTAssertEqual(cache.storageSummary(), .empty)
     }
 
     func testLegacyCacheWithoutReadingPositionRemainsReadable() throws {

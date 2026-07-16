@@ -1772,6 +1772,23 @@ private struct PhoneDexSettingsView: View {
                     }
                 }
 
+                Section {
+                    LabeledContent("Encrypted cache", value: model.cacheStorageSummary.displaySize)
+                    LabeledContent("Conversations", value: model.tasks.count.formatted())
+                    LabeledContent("Computers", value: model.devices.count.formatted())
+                    LabeledContent("Activity events", value: model.events.count.formatted())
+                    LabeledContent("Pending commands", value: model.pendingReplies.count.formatted())
+                    if let lastSync = model.lastSuccessfulSync {
+                        LabeledContent("Last successful sync", value: lastSync.formatted(date: .abbreviated, time: .shortened))
+                    } else {
+                        LabeledContent("Last successful sync", value: "Not yet")
+                    }
+                } header: {
+                    Text("Local cache")
+                } footer: {
+                    Text("Cached task content is encrypted on this iPhone. This inventory is local-only and does not include task text, paths, credentials, or server diagnostics.")
+                }
+
                 Section("About") {
                     LabeledContent("Version", value: "0.1 development")
                     if let projectURL = URL(string: "https://github.com/nash226/phonedex") {
