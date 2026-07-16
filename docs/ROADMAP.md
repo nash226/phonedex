@@ -461,6 +461,12 @@ configured. `scripts/test-adapter.js` covers macOS CLI, app-server, foreground,
 and missing-executable cases, including capability and limitation assertions;
 the same fixture continues to cover the Windows fail-closed foreground case.
 
+The descriptor validator also rejects a changed experimental posture, a
+foreground descriptor on Windows, or lifecycle and desktop-handoff
+capabilities advertised by the foreground fallback. Focused adapter tests cover
+each invariant so future capability changes cannot imply private Codex Desktop
+API or UI-automation parity.
+
 Verification evidence for the completed Windows adapter-matrix slice:
 `scripts/test-windows-adapter.js` exercises both `win32` and canonical
 `windows` platform inputs across CLI and app-server modes, with and without
