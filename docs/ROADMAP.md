@@ -842,6 +842,15 @@ support record template. Neither document requests secrets or claims private
 Codex Desktop API parity; provider, signing, and real-device release decisions
 remain explicit human gates.
 
+Verification evidence for the notification crash/reliability boundary:
+`ios/PhoneDexApp/PhoneDexNotificationDelegate.swift` validates notification
+task identity and positive task version before creating an encrypted pending
+reply or sending a command. Malformed or stale notification metadata now
+produces a recoverable user-facing result instead of an empty-task command;
+`PhoneDexSettingsTests` covers missing, empty, zero-version, and normalized
+optional metadata cases. This hardens the crash/reliability portion of the
+combined M8 gate without claiming real-device crash-free validation.
+
 ## Human-Decision Queue
 
 Create or update a GitHub issue labeled `needs-human-decision` only when work
