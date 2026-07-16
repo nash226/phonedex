@@ -9,6 +9,10 @@ final class PhoneDexBrowserModel: NSObject, ObservableObject, WKNavigationDelega
     @Published private(set) var canGoBack = false
     @Published private(set) var canGoForward = false
 
+    var shareURL: URL? {
+        URL(string: address)
+    }
+
     let webView: WKWebView
 
     override init() {
@@ -109,10 +113,12 @@ struct PhoneDexBrowserView: View {
                         .disabled(!model.canGoForward)
                         .accessibilityLabel("Forward")
                     Spacer()
-                    ShareLink(item: URL(string: model.address) ?? URL(string: "https://github.com/nash226/phonedex")!) {
-                        Image(systemName: "square.and.arrow.up")
+                    if let shareURL = model.shareURL {
+                        ShareLink(item: shareURL) {
+                            Image(systemName: "square.and.arrow.up")
+                        }
+                        .accessibilityLabel("Share page")
                     }
-                    .accessibilityLabel("Share page")
                     Button {
                         addressFocused = true
                     } label: {

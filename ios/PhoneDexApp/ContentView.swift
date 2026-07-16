@@ -1772,7 +1772,9 @@ private struct PhoneDexSettingsView: View {
 
                 Section("About") {
                     LabeledContent("Version", value: "0.1 development")
-                    Link("PhoneDex on GitHub", destination: URL(string: "https://github.com/nash226/phonedex")!)
+                    if let projectURL = URL(string: "https://github.com/nash226/phonedex") {
+                        Link("PhoneDex on GitHub", destination: projectURL)
+                    }
                 }
             }
             .navigationTitle("Settings")
