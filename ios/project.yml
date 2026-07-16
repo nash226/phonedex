@@ -20,6 +20,7 @@ targets:
         CURRENT_PROJECT_VERSION: 1
         PRODUCT_BUNDLE_IDENTIFIER: com.nash226.PhoneDex
         INFOPLIST_FILE: PhoneDexApp/Info.plist
+        CODE_SIGN_ENTITLEMENTS: PhoneDexApp/PhoneDex.entitlements
     dependencies:
       - target: PhoneDexNotificationExtension
   PhoneDexNotificationExtension:
@@ -34,6 +35,7 @@ targets:
         CURRENT_PROJECT_VERSION: 1
         PRODUCT_BUNDLE_IDENTIFIER: com.nash226.PhoneDex.NotificationExtension
         INFOPLIST_FILE: PhoneDexNotificationExtension/Info.plist
+        CODE_SIGN_ENTITLEMENTS: PhoneDexNotificationExtension/PhoneDexNotificationExtension.entitlements
         APPLICATION_EXTENSION_API_ONLY: YES
   PhoneDexTests:
     type: bundle.unit-test

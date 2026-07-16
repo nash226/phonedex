@@ -30,3 +30,11 @@ npm run release:verify
 
 Apple signing, TestFlight, real-device validation, and final App Store privacy
 decisions remain release-owner work and are not automated by this manifest.
+
+The app and notification extension also commit explicit empty entitlements
+files. `npm run test:signing-config` verifies that both generated Xcode targets
+reference those files and that no APNs, app-group, keychain-group, or
+provisioning-profile capability is silently implied. Adding a capability must
+update the entitlement file, product threat model, and release-owner review;
+this repository check does not replace Apple signing credentials or profile
+validation.

@@ -754,7 +754,8 @@ Status: **Next**
 
 Outcome: turn the complete system into an operable public product.
 
-- [ ] Reproducible signing and entitlements.
+- [x] Keep reproducible signing metadata and an explicit no-capability
+  entitlement boundary; complete Apple signing remains release-owner work.
 - [x] Keep semantic versioning and secret-free build provenance reproducible.
 - [x] Staged migration, backup, rollback, and disaster-recovery drills.
 - [x] Content-free observability with correlation IDs and component health.
@@ -841,6 +842,15 @@ Xcode project, emits a `phonedex.release.v1` manifest with the source revision
 and supported build matrix, and excludes credentials, local paths, and task
 content. Node CI runs `npm run release:verify`; signing, entitlements,
 TestFlight, and real-device validation remain release-owner gates.
+
+Verification evidence for the completed signing-boundary slice:
+`ios/PhoneDexApp/PhoneDex.entitlements` and
+`ios/PhoneDexNotificationExtension/PhoneDexNotificationExtension.entitlements`
+are explicit empty capability manifests referenced by the XcodeGen source and
+committed Xcode project Debug/Release targets. `scripts/test-signing-config.js`
+rejects accidental APNs, app-group, keychain-group, or provisioning-profile
+claims. Apple certificates, profiles, and device signing remain the explicit
+human gate in issue #132.
 
 Verification evidence for the completed App Review and support-runbook slice:
 `docs/APP_REVIEW.md` provides a release-owner checklist and truthful App Review
