@@ -502,6 +502,16 @@ removes the disposable Scheduled Task and verifies that status reports it as
 absent afterward. Full update, sleep/reconnect, session-file, and revoke
 validation remain real Windows release-matrix work.
 
+Verification evidence for the completed cross-platform contract slice:
+`scripts/test-cross-platform-contract.js` runs one local hub with simulated
+Mac and Windows agent heartbeats, captures one task from each machine, reads
+both through the paginated iPhone sync contract, and routes replies back to
+the correct origin with terminal receipts. The fixture asserts unambiguous
+machine/workspace identity, healthy agent state, cursor convergence, source
+path and origin-secret redaction, and one reply per idempotency key. It is a
+contract-level Mac/Windows integration check; real-agent install, sleep,
+reconnect, and real-device validation remain release-owner gates.
+
 Verification evidence for the completed capability-aware action presentation
 slice: `PhoneDexTask.controlAvailability` derives task controls from the
 originating task's advertised capabilities and stable session identity, while
