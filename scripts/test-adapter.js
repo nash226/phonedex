@@ -55,6 +55,23 @@ assert.equal(macForeground.state, "unavailable");
 assert.equal(supportsAdapterCapability(macForeground, "task.reply"), false);
 assert.match(macForeground.limitations.join(" "), /disabled.*PHONEDEX_ENABLE_EXPERIMENTAL_FOREGROUND=true/i);
 assertAdapterDescriptor(macForeground);
+assert.throws(
+  () => assertAdapterDescriptor({ ...macForeground, experimental: false }),
+  /experimental flag does not match its mode/
+);
+assert.throws(
+  () => assertAdapterDescriptor({ ...macForeground, platform: "windows", state: "ready" }),
+  /supported only on macOS/
+);
+assert.throws(
+  () => assertAdapterDescriptor({
+    ...macForeground,
+    capabilities: macForeground.capabilities.map((capability) =>
+      capability.id === "task.cancel" ? { ...capability, supported: true } : capability
+    )
+  }),
+  /cannot advertise lifecycle or handoff capabilities/
+);
 
 const optedInMacForeground = createCodexAdapter({
   platform: "macos",

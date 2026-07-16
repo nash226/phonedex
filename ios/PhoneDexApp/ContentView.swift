@@ -3,6 +3,7 @@ import UIKit
 
 struct ContentView: View {
     @StateObject private var model: PhoneDexAppModel
+    @State private var lastAutomaticRefreshAt: Date?
     @Environment(\.scenePhase) private var scenePhase
 
     init(settings: PhoneDexSettings) {
@@ -27,15 +28,27 @@ struct ContentView: View {
                 .tabItem { Label("Settings", systemImage: "gearshape") }
         }
         .tint(.blue)
-        .task { await model.refresh() }
+        .task { await refreshAutomatically(trigger: .initialLaunch) }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
             model.loadNotificationReplyResult()
-            Task { await model.refresh() }
+            Task { await refreshAutomatically(trigger: .becameActive) }
         }
         .onReceive(NotificationCenter.default.publisher(for: NotificationReplyResult.didChange)) { _ in
             model.loadNotificationReplyResult()
         }
+    }
+
+    private func refreshAutomatically(trigger: PhoneDexRefreshPolicy.Trigger) async {
+        let policy = PhoneDexRefreshPolicy.default
+        guard policy.shouldRefresh(
+            trigger: trigger,
+            now: Date(),
+            lastAutomaticRefreshAt: lastAutomaticRefreshAt
+        ) else { return }
+
+        await model.refresh()
+        lastAutomaticRefreshAt = Date()
     }
 }
 
@@ -241,6 +254,7 @@ struct PhoneDexTaskRow: View {
         }
         .padding(.vertical, 6)
         .accessibilityElement(children: .combine)
+        .privacySensitive()
     }
 }
 
@@ -544,6 +558,7 @@ struct PhoneDexTaskDetailView: View {
             }
             .coordinateSpace(name: "task-detail-scroll")
             .background(Color(uiColor: .systemBackground))
+            .privacySensitive()
             .overlay(alignment: .bottom) {
                 if showNewActivity {
                     Button {
@@ -725,7 +740,6 @@ struct PhoneDexTaskDetailView: View {
                 Label(branch, systemImage: "arrow.triangle.branch")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
             }
         }
     }
@@ -1378,7 +1392,7 @@ struct PhoneDexTaskDetailView: View {
 
                         Button(action: sendDraft) {
                             Image(systemName: "arrow.up.circle.fill")
-                                .font(.system(size: 32))
+                                .font(.title)
                         }
                         .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.replyState == .sending)
                         .accessibilityLabel(task.question == nil ? "Send reply" : "Send answer")
@@ -1710,9 +1724,12 @@ private struct PhoneDexSettingsView: View {
                     }
 
                     if !settings.bridgeURLValidationMessage.isEmpty {
-                        Label(settings.bridgeURLValidationMessage, systemImage: "lock.shield")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "lock.shield")
+                            Text(settings.bridgeURLValidationMessage)
+                        }
+                        .font(.footnote)
+                        .foregroundStyle(Color(uiColor: .label))
                     }
 
                     Button("Test Connection", systemImage: "bolt.horizontal.circle") {
@@ -1757,7 +1774,9 @@ private struct PhoneDexSettingsView: View {
 
                 Section("About") {
                     LabeledContent("Version", value: "0.1 development")
-                    Link("PhoneDex on GitHub", destination: URL(string: "https://github.com/nash226/phonedex")!)
+                    if let projectURL = URL(string: "https://github.com/nash226/phonedex") {
+                        Link("PhoneDex on GitHub", destination: projectURL)
+                    }
                 }
             }
             .navigationTitle("Settings")
