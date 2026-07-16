@@ -767,6 +767,13 @@ cases. This reduces redundant foreground network and parsing work without
 pretending that a background refresh or APNs provider exists; real-device
 battery profiling remains required before the M8 battery gate can be checked off.
 
+Crash-resilience verification for the in-progress release-readiness slice:
+`PhoneDexAppModel` now exposes a privacy-safe local-cache recovery notice when
+encrypted cache loading fails, keeps the app available for a fresh hub sync,
+and clears the notice after a complete sync. `PhoneDexDiagnosticsTests` covers
+the corrupt-cache startup path without asserting that simulator tests replace
+real-device crash, battery, or TestFlight validation.
+
 Verification evidence for the completed migration and recovery slice:
 `scripts/test-recovery.js` exercises legacy JSONL import, current-schema
 upgrade, transactional-backup rollback after a failed migration, rejection of
