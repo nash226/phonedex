@@ -255,6 +255,7 @@ private struct PhoneDexDiffContent: View {
             .background(Color(uiColor: .systemBackground))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .privacySensitive()
     }
 }
 
