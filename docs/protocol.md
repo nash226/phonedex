@@ -70,7 +70,9 @@ The macOS adapter matrix is intentionally narrow:
 | `app-server` | PhoneDex-supported app-server continuation | Only with an allowlisted workspace | Yes | Supported |
 | `foreground` | macOS foreground paste fallback | No | No | Experimental |
 
-Foreground paste can reply to a task when selected, but it must never inherit
+Foreground paste is disabled unless the agent owner explicitly opts in with
+`PHONEDEX_ENABLE_EXPERIMENTAL_FOREGROUND=true`. When enabled, it can reply to
+a task when selected, but it must never inherit
 create, cancel, retry, or desktop-handoff capabilities from workspace
 configuration. The agent advertises those capabilities only from the CLI or
 app-server rows, and the iPhone renders the resulting limitation instead of

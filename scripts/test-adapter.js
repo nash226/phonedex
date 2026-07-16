@@ -51,16 +51,27 @@ const macForeground = createCodexAdapter({
   mode: "foreground",
   workspaceRoots: ["/Users/example/Projects"]
 });
-assert.equal(macForeground.state, "ready");
-assert.equal(macForeground.experimental, true);
-assert.equal(supportsAdapterCapability(macForeground, "task.reply"), true);
-assert.equal(supportsAdapterCapability(macForeground, "task.create"), false);
-assert.equal(supportsAdapterCapability(macForeground, "task.cancel"), false);
-assert.equal(supportsAdapterCapability(macForeground, "task.retry"), false);
-assert.equal(supportsAdapterCapability(macForeground, "desktop.handoff"), false);
-assert.match(macForeground.limitations.join(" "), /experimental.*cannot manage task lifecycle/i);
-assert.doesNotMatch(macForeground.limitations.join(" "), /Configure PHONEDEX_WORKSPACE_ROOTS/);
+assert.equal(macForeground.state, "unavailable");
+assert.equal(supportsAdapterCapability(macForeground, "task.reply"), false);
+assert.match(macForeground.limitations.join(" "), /disabled.*PHONEDEX_ENABLE_EXPERIMENTAL_FOREGROUND=true/i);
 assertAdapterDescriptor(macForeground);
+
+const optedInMacForeground = createCodexAdapter({
+  platform: "macos",
+  mode: "foreground",
+  allowExperimentalForeground: true,
+  workspaceRoots: ["/Users/example/Projects"]
+});
+assert.equal(optedInMacForeground.state, "ready");
+assert.equal(optedInMacForeground.experimental, true);
+assert.equal(supportsAdapterCapability(optedInMacForeground, "task.reply"), true);
+assert.equal(supportsAdapterCapability(optedInMacForeground, "task.create"), false);
+assert.equal(supportsAdapterCapability(optedInMacForeground, "task.cancel"), false);
+assert.equal(supportsAdapterCapability(optedInMacForeground, "task.retry"), false);
+assert.equal(supportsAdapterCapability(optedInMacForeground, "desktop.handoff"), false);
+assert.match(optedInMacForeground.limitations.join(" "), /experimental.*cannot manage task lifecycle/i);
+assert.doesNotMatch(optedInMacForeground.limitations.join(" "), /Configure PHONEDEX_WORKSPACE_ROOTS/);
+assertAdapterDescriptor(optedInMacForeground);
 
 const macCliWithoutExecutable = createCodexAdapter({
   platform: "macos",

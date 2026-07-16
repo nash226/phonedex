@@ -88,10 +88,22 @@ as a status-only prompt so it does not start new background work; `Let's do
 that` is the action-oriented reply.
 
 If you want the phone reply to appear in the currently open Codex desktop
-thread, use `foreground` mode. It activates Codex.app, pastes the literal phone
-reply text into the visible input, and submits it through the UI. macOS must allow the
-process running PhoneDex, plus `osascript` when prompted, to control the
-computer in **Privacy & Security > Accessibility**.
+thread, use the explicitly experimental `foreground` mode. It is disabled by
+default; opt in only after accepting the macOS UI-automation and Accessibility
+permission risks:
+
+```sh
+WATCH_BRIDGE_AUTO_RESUME=true
+WATCH_BRIDGE_AUTO_RESUME_MODE=foreground
+PHONEDEX_ENABLE_EXPERIMENTAL_FOREGROUND=true
+```
+
+It activates Codex.app, pastes the literal phone reply text into the visible
+input, and submits it through the UI. macOS must allow the process running
+PhoneDex, plus `osascript` when prompted, to control the computer in
+**Privacy & Security > Accessibility**. Foreground mode is reply-only: it
+cannot create, cancel, retry, or hand off tasks, and it is not a supported
+Codex Desktop API integration.
 When a completion includes a Codex thread id, foreground mode opens that exact
 Desktop thread before submitting the phone reply; tasks without a thread id
 fall back to the currently open ChatGPT/Codex window.
@@ -477,6 +489,7 @@ PhoneDex reads `.env` from the repo root.
 | `PUSHCUT_TIME_SENSITIVE` | No | Send Pushcut alerts as time-sensitive. Defaults to `true`. |
 | `WATCH_BRIDGE_AUTO_RESUME` | No | Continue Codex from phone replies. Defaults to `false`. |
 | `WATCH_BRIDGE_AUTO_RESUME_MODE` | No | `cli` for `codex exec resume`, `app-server` for background app-server turns, or `foreground` for visible Codex.app submission. Defaults to `cli`. |
+| `PHONEDEX_ENABLE_EXPERIMENTAL_FOREGROUND` | No | Must be `true` to enable the macOS-only foreground paste fallback. Defaults to `false`; ignored by supported CLI/app-server modes. |
 | `PHONEDEX_FOREGROUND_APP` | No | macOS process/application name used by foreground submission. Auto-detects `ChatGPT` when installed and otherwise uses the legacy `Codex` name. |
 | `WATCHDEX_SESSION_WATCH_INTERVAL_MS` | No | Session watcher polling interval. Defaults to `5000`. |
 | `WATCHDEX_SESSION_WATCH_DEBOUNCE_MS` | No | Delay before notifying a completed session message. Defaults to `8000`. |
