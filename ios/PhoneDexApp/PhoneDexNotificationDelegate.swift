@@ -25,6 +25,11 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
         }
 
         let userInfo = response.notification.request.content.userInfo
+        let responseKey = responseKey(for: response)
+        if isHandled(responseKey) {
+            NotificationReplyResult.record(.duplicate("This notification action was already handled."))
+            return
+        }
         guard let bridgeURL = await bridgeURLFromCurrentSettings() else {
             NotificationReplyResult.record(.failed("PhoneDex is not configured with a valid bridge URL."))
             return
@@ -81,7 +86,12 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
             )
             if receipt.isSuccessful {
                 updatePendingReply(pending, remove: true)
+                markHandled(responseKey)
                 NotificationReplyResult.record(.sent(receipt.message ?? prompt))
+            } else if receipt.state == "expired" {
+                updatePendingReply(pending, remove: true)
+                markHandled(responseKey)
+                NotificationReplyResult.record(.failed("This notification expired. Open PhoneDex to review the latest task."))
             } else {
                 NotificationReplyResult.record(.failed(receipt.message ?? "The reply remains queued for retry."))
             }
@@ -110,7 +120,44 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
             lastSyncAt: state.lastSyncAt,
             drafts: state.drafts,
             readingPositions: state.readingPositions,
-            pendingReplies: pendingReplies
+            pendingReplies: pendingReplies,
+            replyReceipts: state.replyReceipts,
+            handledNotificationResponses: state.handledNotificationResponses
+        ))
+    }
+
+    private func responseKey(for response: UNNotificationResponse) -> String {
+        response.notification.request.identifier + "|" + response.actionIdentifier
+    }
+
+    private func isHandled(_ responseKey: String) -> Bool {
+        (try? PhoneDexEncryptedCache().load())?.handledNotificationResponses[responseKey] != nil
+    }
+
+    private func markHandled(_ responseKey: String) {
+        let cache = PhoneDexEncryptedCache()
+        let existing = try? cache.load()
+        var handled = existing?.handledNotificationResponses ?? [:]
+        handled[responseKey] = Date()
+        if handled.count > 100 {
+            let staleKeys = handled
+                .sorted { $0.value < $1.value }
+                .prefix(handled.count - 100)
+                .map(\.key)
+            staleKeys.forEach { handled.removeValue(forKey: $0) }
+        }
+        let state = existing ?? PhoneDexCachedState(cursor: nil, tasks: [], devices: [], lastSyncAt: nil)
+        try? cache.save(PhoneDexCachedState(
+            cursor: state.cursor,
+            tasks: state.tasks,
+            devices: state.devices,
+            events: state.events,
+            lastSyncAt: state.lastSyncAt,
+            drafts: state.drafts,
+            readingPositions: state.readingPositions,
+            pendingReplies: state.pendingReplies,
+            replyReceipts: state.replyReceipts,
+            handledNotificationResponses: handled
         ))
     }
 
@@ -137,6 +184,7 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
 enum NotificationReplyResult: Equatable {
     case sent(String)
     case failed(String)
+    case duplicate(String)
 
     static let didChange = Notification.Name("PhoneDexNotificationReplyResultDidChange")
 
@@ -158,6 +206,9 @@ enum NotificationReplyResult: Equatable {
             defaults.set(message, forKey: Keys.message)
         case .failed(let message):
             defaults.set("failed", forKey: Keys.state)
+            defaults.set(message, forKey: Keys.message)
+        case .duplicate(let message):
+            defaults.set("duplicate", forKey: Keys.state)
             defaults.set(message, forKey: Keys.message)
         }
         defaults.set(Date().timeIntervalSince1970, forKey: Keys.updatedAt)

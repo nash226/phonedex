@@ -17,9 +17,10 @@ struct PhoneDexCachedState: Codable, Equatable {
     let readingPositions: [String: String]
     let pendingReplies: [PhoneDexPendingReply]
     let replyReceipts: [PhoneDexReplyDeliveryRecord]
+    let handledNotificationResponses: [String: Date]
 
     private enum CodingKeys: String, CodingKey {
-        case schema, version, cursor, tasks, devices, events, lastSyncAt, drafts, readingPositions, pendingReplies, replyReceipts
+        case schema, version, cursor, tasks, devices, events, lastSyncAt, drafts, readingPositions, pendingReplies, replyReceipts, handledNotificationResponses
     }
 
     init(
@@ -32,6 +33,7 @@ struct PhoneDexCachedState: Codable, Equatable {
         readingPositions: [String: String] = [:],
         pendingReplies: [PhoneDexPendingReply] = [],
         replyReceipts: [PhoneDexReplyDeliveryRecord] = [],
+        handledNotificationResponses: [String: Date] = [:],
         schema: String = PhoneDexCachedState.currentSchema,
         version: Int = PhoneDexCachedState.currentVersion
     ) {
@@ -46,6 +48,7 @@ struct PhoneDexCachedState: Codable, Equatable {
         self.readingPositions = readingPositions
         self.pendingReplies = pendingReplies
         self.replyReceipts = replyReceipts
+        self.handledNotificationResponses = handledNotificationResponses
     }
 
     init(from decoder: Decoder) throws {
@@ -61,6 +64,7 @@ struct PhoneDexCachedState: Codable, Equatable {
         readingPositions = try container.decodeIfPresent([String: String].self, forKey: .readingPositions) ?? [:]
         pendingReplies = try container.decodeIfPresent([PhoneDexPendingReply].self, forKey: .pendingReplies) ?? []
         replyReceipts = try container.decodeIfPresent([PhoneDexReplyDeliveryRecord].self, forKey: .replyReceipts) ?? []
+        handledNotificationResponses = try container.decodeIfPresent([String: Date].self, forKey: .handledNotificationResponses) ?? [:]
     }
 
     func encode(to encoder: Encoder) throws {
@@ -76,6 +80,7 @@ struct PhoneDexCachedState: Codable, Equatable {
         try container.encode(readingPositions, forKey: .readingPositions)
         try container.encode(pendingReplies, forKey: .pendingReplies)
         try container.encode(replyReceipts, forKey: .replyReceipts)
+        try container.encode(handledNotificationResponses, forKey: .handledNotificationResponses)
     }
 }
 
