@@ -2,6 +2,27 @@ import XCTest
 @testable import PhoneDex
 
 final class PhoneDexSmokeTests: XCTestCase {
+    @MainActor
+    func testInterruptedLaunchIsDetectedAndClearedAfterFirstView() throws {
+        let suiteName = "PhoneDexLaunchRecoveryTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        var now = Date(timeIntervalSince1970: 1_750_000_000)
+        let recovery = PhoneDexLaunchRecovery(defaults: defaults, clock: { now })
+
+        recovery.beginLaunch()
+        XCTAssertFalse(recovery.wasInterrupted)
+
+        let nextLaunch = PhoneDexLaunchRecovery(defaults: defaults, clock: { now })
+        nextLaunch.beginLaunch()
+        XCTAssertTrue(nextLaunch.wasInterrupted)
+
+        now.addTimeInterval(1)
+        nextLaunch.markFirstViewRendered()
+        XCTAssertNil(defaults.object(forKey: "phonedex.launch.startedAt"))
+        XCTAssertNotNil(defaults.object(forKey: "phonedex.launch.completedAt"))
+    }
+
     func testAppLaunchAndTaskModelDecode() throws {
         _ = PhoneDexApp()
 
