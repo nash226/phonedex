@@ -758,6 +758,14 @@ Outcome: turn the complete system into an operable public product.
 - [x] App Review notes and customer support runbooks.
 - [ ] Final pass of all production gates and 15 acceptance scenarios.
 
+Local privacy-surface evidence: task rows, task detail, review summaries, and
+diff content use SwiftUI `privacySensitive()` so iOS app-switcher and
+screen-capture previews do not reveal task text, source paths, validation
+details, or patches. `scripts/test-ios-privacy-surfaces.js` protects those
+surfaces from regression. This is implementation evidence only; the release
+owner still must approve the final privacy policy, disclosures, and real-device
+validation gates.
+
 Exit gate: the release owner records a go decision with known limitations,
 metrics, rollback plan, and verification evidence.
 

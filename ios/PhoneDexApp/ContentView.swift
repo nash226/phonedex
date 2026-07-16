@@ -254,6 +254,7 @@ struct PhoneDexTaskRow: View {
         }
         .padding(.vertical, 6)
         .accessibilityElement(children: .combine)
+        .privacySensitive()
     }
 }
 
@@ -557,6 +558,7 @@ struct PhoneDexTaskDetailView: View {
             }
             .coordinateSpace(name: "task-detail-scroll")
             .background(Color(uiColor: .systemBackground))
+            .privacySensitive()
             .overlay(alignment: .bottom) {
                 if showNewActivity {
                     Button {
