@@ -16,10 +16,11 @@ struct PhoneDexCachedState: Codable, Equatable {
     let drafts: [String: String]
     let readingPositions: [String: String]
     let pendingReplies: [PhoneDexPendingReply]
+    let pendingLifecycleCommands: [PhoneDexPendingLifecycleCommand]
     let replyReceipts: [PhoneDexReplyDeliveryRecord]
 
     private enum CodingKeys: String, CodingKey {
-        case schema, version, cursor, tasks, devices, events, lastSyncAt, drafts, readingPositions, pendingReplies, replyReceipts
+        case schema, version, cursor, tasks, devices, events, lastSyncAt, drafts, readingPositions, pendingReplies, pendingLifecycleCommands, replyReceipts
     }
 
     init(
@@ -31,6 +32,7 @@ struct PhoneDexCachedState: Codable, Equatable {
         drafts: [String: String] = [:],
         readingPositions: [String: String] = [:],
         pendingReplies: [PhoneDexPendingReply] = [],
+        pendingLifecycleCommands: [PhoneDexPendingLifecycleCommand] = [],
         replyReceipts: [PhoneDexReplyDeliveryRecord] = [],
         schema: String = PhoneDexCachedState.currentSchema,
         version: Int = PhoneDexCachedState.currentVersion
@@ -45,6 +47,7 @@ struct PhoneDexCachedState: Codable, Equatable {
         self.drafts = drafts
         self.readingPositions = readingPositions
         self.pendingReplies = pendingReplies
+        self.pendingLifecycleCommands = pendingLifecycleCommands
         self.replyReceipts = replyReceipts
     }
 
@@ -60,6 +63,7 @@ struct PhoneDexCachedState: Codable, Equatable {
         drafts = try container.decodeIfPresent([String: String].self, forKey: .drafts) ?? [:]
         readingPositions = try container.decodeIfPresent([String: String].self, forKey: .readingPositions) ?? [:]
         pendingReplies = try container.decodeIfPresent([PhoneDexPendingReply].self, forKey: .pendingReplies) ?? []
+        pendingLifecycleCommands = try container.decodeIfPresent([PhoneDexPendingLifecycleCommand].self, forKey: .pendingLifecycleCommands) ?? []
         replyReceipts = try container.decodeIfPresent([PhoneDexReplyDeliveryRecord].self, forKey: .replyReceipts) ?? []
     }
 
@@ -75,6 +79,7 @@ struct PhoneDexCachedState: Codable, Equatable {
         try container.encode(drafts, forKey: .drafts)
         try container.encode(readingPositions, forKey: .readingPositions)
         try container.encode(pendingReplies, forKey: .pendingReplies)
+        try container.encode(pendingLifecycleCommands, forKey: .pendingLifecycleCommands)
         try container.encode(replyReceipts, forKey: .replyReceipts)
     }
 }
@@ -194,6 +199,20 @@ struct PhoneDexPendingReply: Codable, Equatable, Identifiable {
         try container.encodeIfPresent(questionId, forKey: .questionId)
         try container.encodeIfPresent(questionResponse, forKey: .questionResponse)
     }
+
+    var id: String { idempotencyKey }
+}
+
+struct PhoneDexPendingLifecycleCommand: Codable, Equatable, Identifiable {
+    let commandId: String
+    let idempotencyKey: String
+    let kind: String
+    let taskId: String?
+    let deviceId: String?
+    let workspaceName: String?
+    let prompt: String?
+    let expectedTaskVersion: Int?
+    let createdAt: Date
 
     var id: String { idempotencyKey }
 }

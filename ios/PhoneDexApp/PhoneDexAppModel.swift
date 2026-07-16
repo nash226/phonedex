@@ -51,6 +51,7 @@ final class PhoneDexAppModel: ObservableObject {
     enum LifecycleState: Equatable {
         case idle
         case sending
+        case queued(String)
         case accepted(String)
         case failed(String)
     }
@@ -61,6 +62,7 @@ final class PhoneDexAppModel: ObservableObject {
     @Published private(set) var drafts: [PhoneDexTask.ID: String] = [:]
     @Published private(set) var readingPositions: [PhoneDexTask.ID: String] = [:]
     @Published private(set) var pendingReplies: [PhoneDexPendingReply] = []
+    @Published private(set) var pendingLifecycleCommands: [PhoneDexPendingLifecycleCommand] = []
     @Published private(set) var replyReceipts: [PhoneDexReplyDeliveryRecord] = []
     @Published var selectedTaskID: PhoneDexTask.ID?
     @Published var connectionState: ConnectionState = .idle
@@ -147,6 +149,7 @@ final class PhoneDexAppModel: ObservableObject {
                 lastSuccessfulSync = now
                 syncCursor = result.usedCompatibilityFallback ? nil : result.cursor
                 await flushPendingReplies()
+                await flushPendingLifecycleCommands()
                 persistCachedState(lastSyncAt: now)
                 if result.usedCompatibilityFallback {
                     connectionState = .incompatible(
@@ -393,6 +396,22 @@ final class PhoneDexAppModel: ObservableObject {
             lifecycleState = .accepted(result.receipt.message ?? "Task queued.")
             return result.receipt.isSuccessful
         } catch {
+            if error.isOffline {
+                let command = PhoneDexPendingLifecycleCommand(
+                    commandId: UUID().uuidString,
+                    idempotencyKey: "ios-\(UUID().uuidString)",
+                    kind: "create_task",
+                    taskId: nil,
+                    deviceId: deviceId,
+                    workspaceName: workspaceName,
+                    prompt: trimmedPrompt,
+                    expectedTaskVersion: nil,
+                    createdAt: Date()
+                )
+                enqueueLifecycleCommand(command)
+                lifecycleState = .queued("Task start queued until the hub is reachable.")
+                return false
+            }
             lifecycleState = .failed(error.localizedDescription)
             return false
         }
@@ -421,6 +440,22 @@ final class PhoneDexAppModel: ObservableObject {
             lifecycleState = .accepted(result.receipt.message ?? "Command accepted.")
             return result.receipt.isSuccessful
         } catch {
+            if error.isOffline, ["cancel", "retry"].contains(kind) {
+                let command = PhoneDexPendingLifecycleCommand(
+                    commandId: UUID().uuidString,
+                    idempotencyKey: "ios-\(UUID().uuidString)",
+                    kind: kind,
+                    taskId: task.id,
+                    deviceId: task.deviceId,
+                    workspaceName: nil,
+                    prompt: nil,
+                    expectedTaskVersion: task.version ?? 1,
+                    createdAt: Date()
+                )
+                enqueueLifecycleCommand(command)
+                lifecycleState = .queued("\(kind == "cancel" ? "Cancellation" : "Retry") queued until the hub is reachable.")
+                return false
+            }
             lifecycleState = .failed(error.localizedDescription)
             return false
         }
@@ -506,6 +541,47 @@ final class PhoneDexAppModel: ObservableObject {
         }
     }
 
+    private func enqueueLifecycleCommand(_ command: PhoneDexPendingLifecycleCommand) {
+        guard !pendingLifecycleCommands.contains(where: { $0.id == command.id }) else { return }
+        pendingLifecycleCommands.append(command)
+        persistCachedState(lastSyncAt: lastSuccessfulSync)
+    }
+
+    private func flushPendingLifecycleCommands() async {
+        guard let client = bridgeClient else { return }
+        for command in pendingLifecycleCommands {
+            guard !Task.isCancelled else { return }
+            do {
+                let result = try await client.sendLifecycleCommand(
+                    kind: command.kind,
+                    taskId: command.taskId,
+                    deviceId: command.deviceId,
+                    workspaceName: command.workspaceName,
+                    prompt: command.prompt,
+                    commandId: command.commandId,
+                    idempotencyKey: command.idempotencyKey,
+                    expectedTaskVersion: command.expectedTaskVersion
+                )
+                if let task = result.task { upsertLifecycleTask(task) }
+                pendingLifecycleCommands.removeAll { $0.id == command.id }
+                lifecycleState = .accepted(result.receipt.message ?? "Queued command accepted.")
+            } catch {
+                if error.isOffline { lifecycleState = .queued("Queued command is waiting for the hub.") }
+                else {
+                    pendingLifecycleCommands.removeAll { $0.id == command.id }
+                    lifecycleState = .failed(error.localizedDescription)
+                }
+                persistCachedState(lastSyncAt: lastSuccessfulSync)
+                if error.isOffline { return }
+            }
+        }
+        persistCachedState(lastSyncAt: lastSuccessfulSync)
+    }
+
+    func retryPendingLifecycleCommands() async {
+        await flushPendingLifecycleCommands()
+    }
+
     func loadNotificationReplyResult() {
         guard let result = NotificationReplyResult.latest else { return }
         switch result {
@@ -572,6 +648,7 @@ final class PhoneDexAppModel: ObservableObject {
             drafts = cached.drafts
             readingPositions = cached.readingPositions
             pendingReplies = cached.pendingReplies
+            pendingLifecycleCommands = cached.pendingLifecycleCommands
             replyReceipts = cached.replyReceipts
             syncCursor = cached.cursor
             lastSuccessfulSync = cached.lastSyncAt
@@ -593,6 +670,7 @@ final class PhoneDexAppModel: ObservableObject {
                 drafts: drafts,
                 readingPositions: readingPositions,
                 pendingReplies: pendingReplies,
+                pendingLifecycleCommands: pendingLifecycleCommands,
                 replyReceipts: replyReceipts
             )
         )
