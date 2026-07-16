@@ -53,6 +53,21 @@ final class PhoneDexAppModel: ObservableObject {
         case failed(String)
     }
 
+    enum CacheRecoveryState: Equatable {
+        case available
+        case recovered
+        case unavailable
+
+        var message: String? {
+            switch self {
+            case .available, .recovered:
+                return nil
+            case .unavailable:
+                return "Local history could not be restored. PhoneDex will keep working with fresh hub data when it is reachable."
+            }
+        }
+    }
+
     enum LifecycleState: Equatable {
         case idle
         case sending
@@ -69,6 +84,7 @@ final class PhoneDexAppModel: ObservableObject {
     @Published private(set) var replyReceipts: [PhoneDexReplyDeliveryRecord] = []
     @Published var selectedTaskID: PhoneDexTask.ID?
     @Published var connectionState: ConnectionState = .idle
+    @Published private(set) var cacheRecoveryState: CacheRecoveryState = .available
     @Published var replyState: ReplyState = .idle
     @Published var lifecycleState: LifecycleState = .idle
     @Published private(set) var lastSuccessfulSync: Date?
@@ -153,6 +169,7 @@ final class PhoneDexAppModel: ObservableObject {
                 syncCursor = result.usedCompatibilityFallback ? nil : result.cursor
                 await flushPendingReplies()
                 persistCachedState(lastSyncAt: now)
+                cacheRecoveryState = .recovered
                 if result.usedCompatibilityFallback {
                     connectionState = .incompatible(
                         message: result.fallbackMessage ?? "This hub is using a compatibility connection.",
@@ -586,6 +603,7 @@ final class PhoneDexAppModel: ObservableObject {
             selectedTaskID = tasks.first?.id
         } catch {
             // A corrupt or unavailable cache must never prevent a fresh sync.
+            cacheRecoveryState = .unavailable
         }
     }
 

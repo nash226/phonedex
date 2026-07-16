@@ -85,6 +85,10 @@ private struct PhoneDexChatsView: View {
 
                 Divider()
 
+                if let message = model.cacheRecoveryState.message {
+                    PhoneDexCacheRecoveryBanner(message: message)
+                }
+
                 List(selection: $model.selectedTaskID) {
                     Section {
                         ForEach(filteredTasks) { task in
@@ -1549,6 +1553,29 @@ private struct PhoneDexTaskDetailAnchorPreferenceKey: PreferenceKey {
 
     static func reduce(value: inout [String: CGFloat], nextValue: () -> [String: CGFloat]) {
         value.merge(nextValue(), uniquingKeysWith: { _, latest in latest })
+    }
+}
+
+private struct PhoneDexCacheRecoveryBanner: View {
+    let message: String
+
+    var body: some View {
+        Label {
+            Text(message)
+                .font(.footnote)
+                .multilineTextAlignment(.leading)
+        } icon: {
+            Image(systemName: "externaldrive.badge.exclamationmark")
+                .foregroundStyle(.orange)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Local history recovery notice. " + message)
     }
 }
 

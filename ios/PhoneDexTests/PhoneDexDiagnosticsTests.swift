@@ -2,6 +2,22 @@ import XCTest
 @testable import PhoneDex
 
 final class PhoneDexDiagnosticsTests: XCTestCase {
+    @MainActor
+    func testModelSurfacesCacheRecoveryWithoutBlockingFreshSync() {
+        let model = PhoneDexAppModel(
+            settings: PhoneDexSettings(),
+            cache: FailingCache()
+        )
+
+        XCTAssertEqual(model.cacheRecoveryState, .unavailable)
+        XCTAssertEqual(
+            model.cacheRecoveryState.message,
+            "Local history could not be restored. PhoneDex will keep working with fresh hub data when it is reachable."
+        )
+        XCTAssertTrue(model.tasks.isEmpty)
+        XCTAssertEqual(model.connectionState, .idle)
+    }
+
     func testDeviceHealthMapsProtocolStatesAndUnknownValues() {
         XCTAssertEqual(PhoneDexDeviceHealth(status: "online"), .online)
         XCTAssertEqual(PhoneDexDeviceHealth(status: "stale"), .stale)
@@ -153,4 +169,14 @@ final class PhoneDexDiagnosticsTests: XCTestCase {
             repository: nil
         )
     }
+}
+
+private struct FailingCache: PhoneDexCacheStoring {
+    func load() throws -> PhoneDexCachedState? {
+        throw PhoneDexCacheError.invalidData
+    }
+
+    func save(_ state: PhoneDexCachedState) throws {}
+
+    func remove() throws {}
 }
