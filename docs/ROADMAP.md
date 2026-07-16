@@ -832,12 +832,15 @@ redaction, request metrics, component states, and authorization.
 
 Battery verification for the in-progress release-readiness slice:
 `PhoneDexRefreshPolicy` limits automatic refreshes triggered by app launch and
-returning to the foreground to one request per 30 seconds, while pull-to-refresh
-and explicit refresh buttons remain immediate. `PhoneDexRefreshPolicyTests`
-covers the initial-launch, recent-return, interval-boundary, and no-prior-refresh
-cases. This reduces redundant foreground network and parsing work without
-pretending that a background refresh or APNs provider exists; real-device
-battery profiling remains required before the M8 battery gate can be checked off.
+returning to the foreground to one request per 30 seconds after a healthy sync,
+uses bounded exponential backoff after transient failures, and adds a small
+bounded jitter window to avoid synchronized reconnects. Pull-to-refresh and
+explicit refresh buttons remain immediate. `PhoneDexRefreshPolicyTests` covers
+the initial-launch, recent-return, interval-boundary, failure-backoff,
+maximum-delay, jitter, and no-prior-refresh cases. This reduces redundant
+foreground network and parsing work without pretending that a background
+refresh or APNs provider exists; real-device battery profiling remains required
+before the M8 battery gate can be checked off.
 
 Crash verification for the in-progress release-readiness slice:
 Settings and the embedded browser no longer force-unwrap user-visible sharing

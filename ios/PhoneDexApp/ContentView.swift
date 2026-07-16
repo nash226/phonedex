@@ -4,6 +4,7 @@ import UIKit
 struct ContentView: View {
     @StateObject private var model: PhoneDexAppModel
     @State private var lastAutomaticRefreshAt: Date?
+    @State private var consecutiveAutomaticRefreshFailures = 0
     @Environment(\.scenePhase) private var scenePhase
 
     init(settings: PhoneDexSettings) {
@@ -44,11 +45,18 @@ struct ContentView: View {
         guard policy.shouldRefresh(
             trigger: trigger,
             now: Date(),
-            lastAutomaticRefreshAt: lastAutomaticRefreshAt
+            lastAutomaticRefreshAt: lastAutomaticRefreshAt,
+            consecutiveFailures: consecutiveAutomaticRefreshFailures,
+            jitter: Double.random(in: -1...1)
         ) else { return }
 
         await model.refresh()
         lastAutomaticRefreshAt = Date()
+        if model.connectionState.supportsAutomaticRefreshReset {
+            consecutiveAutomaticRefreshFailures = 0
+        } else {
+            consecutiveAutomaticRefreshFailures += 1
+        }
     }
 }
 
