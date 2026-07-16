@@ -40,6 +40,30 @@ final class PhoneDexShellUITests: XCTestCase {
         XCTAssertTrue(app.switches["Require Face ID or passcode"].waitForExistence(timeout: 5))
     }
 
+    func testSettingsActionsRemainReachableAtAccessibilitySize() {
+        let app = launchApp(arguments: [
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityXXXL",
+            "-UIAccessibilityReduceMotionEnabled",
+            "YES",
+            "-AppleInterfaceStyle",
+            "Dark"
+        ])
+
+        let settingsTab = app.tabBars.buttons["Settings"]
+        XCTAssertTrue(settingsTab.waitForExistence(timeout: 5))
+        settingsTab.tap()
+
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Pair this iPhone"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Test Connection"].waitForExistence(timeout: 5))
+
+        app.swipeUp(velocity: .fast)
+
+        XCTAssertTrue(app.buttons["Allow Notifications"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Notify Latest Task"].waitForExistence(timeout: 5))
+    }
+
     func testShellPassesSystemAccessibilityAudit() throws {
         let app = launchApp(arguments: [
             "-UIPreferredContentSizeCategoryName",
