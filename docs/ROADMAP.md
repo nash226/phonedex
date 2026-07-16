@@ -752,11 +752,14 @@ gate; performance, battery, localization, and crash validation remain open.
 
 Performance verification for the in-progress release-readiness slice:
 `PhoneDexDiffTests.testFiveThousandLineReviewPathStaysWithinInteractiveOpenBudget`
-measures the complete bounded 5,000-line parse and changed-only projection path
-and fails when local preparation exceeds one second. This is a regression guard
-for the documented interactive-open target, not proof of oldest-device p95
-behavior; TestFlight and real-device profiling remain required before the M8
-performance gate can be checked off.
+and `testWorstCaseFiveThousandLineReviewPathStaysWithinInteractiveOpenBudget`
+measure the complete bounded 5,000-line parse and changed-only projection path
+for short and 160-character mixed hunk/addition/deletion/context exports. The
+shared `PhoneDexDiffParser.interactiveOpenBudget` contract fails when local
+preparation exceeds one second. These are regression guards for the documented
+interactive-open target, not proof of oldest-device p95 behavior; TestFlight
+and real-device profiling remain required before the M8 performance gate can
+be checked off.
 
 Observability verification for the completed release-readiness slice:
 `lib/phonedex-observability.js` defines the content-free
