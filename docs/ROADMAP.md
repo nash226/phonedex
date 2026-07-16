@@ -728,7 +728,7 @@ Outcome: turn the complete system into an operable public product.
 - [ ] Reproducible signing and entitlements.
 - [x] Keep semantic versioning and secret-free build provenance reproducible.
 - [x] Staged migration, backup, rollback, and disaster-recovery drills.
-- [ ] Content-free observability with correlation IDs and component health.
+- [x] Content-free observability with correlation IDs and component health.
 - [x] Add an implementation-based iOS privacy manifest and App Store privacy
   answer draft grounded in the local-first client behavior.
 - [ ] Publish the privacy policy, retention/deletion disclosures, security
@@ -757,6 +757,16 @@ and fails when local preparation exceeds one second. This is a regression guard
 for the documented interactive-open target, not proof of oldest-device p95
 behavior; TestFlight and real-device profiling remain required before the M8
 performance gate can be checked off.
+
+Observability verification for the completed release-readiness slice:
+`lib/phonedex-observability.js` defines the content-free
+`phonedex.diagnostics.v1` projection with component health, route-level
+latency/error metrics, capability identifiers, and bounded recent request
+metadata. The bridge adds an authenticated `/diagnostics` endpoint and returns
+an opaque `X-PhoneDex-Correlation-ID` on every HTTP response; credentials,
+task text, paths, and request headers are never persisted in the projection.
+`scripts/test-observability.js` covers correlation-id validation, diagnostics
+redaction, request metrics, component states, and authorization.
 
 Battery verification for the in-progress release-readiness slice:
 `PhoneDexRefreshPolicy` limits automatic refreshes triggered by app launch and

@@ -296,6 +296,18 @@ The current bridge can prove that its agent process is healthy when its
 heartbeat is running, but it does not claim Codex adapter health until a
 supported adapter reports it; older heartbeats therefore decode as unknown.
 
+### Content-free diagnostics
+
+The authenticated `GET /diagnostics` endpoint returns a bounded
+`phonedex.diagnostics.v1` projection. It includes hub, agent, adapter, push,
+and origin-task component states; route-level request counts, latency, and
+error classes; capability identifiers; and the last ten opaque request
+correlation ids. It never includes task text, prompts, transcripts,
+credentials, request headers, local paths, or artifact bytes. Every HTTP
+response carries the same opaque `X-PhoneDex-Correlation-ID` used by its
+diagnostics entry; clients may provide their own safe id through that header
+for a single request trace.
+
 The hub exposes `GET /sync` as the versioned snapshot-plus-cursor contract.
 Clients send an authenticated bearer token and an optional opaque `v1.` cursor
 with a bounded `limit` (1–100, default 50). A fresh request returns a stable,

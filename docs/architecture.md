@@ -227,7 +227,18 @@ That launchd label still uses `watchdex` as a legacy compatibility id. The
 public CLI, docs, notification text, and npm package present the product as
 PhoneDex.
 
-The live bridge health endpoint returns the machine name and reply URL:
+The live bridge health endpoint returns the machine name and reply URL. The
+authenticated diagnostics endpoint adds content-free component state and
+bounded request metrics for support:
+
+```text
+GET /diagnostics
+X-PhoneDex-Correlation-ID: pd_...
+```
+
+Responses include an opaque correlation id, component states, route latency and
+error classes, and negotiated capability identifiers. They exclude task text,
+credentials, headers, and local paths.
 
 ```json
 {
