@@ -30,4 +30,70 @@ final class PhoneDexDiffTests: XCTestCase {
         XCTAssertEqual(document.totalLineCount, 20)
         XCTAssertTrue(document.isTruncated)
     }
+
+    func testParserHandlesTheMobilePerformanceBudgetWithoutExtraRenderedRows() {
+        let patch = (0..<PhoneDexDiffParser.defaultLineLimit)
+            .map { index in index.isMultiple(of: 2) ? "+added \(index)" : " context \(index)" }
+            .joined(separator: "\n")
+
+        let document = PhoneDexDiffParser.parse(patch)
+
+        XCTAssertEqual(document.lines.count, PhoneDexDiffParser.defaultLineLimit)
+        XCTAssertEqual(document.totalLineCount, PhoneDexDiffParser.defaultLineLimit)
+        XCTAssertFalse(document.isTruncated)
+        XCTAssertEqual(document.document(showingContext: false).lines.count, PhoneDexDiffParser.defaultLineLimit / 2)
+    }
+
+    func testFiveThousandLineReviewPathStaysWithinInteractiveOpenBudget() {
+        let patch = (0..<PhoneDexDiffParser.defaultLineLimit)
+            .map { index in index.isMultiple(of: 2) ? "+added \(index)" : " context \(index)" }
+            .joined(separator: "\n")
+
+        let start = CFAbsoluteTimeGetCurrent()
+        let document = PhoneDexDiffParser.parse(patch)
+        let visibleDocument = document.document(showingContext: false)
+        let elapsed = CFAbsoluteTimeGetCurrent() - start
+
+        XCTAssertEqual(visibleDocument.lines.count, PhoneDexDiffParser.defaultLineLimit / 2)
+        XCTAssertLessThan(
+            elapsed,
+            PhoneDexDiffParser.interactiveOpenBudget,
+            "Parsing and preparing the bounded review document took \(elapsed)s"
+        )
+    }
+
+    func testWorstCaseFiveThousandLineReviewPathStaysWithinInteractiveOpenBudget() {
+        let payload = String(repeating: "x", count: 160)
+        let patch = (0..<PhoneDexDiffParser.defaultLineLimit)
+            .map { index in
+                switch index % 4 {
+                case 0: return "@@ -\(index + 1),1 +\(index + 1),1 @@"
+                case 1: return "+added \(index) \(payload)"
+                case 2: return "-removed \(index) \(payload)"
+                default: return " context \(index) \(payload)"
+                }
+            }
+            .joined(separator: "\n")
+
+        let start = CFAbsoluteTimeGetCurrent()
+        let document = PhoneDexDiffParser.parse(patch)
+        let changedDocument = document.document(showingContext: false)
+        let elapsed = CFAbsoluteTimeGetCurrent() - start
+
+        XCTAssertEqual(document.lines.count, PhoneDexDiffParser.defaultLineLimit)
+        XCTAssertEqual(changedDocument.lines.count, PhoneDexDiffParser.defaultLineLimit * 3 / 4)
+        XCTAssertFalse(document.isTruncated)
+        XCTAssertLessThan(
+            elapsed,
+            PhoneDexDiffParser.interactiveOpenBudget,
+            "Worst-case parsing and projection took \(elapsed)s"
+        )
+    }
+
+    func testChangingContextVisibilityReusesParsedLineIdentities() {
+        let document = PhoneDexDiffParser.parse("@@ -1,2 +1,2 @@\n keep\n+new")
+
+        XCTAssertEqual(document.document(showingContext: false).lines.map(\.id), [0, 2])
+        XCTAssertEqual(document.document(showingContext: true).lines.map(\.id), [0, 1, 2])
+    }
 }

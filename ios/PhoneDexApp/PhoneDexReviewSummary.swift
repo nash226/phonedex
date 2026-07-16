@@ -147,6 +147,7 @@ struct PhoneDexReviewSummaryView: View {
                 .padding(.bottom, 24)
             }
             .background(Color(uiColor: .systemBackground))
+            .privacySensitive()
             .navigationTitle("Review changes")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

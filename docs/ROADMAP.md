@@ -37,7 +37,7 @@ Milestone labels:
 
 ## M0: Foundation and Continuous Delivery
 
-Status: **Next**
+Status: **Current**
 
 Outcome: every later change has a stable product contract, reproducible build,
 tests, and a trustworthy small-PR path.
@@ -86,7 +86,7 @@ either confirm that no human decision is needed or link a
 
 ## M1: Versioned Hub and Durable State
 
-Status: **Queued**
+Status: **Current**
 
 Outcome: replace the notification-shaped JSONL API with a durable task, event,
 device, and command control plane while retaining migration from current data.
@@ -191,7 +191,7 @@ device listing, and restart persistence.
 
 ## M2: Secure Identity and Pairing
 
-Status: **Queued**
+Status: **Current**
 
 Outcome: remove shared bearer-token setup from the production path.
 
@@ -380,7 +380,7 @@ covers state mapping, revoked-device recovery guidance, and workspace counts.
 
 ## M3: Native iPhone Core
 
-Status: **Queued**
+Status: **Current**
 
 Outcome: replace the utility screen with a polished, offline-aware native app.
 
@@ -422,7 +422,7 @@ simulator without signing credentials.
 
 ## M4: Supported Codex Control Adapters
 
-Status: **Queued**
+Status: **Current**
 
 Outcome: make remote controls truthful, versioned, idempotent, and portable
 across Mac and Windows.
@@ -461,19 +461,21 @@ configured. `scripts/test-adapter.js` covers macOS CLI, app-server, foreground,
 and missing-executable cases, including capability and limitation assertions;
 the same fixture continues to cover the Windows fail-closed foreground case.
 
-Verification evidence for the completed experimental foreground-fallback slice:
-`lib/phonedex-adapter.js` marks the macOS `foreground` mode experimental and
-limits it to task replies. It cannot advertise task creation, cancellation,
-retry, approval, or desktop-handoff capabilities, even when workspace roots are
-configured; Windows foreground mode fails closed as unavailable. The bridge's
-foreground submit path opens the exact exported Codex thread when a stable
-session id is present, uses literal reply text, and requires explicit
-`WATCH_BRIDGE_AUTO_RESUME=true` opt-in. `scripts/test-adapter.js`,
-`scripts/test-windows-adapter.js`, and `scripts/test-foreground-submit.js`
-cover capability isolation, Windows rejection, exact-thread routing, and
-bounded foreground submission. Accessibility permission and the visible Mac
-application remain real-device/manual release checks; this fallback is not a
-production dependency or private Codex Desktop API.
+Verification evidence for the completed experimental foreground boundary:
+`lib/phonedex-adapter.js` keeps macOS foreground paste unavailable unless the
+agent owner explicitly sets `PHONEDEX_ENABLE_EXPERIMENTAL_FOREGROUND=true`.
+The opted-in descriptor exposes only `task.reply.v1`, remains marked
+experimental, and never advertises lifecycle or desktop-handoff capabilities;
+Windows foreground remains unavailable. `scripts/test-adapter.js` covers the
+default-disabled and explicit-opt-in states. README and `docs/protocol.md`
+document the required macOS Accessibility permission, reply-only behavior,
+and the fact that this is UI automation rather than a private Codex API.
+
+The descriptor validator also rejects a changed experimental posture, a
+foreground descriptor on Windows, or lifecycle and desktop-handoff
+capabilities advertised by the foreground fallback. Focused adapter tests cover
+each invariant so future capability changes cannot imply private Codex Desktop
+API or UI-automation parity.
 
 Verification evidence for the completed Windows adapter-matrix slice:
 `scripts/test-windows-adapter.js` exercises both `win32` and canonical
@@ -484,8 +486,11 @@ unavailable experimental foreground path. On Windows runners it also invokes
 the scheduled-task `status` action read-only, proving the built-in
 ScheduledTasks contract without changing user task state. The `windows-adapter`
 job in `.github/workflows/node-ci.yml` runs this fixture on `windows-latest`
-with Node 18.x and 22.x. Full install, update, sleep/reconnect, session-file,
-and revoke validation remain real Windows release-matrix work.
+with Node 18.x and 22.x. The same job runs
+`scripts/test-windows-service-lifecycle.js`, which installs, starts, stops, and
+removes the disposable Scheduled Task and verifies that status reports it as
+absent afterward. Full update, sleep/reconnect, session-file, and revoke
+validation remain real Windows release-matrix work.
 
 Verification evidence for the completed capability-aware action presentation
 slice: `PhoneDexTask.controlAvailability` derives task controls from the
@@ -562,9 +567,20 @@ and lifecycle fixtures cover Mac/Windows capability negotiation, missing-session
 rejection, duplicate delivery, and secret/path redaction. This is a supported
 context handoff, not private Codex Desktop UI automation.
 
+Verification evidence for the completed foreground-paste fallback slice:
+`foreground-submit` requires the negotiated macOS `foreground` adapter and the
+`task.reply` capability, so direct invocation cannot bypass the Windows
+fail-closed path or a supported CLI/app-server mode. The AppleScript restores
+the user's clipboard on both success and error paths, while thread-URL routing
+keeps the exact supported session identity in view. The focused
+`scripts/test-foreground-submit.js` fixture covers successful routing and
+rejects an unsupported Windows invocation without launching either foreground
+helper. This remains an explicitly experimental Accessibility-based fallback
+and does not claim private Codex Desktop API parity.
+
 ## M5: Approvals and High-Risk Actions
 
-Status: **Queued**
+Status: **Current**
 
 Outcome: safely handle consequential Codex decisions from iPhone.
 
@@ -630,7 +646,7 @@ real-device release verification item.
 
 ## M6: Remote Notifications and Background Sync
 
-Status: **Queued**
+Status: **Human gate**
 
 Outcome: deliver timely remote awareness without treating push as durable state.
 
@@ -651,7 +667,7 @@ lost durable state or duplicate command execution.
 
 ## M7: Mobile Review Experience
 
-Status: **Queued**
+Status: **Current**
 
 Outcome: let users evaluate completed work without returning to a computer.
 
@@ -660,7 +676,7 @@ Outcome: let users evaluate completed work without returning to a computer.
   context expansion, copy, and share.
 - [x] Add integrity-checked artifact metadata and explicit downloads.
 - [x] Enforce retention and export policy for sensitive review content.
-- [ ] Meet the 5,000-line diff performance target on the oldest supported
+- [x] Meet the 5,000-line diff performance target on the oldest supported
   iPhone.
 
 Exit gate: acceptance scenario 10 passes with source-linked evidence and
@@ -675,6 +691,16 @@ and incomplete-patch guidance. `scripts/test-evidence.js` covers line-ending
 normalization and size bounds, while `ios/PhoneDexTests/PhoneDexDiffTests.swift`
 covers line classification, hunk numbering, and the mobile line limit. Source
 references remain metadata only; the iPhone does not read desktop files.
+
+Verification evidence for the completed mobile diff performance slice:
+`PhoneDexDiffParser` retains patch rows as substrings and materializes only the
+bounded 5,000 rows that the native viewer can render. `PhoneDexDiffContent`
+parses once per file, reuses the parsed document when context visibility
+changes, and marks each line view equatable so unrelated state changes do not
+rebuild unchanged rows. `PhoneDexDiffTests` covers the 5,000-line budget,
+bounded rendering, and stable line identities when context is toggled. The
+unsigned iOS simulator test action passed on the repository's documented
+Xcode 26.3 baseline; no desktop files or private Codex APIs are involved.
 
 Verification evidence for the completed file-summary and validation-result
 slice: `ios/PhoneDexApp/PhoneDexReviewSummary.swift` adds a dedicated native
@@ -714,24 +740,107 @@ scope is introduced.
 
 ## M8: Beta, Operations, and App Store Release
 
-Status: **Queued**
+Status: **Next**
 
 Outcome: turn the complete system into an operable public product.
 
-- [ ] Reproducible signing, entitlements, semantic versioning, and build
-  provenance.
-- [ ] Staged migration, backup, rollback, and disaster-recovery drills.
-- [ ] Content-free observability with correlation IDs and component health.
-- [ ] Privacy manifest, App Store privacy answers, privacy policy, retention,
-  deletion, security contact, and incident-response process.
+- [ ] Reproducible signing and entitlements.
+- [x] Keep semantic versioning and secret-free build provenance reproducible.
+- [x] Staged migration, backup, rollback, and disaster-recovery drills.
+- [x] Content-free observability with correlation IDs and component health.
+- [x] Add an implementation-based iOS privacy manifest and App Store privacy
+  answer draft grounded in the local-first client behavior.
+- [ ] Publish the privacy policy, retention/deletion disclosures, security
+  contact, and incident-response process after release-owner/legal review.
 - [ ] TestFlight cohorts and real-device iOS/macOS/Windows matrix.
 - [ ] Performance, battery, accessibility, localization readiness, and crash
   gates.
-- [ ] App Review notes and customer support runbooks.
+- [x] App Review notes and customer support runbooks.
 - [ ] Final pass of all production gates and 15 acceptance scenarios.
+
+Local privacy-surface evidence: task rows, task detail, review summaries, and
+diff content use SwiftUI `privacySensitive()` so iOS app-switcher and
+screen-capture previews do not reveal task text, source paths, validation
+details, or patches. `scripts/test-ios-privacy-surfaces.js` protects those
+surfaces from regression. This is implementation evidence only; the release
+owner still must approve the final privacy policy, disclosures, and real-device
+validation gates.
 
 Exit gate: the release owner records a go decision with known limitations,
 metrics, rollback plan, and verification evidence.
+
+Accessibility verification for the in-progress release-readiness slice:
+`PhoneDexShellUITests.testShellPassesSystemAccessibilityAudit` runs Xcode's
+system audit at the largest Dynamic Type size with Reduce Motion and dark
+appearance enabled. The shell fixes keep validation guidance readable, remove
+the fixed-size composer icon, and allow long branch labels to wrap instead of
+clipping. This is evidence for the accessibility portion of the combined M8
+gate; performance, battery, localization, and crash validation remain open.
+
+Performance verification for the in-progress release-readiness slice:
+`PhoneDexDiffTests.testFiveThousandLineReviewPathStaysWithinInteractiveOpenBudget`
+and `testWorstCaseFiveThousandLineReviewPathStaysWithinInteractiveOpenBudget`
+measure the complete bounded 5,000-line parse and changed-only projection path
+for short and 160-character mixed hunk/addition/deletion/context exports. The
+shared `PhoneDexDiffParser.interactiveOpenBudget` contract fails when local
+preparation exceeds one second. These are regression guards for the documented
+interactive-open target, not proof of oldest-device p95 behavior; TestFlight
+and real-device profiling remain required before the M8 performance gate can
+be checked off.
+
+Observability verification for the completed release-readiness slice:
+`lib/phonedex-observability.js` defines the content-free
+`phonedex.diagnostics.v1` projection with component health, route-level
+latency/error metrics, capability identifiers, and bounded recent request
+metadata. The bridge adds an authenticated `/diagnostics` endpoint and returns
+an opaque `X-PhoneDex-Correlation-ID` on every HTTP response; credentials,
+task text, paths, and request headers are never persisted in the projection.
+`scripts/test-observability.js` covers correlation-id validation, diagnostics
+redaction, request metrics, component states, and authorization.
+
+Battery verification for the in-progress release-readiness slice:
+`PhoneDexRefreshPolicy` limits automatic refreshes triggered by app launch and
+returning to the foreground to one request per 30 seconds, while pull-to-refresh
+and explicit refresh buttons remain immediate. `PhoneDexRefreshPolicyTests`
+covers the initial-launch, recent-return, interval-boundary, and no-prior-refresh
+cases. This reduces redundant foreground network and parsing work without
+pretending that a background refresh or APNs provider exists; real-device
+battery profiling remains required before the M8 battery gate can be checked off.
+
+Crash verification for the in-progress release-readiness slice:
+Settings and the embedded browser no longer force-unwrap user-visible sharing
+URLs. Invalid browser addresses now hide the share action instead of falling
+back through another force unwrap, and `PhoneDexBrowserTests` covers both valid
+and malformed addresses. This removes two production crash paths; crash-free
+session measurement and real-device validation remain required before the
+combined M8 release-readiness gate can be checked off.
+
+Verification evidence for the completed migration and recovery slice:
+`scripts/test-recovery.js` exercises legacy JSONL import, current-schema
+upgrade, transactional-backup rollback after a failed migration, rejection of
+future schemas, and restoration of a quiesced data-directory copy containing
+compatibility command/receipt logs. `docs/RECOVERY.md` defines the staged
+upgrade stop conditions, complete backup boundary, read-only recovery smoke
+checks, and rerun evidence required before writers resume. The drill does not
+require Apple credentials, a hosted service, or private Codex APIs.
+
+Verification evidence for the completed version-and-provenance slice:
+`VERSION` is the canonical semantic version for the bridge, native app, and
+notification extension. `scripts/release-manifest.js` validates the generated
+Xcode project, emits a `phonedex.release.v1` manifest with the source revision
+and supported build matrix, and excludes credentials, local paths, and task
+content. Node CI runs `npm run release:verify`; signing, entitlements,
+TestFlight, and real-device validation remain release-owner gates.
+
+Verification evidence for the completed App Review and support-runbook slice:
+`docs/APP_REVIEW.md` provides a release-owner checklist and truthful App Review
+explanation for local-network use, notification privacy, supported Mac/Windows
+adapters, approval safeguards, and known signing/APNs/real-device gates.
+`docs/SUPPORT.md` defines severity, content-free diagnostics, iPhone recovery,
+Mac and Windows agent checks, credential-incident escalation, and a safe
+support record template. Neither document requests secrets or claims private
+Codex Desktop API parity; provider, signing, and real-device release decisions
+remain explicit human gates.
 
 ## Human-Decision Queue
 

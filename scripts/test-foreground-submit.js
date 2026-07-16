@@ -37,6 +37,9 @@ try {
         ...process.env,
         PATH: `${fakeBin}:${process.env.PATH}`,
         WATCH_BRIDGE_DATA_DIR: dataDir,
+        PHONEDEX_ADAPTER_PLATFORM: "macos",
+        PHONEDEX_ADAPTER_MODE: "foreground",
+        PHONEDEX_ENABLE_EXPERIMENTAL_FOREGROUND: "true",
         PHONEDEX_FOREGROUND_APP: "ChatGPT",
         PHONEDEX_FOREGROUND_THREAD_OPEN_DELAY_MS: "0",
         PHONEDEX_TEST_CALLS_PATH: callsPath
@@ -60,6 +63,27 @@ try {
   assert.equal(started.threadUrl, "codex://threads/thread%2Fwith%20spaces");
   assert.equal(started.foregroundApp, "ChatGPT");
   assert.equal(submitted.sessionId, task.sessionId);
+
+  const unsupported = spawnSync(
+    process.execPath,
+    [bridge, "foreground-submit", "--taskId", task.id, "--prompt", "should not paste"],
+    {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${fakeBin}:${process.env.PATH}`,
+        WATCH_BRIDGE_DATA_DIR: dataDir,
+        PHONEDEX_ADAPTER_PLATFORM: "windows",
+        PHONEDEX_ADAPTER_MODE: "foreground",
+        PHONEDEX_FOREGROUND_APP: "ChatGPT",
+        PHONEDEX_TEST_CALLS_PATH: callsPath
+      }
+    }
+  );
+  assert.notEqual(unsupported.status, 0);
+  assert.match(`${unsupported.stderr}${unsupported.stdout}`, /macOS-only fallback/i);
+  assert.equal(readJsonl(callsPath).length, 2);
 
   console.log("foreground thread routing fixture passed");
 } finally {

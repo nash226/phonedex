@@ -70,7 +70,9 @@ The macOS adapter matrix is intentionally narrow:
 | `app-server` | PhoneDex-supported app-server continuation | Only with an allowlisted workspace | Yes | Supported |
 | `foreground` | macOS foreground paste fallback | No | No | Experimental |
 
-Foreground paste can reply to a task when selected, but it must never inherit
+Foreground paste is disabled unless the agent owner explicitly opts in with
+`PHONEDEX_ENABLE_EXPERIMENTAL_FOREGROUND=true`. When enabled, it can reply to
+a task when selected, but it must never inherit
 create, cancel, retry, or desktop-handoff capabilities from workspace
 configuration. The agent advertises those capabilities only from the CLI or
 app-server rows, and the iPhone renders the resulting limitation instead of
@@ -295,6 +297,18 @@ may add an additive `health` object:
 The current bridge can prove that its agent process is healthy when its
 heartbeat is running, but it does not claim Codex adapter health until a
 supported adapter reports it; older heartbeats therefore decode as unknown.
+
+### Content-free diagnostics
+
+The authenticated `GET /diagnostics` endpoint returns a bounded
+`phonedex.diagnostics.v1` projection. It includes hub, agent, adapter, push,
+and origin-task component states; route-level request counts, latency, and
+error classes; capability identifiers; and the last ten opaque request
+correlation ids. It never includes task text, prompts, transcripts,
+credentials, request headers, local paths, or artifact bytes. Every HTTP
+response carries the same opaque `X-PhoneDex-Correlation-ID` used by its
+diagnostics entry; clients may provide their own safe id through that header
+for a single request trace.
 
 The hub exposes `GET /sync` as the versioned snapshot-plus-cursor contract.
 Clients send an authenticated bearer token and an optional opaque `v1.` cursor

@@ -11,9 +11,13 @@ targets:
     platform: iOS
     sources:
       - PhoneDexApp
+    resources:
+      - PhoneDexApp/PrivacyInfo.xcprivacy
     settings:
       base:
         DEVELOPMENT_TEAM: RQRRLJ37K2
+        MARKETING_VERSION: 0.1.0
+        CURRENT_PROJECT_VERSION: 1
         PRODUCT_BUNDLE_IDENTIFIER: com.nash226.PhoneDex
         INFOPLIST_FILE: PhoneDexApp/Info.plist
     dependencies:
@@ -26,6 +30,8 @@ targets:
     settings:
       base:
         DEVELOPMENT_TEAM: RQRRLJ37K2
+        MARKETING_VERSION: 0.1.0
+        CURRENT_PROJECT_VERSION: 1
         PRODUCT_BUNDLE_IDENTIFIER: com.nash226.PhoneDex.NotificationExtension
         INFOPLIST_FILE: PhoneDexNotificationExtension/Info.plist
         APPLICATION_EXTENSION_API_ONLY: YES

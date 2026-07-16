@@ -208,7 +208,7 @@ PhoneDex has three ways to continue Codex from a phone reply:
 
 | Mode | How It Works | Current Use |
 | --- | --- | --- |
-| `foreground` | Activates Codex.app, pastes the reply, presses Return. | Explicitly opt-in experimental Mac fallback. |
+| `foreground` | Activates the selected Codex app, pastes the reply, presses Return. | Explicitly enabled experimental macOS fallback only. |
 | `app-server` | Uses Codex app-server to resume a session in the background. | Works, but does not render in the visible thread. |
 | `cli` | Runs `codex exec resume <session> <prompt>`. | Useful fallback if CLI resume is enough. |
 
@@ -227,7 +227,18 @@ That launchd label still uses `watchdex` as a legacy compatibility id. The
 public CLI, docs, notification text, and npm package present the product as
 PhoneDex.
 
-The live bridge health endpoint returns the machine name and reply URL:
+The live bridge health endpoint returns the machine name and reply URL. The
+authenticated diagnostics endpoint adds content-free component state and
+bounded request metrics for support:
+
+```text
+GET /diagnostics
+X-PhoneDex-Correlation-ID: pd_...
+```
+
+Responses include an opaque correlation id, component states, route latency and
+error classes, and negotiated capability identifiers. They exclude task text,
+credentials, headers, and local paths.
 
 ```json
 {

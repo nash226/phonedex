@@ -87,13 +87,23 @@ session and submit the phone reply as a new turn. `Okay, what's next` is wrapped
 as a status-only prompt so it does not start new background work; `Let's do
 that` is the action-oriented reply.
 
-If you explicitly opt in to the experimental `foreground` mode, a phone reply
-can appear in the currently open Codex desktop thread. It activates Codex.app,
-pastes the literal phone reply text into the visible input, and submits it
-through the UI. macOS must allow the process running PhoneDex, plus `osascript`
-when prompted, to control the computer in **Privacy & Security > Accessibility**.
-This fallback supports replies only; it does not provide lifecycle controls or
-desktop handoff and is not a production dependency.
+If you want the phone reply to appear in the currently open Codex desktop
+thread, use the explicitly experimental `foreground` mode. It is disabled by
+default; opt in only after accepting the macOS UI-automation and Accessibility
+permission risks:
+
+```sh
+WATCH_BRIDGE_AUTO_RESUME=true
+WATCH_BRIDGE_AUTO_RESUME_MODE=foreground
+PHONEDEX_ENABLE_EXPERIMENTAL_FOREGROUND=true
+```
+
+It activates Codex.app, pastes the literal phone reply text into the visible
+input, and submits it through the UI. macOS must allow the process running
+PhoneDex, plus `osascript` when prompted, to control the computer in
+**Privacy & Security > Accessibility**. Foreground mode is reply-only: it
+cannot create, cancel, retry, or hand off tasks, and it is not a supported
+Codex Desktop API integration.
 When a completion includes a Codex thread id, foreground mode opens that exact
 Desktop thread before submitting the phone reply; tasks without a thread id
 fall back to the currently open ChatGPT/Codex window.
@@ -376,6 +386,8 @@ run `npm run agent:invite` on the hub to create a fresh link, or add
 `/agent-bootstrap/setup` from a trusted device.
 
 For the full system design, see [docs/architecture.md](docs/architecture.md).
+For App Review preparation, see [docs/APP_REVIEW.md](docs/APP_REVIEW.md), and
+for incident handling and customer support, see [docs/SUPPORT.md](docs/SUPPORT.md).
 For the legacy native Apple Watch app scaffold, see [watchos/README.md](watchos/README.md).
 For the native iOS notification UI prototype, see [ios/README.md](ios/README.md).
 
@@ -478,7 +490,8 @@ PhoneDex reads `.env` from the repo root.
 | `PUSHCUT_SOUND` | No | Pushcut sound name. Defaults to `jobDone`. |
 | `PUSHCUT_TIME_SENSITIVE` | No | Send Pushcut alerts as time-sensitive. Defaults to `true`. |
 | `WATCH_BRIDGE_AUTO_RESUME` | No | Continue Codex from phone replies. Defaults to `false`. |
-| `WATCH_BRIDGE_AUTO_RESUME_MODE` | No | `cli` for `codex exec resume`, `app-server` for background app-server turns, or `foreground` for visible Codex.app submission. Defaults to `cli`. |
+| `WATCH_BRIDGE_AUTO_RESUME_MODE` | No | `cli` for `codex exec resume`, `app-server` for background app-server turns, or `foreground` for the experimental macOS-only visible-app submission. Defaults to `cli`. |
+| `PHONEDEX_ENABLE_EXPERIMENTAL_FOREGROUND` | No | Must be `true` to enable the macOS-only foreground paste fallback. Defaults to `false`; ignored by supported CLI/app-server modes. |
 | `PHONEDEX_FOREGROUND_APP` | No | macOS process/application name used by foreground submission. Auto-detects `ChatGPT` when installed and otherwise uses the legacy `Codex` name. |
 | `WATCHDEX_SESSION_WATCH_INTERVAL_MS` | No | Session watcher polling interval. Defaults to `5000`. |
 | `WATCHDEX_SESSION_WATCH_DEBOUNCE_MS` | No | Delay before notifying a completed session message. Defaults to `8000`. |

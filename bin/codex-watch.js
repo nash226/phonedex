@@ -69,6 +69,10 @@ const {
   appendSecurityAudit,
   createRequestRateLimiter
 } = require("../lib/phonedex-security");
+const {
+  correlationIdFromRequest,
+  createPhoneDexObservability
+} = require("../lib/phonedex-observability");
 
 const ROOT = path.resolve(__dirname, "..");
 const DATA_DIR_DEFAULT = path.join(ROOT, "data");
@@ -268,7 +272,8 @@ function config() {
     mode: adapterMode,
     codexBin,
     appServerBin: codexAppServerBin,
-    workspaceRoots
+    workspaceRoots,
+    allowExperimentalForeground: parseBoolean(env.PHONEDEX_ENABLE_EXPERIMENTAL_FOREGROUND, false)
   });
 
   return {
@@ -1058,6 +1063,10 @@ async function startServer(providedCfg) {
     limit: cfg.authRateLimit,
     windowMs: cfg.authRateLimitWindowMs
   });
+  const observability = createPhoneDexObservability({
+    service: "watchdex",
+    role: cfg.agentMode ? "agent" : "hub"
+  });
 
   if (cfg.retentionDays > 0) {
     try {
@@ -1072,6 +1081,15 @@ async function startServer(providedCfg) {
   }
 
   const server = http.createServer(async (req, res) => {
+    const requestStartedAt = process.hrtime.bigint();
+    const correlationId = correlationIdFromRequest(req.headers["x-phonedex-correlation-id"]);
+    req.phonedexCorrelationId = correlationId;
+    const originalWriteHead = res.writeHead.bind(res);
+    res.writeHead = (status, headers, ...rest) => originalWriteHead(
+      status,
+      { "x-phonedex-correlation-id": correlationId, ...(headers || {}) },
+      ...rest
+    );
     try {
       const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
 
@@ -1092,6 +1110,21 @@ async function startServer(providedCfg) {
             : defaultCapabilities("hub"),
           adapter: cfg.adapter
         });
+      }
+
+      if (requestUrl.pathname === "/diagnostics") {
+        if (!isRequestAuthorized(req, requestUrl, cfg, "tasks.read")) {
+          return sendJson(res, 401, { ok: false, error: "Invalid token" });
+        }
+        observability.setComponent("hub", cfg.agentMode ? "unknown" : "healthy");
+        observability.setComponent("agent", cfg.agentMode ? "healthy" : "unknown");
+        observability.setComponent("adapter", cfg.adapter.state === "ready" ? "healthy" : "degraded");
+        return sendJson(res, 200, observability.snapshot({
+          version: process.env.PHONEDEX_VERSION || "0.1.0",
+          capabilities: cfg.agentMode
+            ? advertisedAgentCapabilities(cfg)
+            : defaultCapabilities("hub")
+        }));
       }
 
       if (requestUrl.pathname === "/pair") {
@@ -1247,6 +1280,7 @@ async function startServer(providedCfg) {
         service: "watchdex",
         endpoints: [
           "/health",
+          "/diagnostics",
           "/pair",
           "/privacy",
           "/privacy/export",
@@ -1269,6 +1303,18 @@ async function startServer(providedCfg) {
     } catch (error) {
       logError(error);
       sendJson(res, 500, { ok: false, error: error.message });
+    } finally {
+      const status = res.statusCode || 200;
+      observability.recordRequest({
+        correlationId,
+        route: (() => {
+          try { return new URL(req.url, "http://localhost").pathname; } catch { return "unknown"; }
+        })(),
+        status,
+        latencyMs: Number(process.hrtime.bigint() - requestStartedAt) / 1e6,
+        command: ["/reply", "/command", "/artifacts"].some((route) => req.url?.startsWith(route)),
+        errorClass: status >= 500 ? "server_error" : status >= 400 ? `http_${status}` : ""
+      });
     }
   });
 
@@ -3221,6 +3267,7 @@ async function appServerResumeCommand(args) {
 async function foregroundSubmitCommand(args) {
   const cfg = config();
   ensureDataDir(cfg.dataDir);
+  assertForegroundAdapter(cfg);
   const flags = parseFlags(args);
   const taskId = flags.taskId || flags.task || "";
   const task = taskId ? findTask(cfg.dataDir, taskId) : latestJsonl(cfg.dataDir, "tasks.jsonl");
@@ -3230,6 +3277,17 @@ async function foregroundSubmitCommand(args) {
   if (!prompt) throw new Error("Missing --prompt for foreground submit");
 
   await submitPromptToForegroundCodex(cfg, task, prompt);
+}
+
+function assertForegroundAdapter(cfg) {
+  if (cfg.adapter.mode !== "foreground" || cfg.adapter.platform !== "macos") {
+    throw new Error(
+      "Foreground paste is an experimental macOS-only fallback. Set PHONEDEX_ADAPTER_MODE=foreground on macOS."
+    );
+  }
+  if (!supportsAdapterCapability(cfg.adapter, "task.reply")) {
+    throw new Error("The configured macOS foreground adapter cannot accept task replies.");
+  }
 }
 
 function buildCodexResumePrompt(reply) {
@@ -3262,18 +3320,25 @@ on run argv
   set promptText to item 1 of argv
   set foregroundApp to item 2 of argv
   set previousClipboard to the clipboard
-  delay 0.6
-  set the clipboard to promptText
-  tell application "System Events"
-    tell process foregroundApp
-      set frontmost to true
-      keystroke "v" using {command down}
-      delay 0.2
-      key code 36
+  try
+    delay 0.6
+    set the clipboard to promptText
+    tell application "System Events"
+      tell process foregroundApp
+        set frontmost to true
+        keystroke "v" using {command down}
+        delay 0.2
+        key code 36
+      end tell
     end tell
-  end tell
-  delay 0.5
-  set the clipboard to previousClipboard
+    delay 0.5
+    set the clipboard to previousClipboard
+  on error errorMessage number errorNumber
+    try
+      set the clipboard to previousClipboard
+    end try
+    error errorMessage number errorNumber
+  end try
 end run
 `;
 
