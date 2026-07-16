@@ -14,7 +14,7 @@ verification on the machine where they run.
 | Xcode | 26.3 | The unsigned simulator workflow runs on the pinned `macos-15` GitHub Actions runner. Full Xcode is required; Command Line Tools alone are not enough. |
 | iOS | 17.0 deployment target and later | The app and notification extension declare iOS 17.0. The supported test path is an iOS Simulator build/test with Xcode 26.3; signing is not required for simulator validation. |
 | macOS | macOS Sequoia 15.6 or later for the native build flow | Xcode 26.3 is the repository's reproducible baseline. The Node hub/agent also requires a supported Node.js release; foreground reply submission additionally requires macOS Accessibility permission. |
-| Windows | Windows 10 or later with Windows PowerShell 5.1 and Node.js 18.x or 22.x | The agent uses the built-in ScheduledTasks module. GitHub Actions validates the Windows adapter matrix and read-only task-status command on `windows-latest` with Node 18.x and 22.x; installation, session-file access, and scheduled-task startup still require manual validation on each supported Windows image. |
+| Windows | Windows 10 or later with Windows PowerShell 5.1 and Node.js 18.x or 22.x | The agent uses the built-in ScheduledTasks module. GitHub Actions validates the Windows adapter matrix, read-only task status, and disposable install/start/stop/remove lifecycle on `windows-latest` with Node 18.x and 22.x; session-file access still requires manual validation on each supported Windows image. |
 | XcodeGen | Current Homebrew package | Required only to regenerate `ios/PhoneDex.xcodeproj` from `ios/project.yml`; the generated project is committed for CI and clean checkouts. |
 
 The repository does not promise support for private Codex Desktop APIs, remote
@@ -66,8 +66,10 @@ and requires no Apple signing credentials for simulator tests.
   service under the same user that can read the local Codex session files, and
   run `npm run agent:self-test` after enrollment. `npm run test:windows-adapter`
   validates CLI and app-server capability gates, Windows foreground fail-closed
-  behavior, and the read-only Scheduled Tasks status path; it does not install,
-  start, stop, or remove a user task.
+  behavior, and the read-only Scheduled Tasks status path. The Windows CI job
+  also runs `npm run test:windows-service-lifecycle`, which installs, starts,
+  stops, and removes a disposable task before asserting that cleanup completed;
+  it does not touch a developer's machine.
 - The native iPhone app talks to a user-managed local hub or private network.
   Plaintext LAN URLs remain a development-only path; production transport and
   pairing requirements are tracked in M2 of the roadmap.
