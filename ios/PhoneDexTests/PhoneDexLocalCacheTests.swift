@@ -50,7 +50,8 @@ final class PhoneDexLocalCacheTests: XCTestCase {
                 ),
                 pending: pendingReply,
                 recordedAt: Date(timeIntervalSince1970: 1_750_000_002)
-            )]
+            )],
+            handledNotificationResponses: ["notification-123|PHONEDEX_OKAY_WHATS_NEXT": Date(timeIntervalSince1970: 1_750_000_003)]
         )
 
         try cache.save(state)
@@ -62,6 +63,7 @@ final class PhoneDexLocalCacheTests: XCTestCase {
         XCTAssertEqual(try cache.load()?.replyReceipts.first?.displayState, "Delivered to agent")
         XCTAssertEqual(try cache.load()?.replyReceipts.first?.message, "Delivered to Studio Mac")
         XCTAssertEqual(try cache.load()?.events.first?.type, "progress")
+        XCTAssertEqual(try cache.load()?.handledNotificationResponses.count, 1)
         XCTAssertEqual(keyStore.key?.count, 32)
 
         try cache.remove()
@@ -87,6 +89,7 @@ final class PhoneDexLocalCacheTests: XCTestCase {
         XCTAssertEqual(decoded.drafts["task_legacy"], "Draft")
         XCTAssertTrue(decoded.readingPositions.isEmpty)
         XCTAssertTrue(decoded.replyReceipts.isEmpty)
+        XCTAssertTrue(decoded.handledNotificationResponses.isEmpty)
     }
 
     func testTamperedCacheFailsClosedWithoutReturningPartialState() throws {

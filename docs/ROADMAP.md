@@ -685,6 +685,14 @@ Outcome: deliver timely remote awareness without treating push as durable state.
 Exit gate: acceptance scenarios 4 and 12 pass; push delay or loss cannot cause
 lost durable state or duplicate command execution.
 
+Local notification-action reliability evidence: the iPhone stores opaque,
+bounded response keys in its encrypted cache after a command is accepted or
+expires, suppresses repeated taps without creating another command, and
+preserves retry behavior for transport failures. Expired actions explain that
+the user should reopen PhoneDex for current task context. This is local
+notification correctness only; APNs provider choice, remote registration, and
+real-device background validation remain human-gated release work.
+
 ## M7: Mobile Review Experience
 
 Status: **Current**

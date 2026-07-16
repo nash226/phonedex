@@ -513,6 +513,8 @@ final class PhoneDexAppModel: ObservableObject {
             replyState = .sent(prompt)
         case .failed(let error):
             replyState = .failed(error)
+        case .duplicate(let message):
+            replyState = .failed(message)
         }
     }
 
@@ -593,7 +595,8 @@ final class PhoneDexAppModel: ObservableObject {
                 drafts: drafts,
                 readingPositions: readingPositions,
                 pendingReplies: pendingReplies,
-                replyReceipts: replyReceipts
+                replyReceipts: replyReceipts,
+                handledNotificationResponses: (try? cache.load())?.handledNotificationResponses ?? [:]
             )
         )
     }
