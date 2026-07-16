@@ -461,6 +461,16 @@ configured. `scripts/test-adapter.js` covers macOS CLI, app-server, foreground,
 and missing-executable cases, including capability and limitation assertions;
 the same fixture continues to cover the Windows fail-closed foreground case.
 
+Verification evidence for the completed experimental foreground boundary:
+`lib/phonedex-adapter.js` keeps macOS foreground paste unavailable unless the
+agent owner explicitly sets `PHONEDEX_ENABLE_EXPERIMENTAL_FOREGROUND=true`.
+The opted-in descriptor exposes only `task.reply.v1`, remains marked
+experimental, and never advertises lifecycle or desktop-handoff capabilities;
+Windows foreground remains unavailable. `scripts/test-adapter.js` covers the
+default-disabled and explicit-opt-in states. README and `docs/protocol.md`
+document the required macOS Accessibility permission, reply-only behavior,
+and the fact that this is UI automation rather than a private Codex API.
+
 The descriptor validator also rejects a changed experimental posture, a
 foreground descriptor on Windows, or lifecycle and desktop-handoff
 capabilities advertised by the foreground fallback. Focused adapter tests cover

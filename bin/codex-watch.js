@@ -272,7 +272,8 @@ function config() {
     mode: adapterMode,
     codexBin,
     appServerBin: codexAppServerBin,
-    workspaceRoots
+    workspaceRoots,
+    allowExperimentalForeground: parseBoolean(env.PHONEDEX_ENABLE_EXPERIMENTAL_FOREGROUND, false)
   });
 
   return {
