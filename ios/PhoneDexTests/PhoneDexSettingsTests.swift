@@ -120,6 +120,36 @@ final class PhoneDexSettingsTests: XCTestCase {
         XCTAssertFalse(metadata.values.contains { String(describing: $0).contains("secret") })
     }
 
+    func testNotificationReplyContextRequiresTaskIdentityAndPositiveVersion() {
+        XCTAssertNil(PhoneDexNotificationDelegate.PhoneDexNotificationReplyContext(userInfo: [
+            "taskId": "",
+            "taskVersion": 1
+        ]))
+        XCTAssertNil(PhoneDexNotificationDelegate.PhoneDexNotificationReplyContext(userInfo: [
+            "taskId": "task_123",
+            "taskVersion": 0
+        ]))
+        XCTAssertNil(PhoneDexNotificationDelegate.PhoneDexNotificationReplyContext(userInfo: [
+            "taskId": "task_123"
+        ]))
+    }
+
+    func testNotificationReplyContextTrimsOptionalMetadata() throws {
+        let context = try XCTUnwrap(
+            PhoneDexNotificationDelegate.PhoneDexNotificationReplyContext(userInfo: [
+                "taskId": "task_123",
+                "taskVersion": 3,
+                "sessionId": " session_456 ",
+                "machineName": "   "
+            ])
+        )
+
+        XCTAssertEqual(context.taskId, "task_123")
+        XCTAssertEqual(context.taskVersion, 3)
+        XCTAssertEqual(context.sessionId, "session_456")
+        XCTAssertNil(context.machineName)
+    }
+
     func testBridgePolicyRequiresHTTPSOutsideLoopback() throws {
         let defaults = try makeDefaults()
         let settings = PhoneDexSettings(defaults: defaults, tokenStore: InMemoryTokenStore())

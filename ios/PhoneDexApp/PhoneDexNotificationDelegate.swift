@@ -50,20 +50,24 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
             return
         }
 
+        guard let context = PhoneDexNotificationReplyContext(userInfo: userInfo) else {
+            NotificationReplyResult.record(.failed("This notification is incomplete. Open PhoneDex and refresh before replying."))
+            return
+        }
+
         let client = PhoneDexBridgeClient(bridgeURL: bridgeURL, token: token)
         let notificationID = response.notification.request.identifier
         let commandID = "notification-" + notificationID + "-" + response.actionIdentifier
         let idempotencyKey = "ios-" + commandID
-        let expectedTaskVersion = userInfo["taskVersion"] as? Int ?? 1
         let pending = PhoneDexPendingReply(
             commandId: commandID,
             idempotencyKey: idempotencyKey,
-            taskId: userInfo["taskId"] as? String ?? "",
+            taskId: context.taskId,
             choice: choice.rawValue,
             prompt: prompt,
-            expectedTaskVersion: expectedTaskVersion,
-            sessionId: userInfo["sessionId"] as? String,
-            machineName: userInfo["machineName"] as? String,
+            expectedTaskVersion: context.taskVersion,
+            sessionId: context.sessionId,
+            machineName: context.machineName,
             createdAt: Date()
         )
         updatePendingReply(pending, remove: false)
@@ -72,12 +76,12 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
             let receipt = try await client.sendReply(
                 choice: choice,
                 prompt: prompt,
-                taskId: userInfo["taskId"] as? String ?? "",
-                sessionId: userInfo["sessionId"] as? String,
-                machineName: userInfo["machineName"] as? String,
+                taskId: context.taskId,
+                sessionId: context.sessionId,
+                machineName: context.machineName,
                 commandId: commandID,
                 idempotencyKey: idempotencyKey,
-                expectedTaskVersion: expectedTaskVersion
+                expectedTaskVersion: context.taskVersion
             )
             if receipt.isSuccessful {
                 updatePendingReply(pending, remove: true)
@@ -87,6 +91,33 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
             }
         } catch {
             NotificationReplyResult.record(.failed(error.localizedDescription))
+        }
+    }
+
+    struct PhoneDexNotificationReplyContext: Equatable {
+        let taskId: String
+        let taskVersion: Int
+        let sessionId: String?
+        let machineName: String?
+
+        init?(userInfo: [AnyHashable: Any]) {
+            guard let taskId = userInfo["taskId"] as? String,
+                  !taskId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  let taskVersion = userInfo["taskVersion"] as? Int,
+                  taskVersion > 0 else {
+                return nil
+            }
+
+            self.taskId = taskId
+            self.taskVersion = taskVersion
+            self.sessionId = Self.optionalNonEmptyString(userInfo["sessionId"])
+            self.machineName = Self.optionalNonEmptyString(userInfo["machineName"])
+        }
+
+        private static func optionalNonEmptyString(_ value: Any?) -> String? {
+            guard let value = value as? String else { return nil }
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
         }
     }
 
