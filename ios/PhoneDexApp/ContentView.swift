@@ -3,32 +3,45 @@ import UIKit
 
 struct ContentView: View {
     @StateObject private var model: PhoneDexAppModel
+    @ObservedObject private var launchRecovery: PhoneDexLaunchRecovery
     @State private var lastAutomaticRefreshAt: Date?
     @Environment(\.scenePhase) private var scenePhase
 
-    init(settings: PhoneDexSettings) {
+    init(settings: PhoneDexSettings, launchRecovery: PhoneDexLaunchRecovery) {
         _model = StateObject(wrappedValue: PhoneDexAppModel(settings: settings))
+        self.launchRecovery = launchRecovery
     }
 
     var body: some View {
-        TabView {
-            PhoneDexChatsView(model: model)
-                .tabItem { Label("Chats", systemImage: "bubble.left.and.bubble.right") }
+        VStack(spacing: 0) {
+            if launchRecovery.wasInterrupted {
+                PhoneDexRecoveryNotice {
+                    launchRecovery.dismissRecoveryNotice()
+                }
+            }
 
-            PhoneDexProjectsView(model: model)
-                .tabItem { Label("Projects", systemImage: "folder") }
+            TabView {
+                PhoneDexChatsView(model: model)
+                    .tabItem { Label("Chats", systemImage: "bubble.left.and.bubble.right") }
 
-            PhoneDexBrowserView()
-                .tabItem { Label("Browser", systemImage: "safari") }
+                PhoneDexProjectsView(model: model)
+                    .tabItem { Label("Projects", systemImage: "folder") }
 
-            PhoneDexDevicesView(model: model)
-                .tabItem { Label("Devices", systemImage: "desktopcomputer") }
+                PhoneDexBrowserView()
+                    .tabItem { Label("Browser", systemImage: "safari") }
 
-            PhoneDexSettingsView(model: model)
-                .tabItem { Label("Settings", systemImage: "gearshape") }
+                PhoneDexDevicesView(model: model)
+                    .tabItem { Label("Devices", systemImage: "desktopcomputer") }
+
+                PhoneDexSettingsView(model: model)
+                    .tabItem { Label("Settings", systemImage: "gearshape") }
+            }
         }
         .tint(.blue)
-        .task { await refreshAutomatically(trigger: .initialLaunch) }
+        .task {
+            launchRecovery.markFirstViewRendered()
+            await refreshAutomatically(trigger: .initialLaunch)
+        }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
             model.loadNotificationReplyResult()
@@ -49,6 +62,37 @@ struct ContentView: View {
 
         await model.refresh()
         lastAutomaticRefreshAt = Date()
+    }
+}
+
+private struct PhoneDexRecoveryNotice: View {
+    let dismiss: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Label {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("PhoneDex recovered after an interrupted launch")
+                        .font(.subheadline.weight(.semibold))
+                    Text("Your local cache is still available. Refresh when you are ready.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } icon: {
+                Image(systemName: "arrow.counterclockwise.circle.fill")
+                    .foregroundStyle(.orange)
+            }
+
+            Button("Dismiss", action: dismiss)
+                .font(.caption.weight(.semibold))
+                .buttonStyle(.borderless)
+                .accessibilityHint("Hides this recovery message")
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.orange.opacity(0.12))
+        .accessibilityElement(children: .contain)
     }
 }
 

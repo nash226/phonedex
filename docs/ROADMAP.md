@@ -786,6 +786,16 @@ cases. This reduces redundant foreground network and parsing work without
 pretending that a background refresh or APNs provider exists; real-device
 battery profiling remains required before the M8 battery gate can be checked off.
 
+Crash-readiness verification for the in-progress release-readiness slice:
+`PhoneDexLaunchRecovery` writes only a timestamp marker while the app is
+launching, clears it after the first view renders, and exposes a bounded
+recovery notice when the next launch finds an interrupted marker. The marker
+contains no task text, credentials, paths, or network state, and
+`PhoneDexSmokeTests.testInterruptedLaunchIsDetectedAndClearedAfterFirstView`
+covers first launch, interrupted launch detection, and cleanup. This improves
+recovery guidance without claiming crash reporting or replacing the remaining
+real-device crash and release-owner validation gates.
+
 Verification evidence for the completed migration and recovery slice:
 `scripts/test-recovery.js` exercises legacy JSONL import, current-schema
 upgrade, transactional-backup rollback after a failed migration, rejection of

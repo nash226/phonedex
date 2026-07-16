@@ -4,17 +4,21 @@ import UserNotifications
 @main
 struct PhoneDexApp: App {
     @StateObject private var settings = PhoneDexSettings()
+    @StateObject private var launchRecovery: PhoneDexLaunchRecovery
 
     private let notificationDelegate = PhoneDexNotificationDelegate()
 
     init() {
+        let launchRecovery = PhoneDexLaunchRecovery()
+        launchRecovery.beginLaunch()
+        _launchRecovery = StateObject(wrappedValue: launchRecovery)
         UNUserNotificationCenter.current().delegate = notificationDelegate
         PhoneDexNotificationScheduler.registerCategories()
     }
 
     var body: some Scene {
         WindowGroup {
-            ContentView(settings: settings)
+            ContentView(settings: settings, launchRecovery: launchRecovery)
                 .onOpenURL { url in
                     Task {
                         await handle(url)
