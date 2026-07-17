@@ -1576,10 +1576,15 @@ private struct PhoneDexTaskDetailAnchorPreferenceKey: PreferenceKey {
 private struct PhoneDexProjectsView: View {
     @ObservedObject var model: PhoneDexAppModel
     @State private var showingArtifactLibrary = false
+    @State private var searchText = ""
+
+    private var visibleProjects: [PhoneDexProject] {
+        PhoneDexProject.filtered(model.projects, by: searchText)
+    }
 
     var body: some View {
         NavigationStack {
-            List(model.projects) { project in
+            List(visibleProjects) { project in
                 NavigationLink {
                     PhoneDexWorkspaceDetailView(project: project, model: model)
                 } label: {
@@ -1612,6 +1617,7 @@ private struct PhoneDexProjectsView: View {
                 }
             }
             .navigationTitle("Projects")
+            .searchable(text: $searchText, prompt: "Search workspaces")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -1625,11 +1631,13 @@ private struct PhoneDexProjectsView: View {
             }
             .refreshable { await model.refresh() }
             .overlay {
-                if model.projects.isEmpty {
+                if visibleProjects.isEmpty {
                     if model.tasks.isEmpty && model.connectionState.blocksEmptyContent {
                         PhoneDexSyncUnavailableView(state: model.connectionState) {
                             Task { await model.refresh() }
                         }
+                    } else if !model.projects.isEmpty && !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        ContentUnavailableView.search(text: searchText)
                     } else {
                         ContentUnavailableView("No projects", systemImage: "folder")
                     }

@@ -918,6 +918,15 @@ diagnostics test decodes the contract and guards against paths and credential
 text entering the shared summary. This improves content-free S2 support
 intake without adding a hosted relay, background push, or private Codex API.
 
+Workspace discovery verification evidence: the native Projects destination now
+offers bounded local search across workspace names, participating machines,
+working directories, repository and branch metadata, and cached task context.
+Search is applied only to the already-synced local projection, preserves the
+existing project ordering, and distinguishes no projects from no search
+matches. `PhoneDexChatFilteringTests` covers machine, path, branch, task
+context, whitespace, and ordering behavior; no server-side history or private
+Codex API is introduced.
+
 Verification evidence for the bounded live-progress presentation slice:
 `PhoneDexAppModel.latestEvent(for:)` selects the highest-sequence structured
 lifecycle event for a task, and the native Chats row presents its bounded

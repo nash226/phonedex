@@ -626,6 +626,23 @@ struct PhoneDexProject: Identifiable, Equatable {
             ($0.displayDate ?? .distantPast) > ($1.displayDate ?? .distantPast)
         }
     }
+
+    func matchesSearch(_ query: String) -> Bool {
+        let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedQuery.isEmpty else { return true }
+
+        let searchableValues = [name] + machineNames + paths + tasks.flatMap { task in
+            [task.title, task.repository, task.branch, task.text]
+        }.compactMap { $0 }
+
+        return searchableValues.contains {
+            $0.localizedCaseInsensitiveContains(normalizedQuery)
+        }
+    }
+
+    static func filtered(_ projects: [PhoneDexProject], by query: String) -> [PhoneDexProject] {
+        projects.filter { $0.matchesSearch(query) }
+    }
 }
 
 struct PhoneDexArtifactLibraryItem: Identifiable, Equatable {

@@ -177,7 +177,7 @@ supported command path on the originating machine.
 
 | User capability | Product outcome | Status and feasible path |
 | --- | --- | --- |
-| Find recent work | Unified, searchable tasks grouped by workspace and machine | **Target.** Extend the hub protocol and durable store. |
+| Find recent work | Unified, searchable tasks grouped by workspace and machine | **Current, bounded.** Chats and Workspaces search the locally cached sync projection; richer server-side history remains future work. |
 | Read a completed response | Rich, readable transcript with machine and workspace context | **Current, partial.** Completion text exists; full transcript sync does not. |
 | Reply to a task | Send text or a constrained quick action with delivery state | **Current, partial.** Reply receipts, retries, task-version conflict checks, and structured question responses exist; broader agent commands remain partial. |
 | See live progress | Running state, concise activity, and latest meaningful event | **Current, bounded.** Structured agent events appear in task detail and the Chats list; continuous background delivery remains future work. |
@@ -340,7 +340,9 @@ Workspaces organize durable context across task runs.
 - A workspace maps to a repository or user-defined working directory on a
   specific machine; two machines can expose separate instances.
 - The list shows active task count, latest outcome, branch when known, and
-  machine availability.
+  machine availability. Search covers workspace, machine, working directory,
+  repository, branch, and the cached task context already available on the
+  iPhone.
 - Workspace detail shows task history, current runs, saved prompt drafts, and
   artifacts the agent has explicitly exported.
 - Starting work begins here when the selected agent advertises that capability.
