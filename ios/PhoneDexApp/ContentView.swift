@@ -1,8 +1,28 @@
 import SwiftUI
 import UIKit
 
+enum PhoneDexPrimaryTab: String, CaseIterable, Identifiable {
+    case chats
+    case projects
+    case browser
+    case devices
+    case settings
+
+    static let storageKey = "phonedex.primaryTab"
+
+    var id: Self { self }
+
+    static func restored(from rawValue: String?) -> Self {
+        guard let rawValue, let tab = Self(rawValue: rawValue) else {
+            return .chats
+        }
+        return tab
+    }
+}
+
 struct ContentView: View {
     @StateObject private var model: PhoneDexAppModel
+    @AppStorage(PhoneDexPrimaryTab.storageKey) private var selectedTabRawValue = PhoneDexPrimaryTab.chats.rawValue
     @State private var lastAutomaticRefreshAt: Date?
     @State private var consecutiveAutomaticRefreshFailures = 0
     @Environment(\.scenePhase) private var scenePhase
@@ -12,23 +32,29 @@ struct ContentView: View {
     }
 
     var body: some View {
-        TabView {
+        TabView(selection: selectedTabBinding) {
             PhoneDexChatsView(model: model)
                 .tabItem { Label("Chats", systemImage: "bubble.left.and.bubble.right") }
+                .tag(PhoneDexPrimaryTab.chats)
 
             PhoneDexProjectsView(model: model)
                 .tabItem { Label("Projects", systemImage: "folder") }
+                .tag(PhoneDexPrimaryTab.projects)
 
             PhoneDexBrowserView()
                 .tabItem { Label("Browser", systemImage: "safari") }
+                .tag(PhoneDexPrimaryTab.browser)
 
             PhoneDexDevicesView(model: model)
                 .tabItem { Label("Devices", systemImage: "desktopcomputer") }
+                .tag(PhoneDexPrimaryTab.devices)
 
             PhoneDexSettingsView(model: model)
                 .tabItem { Label("Settings", systemImage: "gearshape") }
+                .tag(PhoneDexPrimaryTab.settings)
         }
         .tint(.blue)
+        .onAppear { normalizeStoredTab() }
         .task { await refreshAutomatically(trigger: .initialLaunch) }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
@@ -37,6 +63,20 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NotificationReplyResult.didChange)) { _ in
             model.loadNotificationReplyResult()
+        }
+    }
+
+    private var selectedTabBinding: Binding<PhoneDexPrimaryTab> {
+        Binding(
+            get: { PhoneDexPrimaryTab.restored(from: selectedTabRawValue) },
+            set: { selectedTabRawValue = $0.rawValue }
+        )
+    }
+
+    private func normalizeStoredTab() {
+        let restoredTab = PhoneDexPrimaryTab.restored(from: selectedTabRawValue)
+        if restoredTab.rawValue != selectedTabRawValue {
+            selectedTabRawValue = restoredTab.rawValue
         }
     }
 

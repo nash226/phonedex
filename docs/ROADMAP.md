@@ -945,6 +945,17 @@ event title, and `PhoneDexChatFilteringTests` covers sequence ordering and the
 fallback. This is foreground, durable-sync presentation only; it does not
 claim continuous background delivery or infer progress from desktop UI.
 
+Verification evidence for the primary-tab restoration slice:
+`PhoneDexPrimaryTab` gives the five stable native destinations explicit,
+version-independent identifiers. `ContentView` persists only the selected tab
+identifier in `UserDefaults`, restores it before the first foreground sync, and
+falls back to Chats when a value is missing or unknown so a future tab cannot
+leave the shell without a valid selection. `PhoneDexSmokeTests` covers known,
+missing, and future values and confirms that the stored key contains no task
+context. This restores navigation context without persisting transcripts,
+credentials, or desktop paths; notification and universal-link routing remain
+responsible for selecting a specific task inside the stable shell.
+
 ## Human-Decision Queue
 
 Create or update a GitHub issue labeled `needs-human-decision` only when work
