@@ -8,9 +8,10 @@ final class PhoneDexBrowserModel: NSObject, ObservableObject, WKNavigationDelega
     @Published private(set) var isLoading = false
     @Published private(set) var canGoBack = false
     @Published private(set) var canGoForward = false
+    @Published private(set) var addressError: String?
 
     var shareURL: URL? {
-        URL(string: address)
+        Self.allowedURL(from: address)
     }
 
     let webView: WKWebView
@@ -26,8 +27,12 @@ final class PhoneDexBrowserModel: NSObject, ObservableObject, WKNavigationDelega
 
     func loadAddress() {
         let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
-        let candidate = trimmed.contains("://") ? trimmed : "https://\(trimmed)"
-        guard let url = URL(string: candidate) else { return }
+        let candidate = trimmed.contains(":") ? trimmed : "https://\(trimmed)"
+        guard let url = Self.allowedURL(from: candidate) else {
+            addressError = "Enter an HTTP or HTTPS website address."
+            return
+        }
+        addressError = nil
         address = url.absoluteString
         webView.load(URLRequest(url: url))
     }
@@ -35,6 +40,19 @@ final class PhoneDexBrowserModel: NSObject, ObservableObject, WKNavigationDelega
     func goBack() { webView.goBack() }
     func goForward() { webView.goForward() }
     func reload() { webView.reload() }
+
+    func webView(
+        _ webView: WKWebView,
+        decidePolicyFor navigationAction: WKNavigationAction,
+        decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+    ) {
+        guard let url = navigationAction.request.url, Self.allowedURL(from: url.absoluteString) != nil else {
+            addressError = "This link type is not supported in PhoneDex."
+            decisionHandler(.cancel)
+            return
+        }
+        decisionHandler(.allow)
+    }
 
     func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
         updateState(from: webView)
@@ -58,10 +76,24 @@ final class PhoneDexBrowserModel: NSObject, ObservableObject, WKNavigationDelega
 
     private func updateState(from webView: WKWebView) {
         title = webView.title ?? "Browser"
-        address = webView.url?.absoluteString ?? address
+        if let url = webView.url, Self.allowedURL(from: url.absoluteString) != nil {
+            address = url.absoluteString
+        }
         isLoading = webView.isLoading
         canGoBack = webView.canGoBack
         canGoForward = webView.canGoForward
+    }
+
+    private static func allowedURL(from address: String) -> URL? {
+        guard let url = URL(string: address),
+              let scheme = url.scheme?.lowercased(),
+              ["http", "https"].contains(scheme),
+              url.host?.isEmpty == false,
+              url.user == nil,
+              url.password == nil else {
+            return nil
+        }
+        return url
     }
 }
 
@@ -98,6 +130,16 @@ struct PhoneDexBrowserView: View {
                 .padding(.horizontal, 14)
                 .frame(height: 48)
                 .background(.bar)
+
+                if let addressError = model.addressError {
+                    Label(addressError, systemImage: "exclamationmark.triangle")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .accessibilityLabel(addressError)
+                }
 
                 Divider()
                 EmbeddedWebView(webView: model.webView)

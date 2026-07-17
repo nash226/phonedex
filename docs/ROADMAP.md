@@ -874,6 +874,15 @@ covers the redaction boundary. This is implementation evidence only; final
 privacy disclosures and real-device release validation remain release-owner
 gates.
 
+Embedded-browser navigation-boundary evidence: `PhoneDexBrowserModel` accepts
+only HTTP(S) URLs with a host and no embedded credentials for loading, sharing,
+and redirected navigation. Unsupported schemes and credential-bearing URLs are
+cancelled with an accessible explanation, while `PhoneDexBrowserTests` covers
+malformed, unsupported-scheme, embedded-credential, HTTP, and HTTPS inputs.
+This narrows a user-controlled WebKit boundary without adding desktop file
+access or private Codex APIs; real-device crash-free measurement remains part
+of the final M8 gate.
+
 Verification evidence for the completed migration and recovery slice:
 `scripts/test-recovery.js` exercises legacy JSONL import, current-schema
 upgrade, transactional-backup rollback after a failed migration, rejection of
