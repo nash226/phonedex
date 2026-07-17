@@ -99,6 +99,27 @@ final class PhoneDexSettingsTests: XCTestCase {
         XCTAssertEqual(store.token, "paired-secret")
     }
 
+    func testUnreadableCacheExposesRecoveryAndResetClearsLocalProjection() throws {
+        let defaults = try makeDefaults()
+        let settings = PhoneDexSettings(defaults: defaults, tokenStore: InMemoryTokenStore())
+        let cache = TestCache(state: nil)
+        cache.shouldFailLoad = true
+        let model = PhoneDexAppModel(settings: settings, cache: cache)
+
+        if case .unavailable(let message) = model.cacheRecoveryState {
+            XCTAssertTrue(message.contains("Reset"))
+        } else {
+            XCTFail("Unreadable cache should expose recovery guidance")
+        }
+
+        cache.shouldFailLoad = false
+        XCTAssertTrue(model.resetLocalCache())
+        XCTAssertEqual(model.cacheRecoveryState, .healthy)
+        XCTAssertTrue(model.tasks.isEmpty)
+        XCTAssertTrue(model.pendingReplies.isEmpty)
+        XCTAssertTrue(cache.removeCalled)
+    }
+
     func testForgetCredentialFailurePreservesTokenAndDoesNotLeakSecret() throws {
         let defaults = try makeDefaults()
         let store = InMemoryTokenStore()
@@ -315,12 +336,17 @@ private final class InMemoryTokenStore: PhoneDexTokenStoring {
 
 private final class TestCache: PhoneDexCacheStoring {
     var state: PhoneDexCachedState?
+    var shouldFailLoad = false
+    var removeCalled = false
 
     init(state: PhoneDexCachedState?) {
         self.state = state
     }
 
-    func load() throws -> PhoneDexCachedState? { state }
+    func load() throws -> PhoneDexCachedState? {
+        if shouldFailLoad { throw PhoneDexCacheError.invalidData }
+        return state
+    }
 
     func save(_ state: PhoneDexCachedState) throws {
         self.state = state
@@ -328,5 +354,6 @@ private final class TestCache: PhoneDexCacheStoring {
 
     func remove() throws {
         state = nil
+        removeCalled = true
     }
 }

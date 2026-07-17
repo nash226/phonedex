@@ -2,6 +2,16 @@ import Foundation
 
 @MainActor
 final class PhoneDexAppModel: ObservableObject {
+    enum CacheRecoveryState: Equatable {
+        case healthy
+        case unavailable(String)
+
+        var isUnavailable: Bool {
+            if case .unavailable = self { return true }
+            return false
+        }
+    }
+
     enum DataSet: Equatable {
         case tasks
         case devices
@@ -74,6 +84,7 @@ final class PhoneDexAppModel: ObservableObject {
     @Published var lifecycleState: LifecycleState = .idle
     @Published private(set) var lastSuccessfulSync: Date?
     @Published private(set) var diagnostics: PhoneDexDiagnosticsSnapshot?
+    @Published private(set) var cacheRecoveryState: CacheRecoveryState = .healthy
 
     static let staleAfter: TimeInterval = 5 * 60
 
@@ -113,6 +124,33 @@ final class PhoneDexAppModel: ObservableObject {
         replyState = .idle
         persistCachedState(lastSyncAt: lastSuccessfulSync)
         return true
+    }
+
+    /// Removes an unreadable local cache so the next refresh can rebuild a
+    /// clean projection from the hub without deleting the hub's task history.
+    @discardableResult
+    func resetLocalCache() -> Bool {
+        do {
+            try cache.remove()
+            syncTasks = []
+            syncCursor = nil
+            tasks = []
+            devices = []
+            events = []
+            drafts = [:]
+            readingPositions = [:]
+            pendingReplies = []
+            replyReceipts = []
+            cachedArtifacts = [:]
+            lastSuccessfulSync = nil
+            selectedTaskID = nil
+            connectionState = .idle
+            cacheRecoveryState = .healthy
+            return true
+        } catch {
+            cacheRecoveryState = .unavailable("PhoneDex could not reset its local cache. Try again.")
+            return false
+        }
     }
 
     var projects: [PhoneDexProject] {
@@ -655,7 +693,9 @@ final class PhoneDexAppModel: ObservableObject {
             connectionState = .offline(cached.lastSyncAt)
             selectedTaskID = tasks.first?.id
         } catch {
-            // A corrupt or unavailable cache must never prevent a fresh sync.
+            // A corrupt or unavailable cache must never prevent a fresh sync,
+            // but the user needs a safe way to clear the broken local state.
+            cacheRecoveryState = .unavailable("PhoneDex could not restore its local cache. Reset it before relying on a fresh sync.")
         }
     }
 

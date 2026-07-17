@@ -1888,6 +1888,7 @@ private struct PhoneDexSettingsView: View {
     @State private var diagnosticsStatus = ""
     @State private var isLoadingDiagnostics = false
     @State private var showingClearArtifactConfirmation = false
+    @State private var showingResetCacheConfirmation = false
     @State private var showingForgetCredentialConfirmation = false
     @State private var credentialStatus = ""
 
@@ -2061,6 +2062,21 @@ private struct PhoneDexSettingsView: View {
                     Text("Verified artifacts are encrypted with the local cache, retained for up to 30 days, and capped at 20 downloads or 25 MB. The hub remains the source of truth.")
                 }
 
+                if case .unavailable(let message) = model.cacheRecoveryState {
+                    Section {
+                        Label(message, systemImage: "externaldrive.badge.exclamationmark")
+                            .foregroundStyle(.orange)
+                        Button("Reset local cache", systemImage: "arrow.counterclockwise", role: .destructive) {
+                            showingResetCacheConfirmation = true
+                        }
+                        .accessibilityHint("Removes only the encrypted cache on this iPhone. Task history on the hub is unchanged.")
+                    } header: {
+                        Text("Local cache recovery")
+                    } footer: {
+                        Text("Resetting clears only this iPhone's cached tasks, drafts, replies, and downloads. Refresh afterward to rebuild from the hub.")
+                    }
+                }
+
                 Section("About") {
                     LabeledContent("Version", value: "0.1 development")
                     if let projectURL = URL(string: "https://github.com/nash226/phonedex") {
@@ -2086,6 +2102,14 @@ private struct PhoneDexSettingsView: View {
                 Button("Cancel", role: .cancel) { }
             } message: {
                 Text("This removes only the credential stored on this iPhone and clears unsent local replies. It does not revoke the hub credential, delete task history, or change other paired devices.")
+            }
+            .confirmationDialog("Reset local cache?", isPresented: $showingResetCacheConfirmation, titleVisibility: .visible) {
+                Button("Reset local cache", role: .destructive) {
+                    _ = model.resetLocalCache()
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("This removes only encrypted data stored on this iPhone. The hub remains unchanged and can provide the task history again after refresh.")
             }
         }
     }
