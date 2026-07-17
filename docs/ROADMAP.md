@@ -918,6 +918,15 @@ covers the redaction boundary. This is implementation evidence only; final
 privacy disclosures and real-device release validation remain release-owner
 gates.
 
+Credential-forget verification for the in-progress security and privacy
+slice: `PhoneDexAppModel.forgetCredential()` clears encrypted pending reply
+commands only after Keychain removal succeeds, then persists the remaining
+task history, receipts, reading positions, and verified artifacts. A later
+pairing therefore cannot retry a reply created under the forgotten credential,
+while local review context remains available. `PhoneDexSettingsTests` covers
+successful clearing and failed Keychain removal; hub-side revocation remains a
+separate pairing and release-owner operation.
+
 Cache-path resilience verification for the in-progress release-readiness
 slice: `PhoneDexEncryptedCache` no longer force-indexes the application-support
 directory list. It uses the first supported application-support URL and falls

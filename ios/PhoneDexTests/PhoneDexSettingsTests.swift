@@ -42,6 +42,63 @@ final class PhoneDexSettingsTests: XCTestCase {
         XCTAssertNil(settings.credentialStorageError)
     }
 
+    func testModelForgetCredentialClearsPendingRepliesButPreservesLocalReviewState() throws {
+        let defaults = try makeDefaults()
+        let settings = PhoneDexSettings(defaults: defaults, tokenStore: InMemoryTokenStore())
+        settings.token = "paired-secret"
+        let pending = PhoneDexPendingReply(
+            commandId: "command-1",
+            idempotencyKey: "key-1",
+            taskId: "task-1",
+            choice: "custom",
+            prompt: "Continue",
+            expectedTaskVersion: 3,
+            sessionId: "session-1",
+            machineName: "Mac",
+            createdAt: Date(timeIntervalSince1970: 1_750_000_000)
+        )
+        let task = PhoneDexTask(
+            id: "task-1", at: nil, source: "codex", title: "Completed task",
+            text: "Review me", cwd: "/work/project", workspaceName: "PhoneDex",
+            machineName: "Mac", sessionId: "session-1", status: "completed",
+            branch: "main", repository: "phonedex"
+        )
+        let cache = TestCache(state: PhoneDexCachedState(
+            cursor: "cursor-1", tasks: [task], devices: [],
+            lastSyncAt: Date(timeIntervalSince1970: 1_750_000_001),
+            pendingReplies: [pending]
+        ))
+        let model = PhoneDexAppModel(settings: settings, cache: cache)
+
+        XCTAssertTrue(model.forgetCredential())
+        XCTAssertTrue(model.pendingReplies.isEmpty)
+        XCTAssertTrue(model.tasks.contains(task))
+        XCTAssertEqual(cache.state?.cursor, "cursor-1")
+        XCTAssertTrue(cache.state?.pendingReplies.isEmpty == true)
+    }
+
+    func testModelForgetCredentialFailurePreservesPendingReplies() throws {
+        let defaults = try makeDefaults()
+        let store = InMemoryTokenStore()
+        let settings = PhoneDexSettings(defaults: defaults, tokenStore: store)
+        settings.token = "paired-secret"
+        let pending = PhoneDexPendingReply(
+            commandId: "command-1", idempotencyKey: "key-1", taskId: "task-1",
+            choice: "custom", prompt: "Continue", expectedTaskVersion: 3,
+            sessionId: nil, machineName: nil, createdAt: Date()
+        )
+        let cache = TestCache(state: PhoneDexCachedState(
+            cursor: nil, tasks: [], devices: [], lastSyncAt: nil,
+            pendingReplies: [pending]
+        ))
+        let model = PhoneDexAppModel(settings: settings, cache: cache)
+        store.shouldFail = true
+
+        XCTAssertFalse(model.forgetCredential())
+        XCTAssertEqual(model.pendingReplies, [pending])
+        XCTAssertEqual(store.token, "paired-secret")
+    }
+
     func testForgetCredentialFailurePreservesTokenAndDoesNotLeakSecret() throws {
         let defaults = try makeDefaults()
         let store = InMemoryTokenStore()
@@ -253,5 +310,23 @@ private final class InMemoryTokenStore: PhoneDexTokenStoring {
         if shouldFail {
             throw PhoneDexKeychainError.keychain(-1)
         }
+    }
+}
+
+private final class TestCache: PhoneDexCacheStoring {
+    var state: PhoneDexCachedState?
+
+    init(state: PhoneDexCachedState?) {
+        self.state = state
+    }
+
+    func load() throws -> PhoneDexCachedState? { state }
+
+    func save(_ state: PhoneDexCachedState) throws {
+        self.state = state
+    }
+
+    func remove() throws {
+        state = nil
     }
 }
