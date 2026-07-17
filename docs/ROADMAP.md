@@ -937,6 +937,17 @@ diagnostics test decodes the contract and guards against paths and credential
 text entering the shared summary. This improves content-free S2 support
 intake without adding a hosted relay, background push, or private Codex API.
 
+Verification evidence for the release-matrix preflight slice:
+`lib/phonedex-release-matrix.js` evaluates a metadata-only evidence file for
+current passing iOS, macOS, and Windows coverage, required pairing/transport/
+sync/reply/review/recovery/accessibility scenarios, duplicate device IDs, and
+future or stale timestamps. `scripts/release-matrix.js` emits the bounded
+`phonedex.release-matrix.v1` report and fails closed when a platform or
+scenario is missing. `scripts/test-release-matrix.js` covers a complete
+matrix, missing Windows evidence, stale evidence, and a failed reply. This
+preflight makes the real-device gate auditable without claiming that unsigned
+CI proves signing, TestFlight, APNs, or release-owner approval.
+
 Workspace discovery verification evidence: the native Projects destination now
 offers bounded local search across workspace names, participating machines,
 working directories, repository and branch metadata, and cached task context.
