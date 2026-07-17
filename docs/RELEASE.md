@@ -47,7 +47,7 @@ npm run acceptance:verify -- --input ./acceptance-evidence.json
 
 Each scenario record contains only its stable id, pass/fail/not-run status,
 supported platform names, and a recent UTC validation timestamp. The validator
-rejects missing, duplicate, unknown, stale, future-dated, and unsupported
-platform records. A passing report proves only that the evidence is complete
-and current enough to review; it does not replace real-device execution,
-signing, TestFlight, APNs, privacy, or release-owner approval.
+rejects missing, duplicate, unknown, stale, future-dated, unsupported-platform,
+and oversized reports. A passing report proves only that the evidence is
+complete and current enough to review; it does not replace real-device
+execution, signing, TestFlight, APNs, privacy, or release-owner approval.

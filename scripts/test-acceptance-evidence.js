@@ -28,6 +28,20 @@ assert.match(stale.issues.map((issue) => issue.message).join(" "), /older than/)
 const unsafe = evaluateAcceptanceEvidence({ scenarios: [{ ...passing[0], platforms: ["ios", "android"], id: "unknown", status: "pass" }] }, { now });
 assert.equal(unsafe.ok, false);
 assert.match(unsafe.issues.map((issue) => issue.message).join(" "), /unknown scenario/);
+assert.match(unsafe.issues.map((issue) => issue.message).join(" "), /unsupported platform/);
 assert.deepEqual(unsafe.scenarios[0].platforms, ["ios"]);
+
+const unsupportedOnly = evaluateAcceptanceEvidence({ scenarios: [{ ...passing[0], platforms: ["android"] }] }, { now });
+assert.equal(unsupportedOnly.ok, false);
+assert.match(unsupportedOnly.issues.map((issue) => issue.message).join(" "), /at least one supported platform/);
+
+const oversized = evaluateAcceptanceEvidence({ scenarios: [...passing, ...Array.from({ length: 21 }, (_, index) => ({
+  id: `extra-${index}`,
+  status: "pass",
+  platforms: ["ios"],
+  validatedAt: "2026-07-16T12:00:00.000Z"
+}))] }, { now });
+assert.equal(oversized.ok, false);
+assert.equal(oversized.issues.some((issue) => issue.code === "evidence-too-large"), true);
 
 console.log("acceptance evidence fixture passed");
