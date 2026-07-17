@@ -125,6 +125,18 @@ private struct PhoneDexChatsView: View {
 
                 Divider()
 
+                HStack {
+                    Button("Refresh conversations", systemImage: "arrow.clockwise") {
+                        Task { await model.refresh() }
+                    }
+                    .accessibilityHint("Refresh synced conversations from the configured hub")
+                    .accessibilityIdentifier("refresh-conversations")
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(.bar)
+
                 List(selection: $model.selectedTaskID) {
                     Section {
                         ForEach(filteredTasks) { task in
@@ -142,15 +154,6 @@ private struct PhoneDexChatsView: View {
             }
             .navigationTitle("PhoneDex")
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        Task { await model.refresh() }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    .accessibilityLabel("Refresh conversations")
-                }
-
                 ToolbarItem(placement: .topBarTrailing) {
                     filterMenu
                 }
@@ -521,7 +524,9 @@ struct PhoneDexSyncUnavailableView: View {
             } description: {
                 Text(message)
             } actions: {
-                Button("Try again", action: retry)
+                Button("Refresh conversations", systemImage: "arrow.clockwise", action: retry)
+                    .accessibilityHint("Refresh synced conversations from the configured hub")
+                    .accessibilityIdentifier("refresh-conversations")
             }
         }
     }

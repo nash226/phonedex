@@ -22,7 +22,11 @@ final class PhoneDexShellUITests: XCTestCase {
             )
         }
 
-        XCTAssertTrue(app.buttons["Refresh conversations"].waitForExistence(timeout: 5))
+        app.tabBars.buttons["Chats"].tap()
+        XCTAssertTrue(
+            app.buttons["refresh-conversations"].waitForExistence(timeout: 5),
+            "The primary refresh action must remain discoverable at accessibility sizes."
+        )
     }
 
     func testSettingsControlsRemainReachableInDarkAppearance() {

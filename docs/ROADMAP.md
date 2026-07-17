@@ -821,8 +821,14 @@ Accessibility verification for the in-progress release-readiness slice:
 system audit at the largest Dynamic Type size with Reduce Motion and dark
 appearance enabled. The shell fixes keep validation guidance readable, remove
 the fixed-size composer icon, and allow long branch labels to wrap instead of
-clipping. This is evidence for the accessibility portion of the combined M8
-gate; performance, battery, localization, and crash validation remain open.
+clipping. Chats keeps its refresh action in the content hierarchy, including
+the loading/degraded empty-state action, so toolbar compression cannot hide the
+recovery path at accessibility sizes. `PhoneDexShellUITests.testPrimaryDestinationsRemainAccessibleAtLargestDynamicType`
+selects Chats explicitly before asserting the stable `refresh-conversations`
+identifier, making the check deterministic when tab restoration has persisted
+another last-used tab. This is evidence for the accessibility portion of the
+combined M8 gate; performance, battery, localization, and crash validation
+remain open.
 
 Localization verification for the in-progress release-readiness slice:
 `PhoneDexTask`, `PhoneDexChangedFile`, and `PhoneDexValidationReceipt` now use
