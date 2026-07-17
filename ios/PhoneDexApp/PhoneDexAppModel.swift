@@ -118,7 +118,7 @@ final class PhoneDexAppModel: ObservableObject {
     var projects: [PhoneDexProject] {
         Dictionary(grouping: tasks, by: \PhoneDexTask.projectID)
             .values
-            .map(PhoneDexProject.init(tasks:))
+            .compactMap(PhoneDexProject.init(tasks:))
             .sorted { lhs, rhs in
                 let nameOrder = lhs.name.localizedCaseInsensitiveCompare(rhs.name)
                 if nameOrder != .orderedSame { return nameOrder == .orderedAscending }

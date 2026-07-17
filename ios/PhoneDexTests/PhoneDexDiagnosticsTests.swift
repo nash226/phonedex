@@ -35,7 +35,7 @@ final class PhoneDexDiagnosticsTests: XCTestCase {
             makeTask(id: "running", status: "running", at: "2026-07-15T12:00:00.000Z"),
             makeTask(id: "question", status: "needs_input", at: "2026-07-15T12:01:00.000Z"),
             makeTask(id: "done", status: "completed", at: "2026-07-15T12:02:00.000Z")
-        ])
+        ])!
 
         XCTAssertEqual(project.activeTaskCount, 1)
         XCTAssertEqual(project.attentionTaskCount, 1)
