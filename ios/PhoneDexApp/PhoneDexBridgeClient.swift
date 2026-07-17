@@ -140,6 +140,13 @@ struct PhoneDexBridgeClient {
         return try JSONDecoder().decode([PhoneDexDevice].self, from: data)
     }
 
+    func fetchDiagnostics() async throws -> PhoneDexDiagnosticsSnapshot {
+        let request = authorizedRequest(url: bridgeURL.appending(path: "diagnostics"))
+        let (data, response) = try await session.data(for: request)
+        try validate(response: response, data: data)
+        return try JSONDecoder().decode(PhoneDexDiagnosticsSnapshot.self, from: data)
+    }
+
     func downloadArtifact(_ artifact: PhoneDexArtifact) async throws -> Data {
         guard artifact.isDownloadable, let downloadId = artifact.downloadId else {
             throw PhoneDexBridgeClientError.artifactUnavailable

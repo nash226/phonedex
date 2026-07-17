@@ -1817,6 +1817,8 @@ private struct PhoneDexSettingsView: View {
     @State private var pairingCode = ""
     @State private var pairingStatus = ""
     @State private var isPairing = false
+    @State private var diagnosticsStatus = ""
+    @State private var isLoadingDiagnostics = false
 
     init(model: PhoneDexAppModel) {
         self.model = model
@@ -1925,6 +1927,37 @@ private struct PhoneDexSettingsView: View {
                     }
                 }
 
+                Section {
+                    Button("Refresh Diagnostics", systemImage: "stethoscope") {
+                        Task { await refreshDiagnostics() }
+                    }
+                    .disabled(isLoadingDiagnostics)
+
+                    if isLoadingDiagnostics {
+                        ProgressView("Fetching content-free diagnostics…")
+                    }
+
+                    if let diagnostics = model.diagnostics {
+                        LabeledContent("Generated", value: diagnostics.generatedAt)
+                        LabeledContent("Components", value: diagnostics.components.values.sorted().joined(separator: ", "))
+                        LabeledContent("Requests", value: "\(diagnostics.metrics.requests) (\(diagnostics.metrics.failures) failures)")
+                        ShareLink(item: diagnostics.shareText, preview: SharePreview("PhoneDex diagnostics")) {
+                            Label("Share safe diagnostics", systemImage: "square.and.arrow.up")
+                        }
+                        .privacySensitive(false)
+                    }
+
+                    if !diagnosticsStatus.isEmpty {
+                        Label(diagnosticsStatus, systemImage: diagnosticsStatus.hasPrefix("Diagnostics refreshed") ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                            .font(.footnote)
+                            .foregroundStyle(diagnosticsStatus.hasPrefix("Diagnostics refreshed") ? .green : .red)
+                    }
+                } header: {
+                    Text("Support diagnostics")
+                } footer: {
+                    Text("Diagnostics include component health, protocol versions, capabilities, and aggregate request metrics only. They never include task text, paths, credentials, or artifact bytes.")
+                }
+
                 Section("About") {
                     LabeledContent("Version", value: "0.1 development")
                     if let projectURL = URL(string: "https://github.com/nash226/phonedex") {
@@ -1984,6 +2017,17 @@ private struct PhoneDexSettingsView: View {
             await model.refresh()
         } catch {
             pairingStatus = error.localizedDescription
+        }
+    }
+
+    private func refreshDiagnostics() async {
+        isLoadingDiagnostics = true
+        defer { isLoadingDiagnostics = false }
+        do {
+            _ = try await model.fetchDiagnostics()
+            diagnosticsStatus = "Diagnostics refreshed."
+        } catch {
+            diagnosticsStatus = error.localizedDescription
         }
     }
 }

@@ -1,5 +1,69 @@
 import Foundation
 
+struct PhoneDexDiagnosticsSnapshot: Codable, Equatable {
+    struct RouteMetric: Codable, Equatable {
+        let requests: Int
+        let failures: Int
+        let averageLatencyMs: Int
+    }
+
+    struct Request: Codable, Equatable, Identifiable {
+        let at: String
+        let correlationId: String
+        let route: String
+        let status: Int
+        let latencyMs: Int
+        let errorClass: String?
+
+        var id: String { "\(at)-\(correlationId)" }
+    }
+
+    struct Capability: Codable, Equatable, Identifiable {
+        let id: String
+        let supported: Bool
+    }
+
+    struct Metrics: Codable, Equatable {
+        let requests: Int
+        let failures: Int
+        let commands: Int
+        let routes: [String: RouteMetric]
+    }
+
+    let schema: String
+    let generatedAt: String
+    let startedAt: String
+    let service: String
+    let role: String
+    let version: String
+    let protocolVersion: Int
+    let components: [String: String]
+    let metrics: Metrics
+    let recentRequests: [Request]
+    let capabilities: [Capability]
+
+    var shareText: String {
+        let componentSummary = components.keys.sorted().map { key in
+            let state = components[key] ?? "unknown"
+            return "\(key)=\(state)"
+        }.joined(separator: ", ")
+        let capabilitySummary = capabilities.sorted { $0.id < $1.id }.map { capability in
+            let state = capability.supported ? "available" : "unavailable"
+            return "\(capability.id)=\(state)"
+        }.joined(separator: ", ")
+        let capabilitiesText = capabilitySummary.isEmpty ? "none reported" : capabilitySummary
+        return [
+            "PhoneDex diagnostics",
+            "Generated: \(generatedAt)",
+            "Service: \(service) (\(role)) \(version)",
+            "Protocol: v\(protocolVersion)",
+            "Components: \(componentSummary)",
+            "Requests: \(metrics.requests); failures: \(metrics.failures); commands: \(metrics.commands)",
+            "Capabilities: \(capabilitiesText)"
+        ].joined(separator: "\n")
+    }
+}
+
 enum PhoneDexDeviceHealth: Equatable {
     case online
     case stale
