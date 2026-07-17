@@ -376,8 +376,15 @@ identity, heartbeat health, visible-work counts, copyable device identity, and
 refresh guidance for online, stale, missing, revoked, and unknown states.
 Workspace detail provides machine/path context, active and attention counts,
 conversation history, and refresh state without introducing unsupported
-pairing or remote-control actions. `ios/PhoneDexTests/PhoneDexDiagnosticsTests.swift`
-covers state mapping, revoked-device recovery guidance, and workspace counts.
+pairing or remote-control actions. It now also offers workspace-first task
+creation only when an online Mac or Windows agent advertises both the exact
+workspace and `task.create.v1`; unavailable work explains the missing
+capability instead of presenting a dead control. The bounded native sheet
+preserves the selected machine, workspace, and prompt context through
+acknowledgement or an actionable error. `ios/PhoneDexTests/PhoneDexDiagnosticsTests.swift`
+and `PhoneDexSmokeTests.testWorkspaceTaskTargetsRequireAdvertisedOnlineCapabilityAndMachineIdentity`
+cover state mapping, revoked-device recovery guidance, workspace counts, and
+the fail-closed target selection boundary.
 
 ## M3: Native iPhone Core
 
