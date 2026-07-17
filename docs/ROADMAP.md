@@ -797,6 +797,8 @@ Outcome: turn the complete system into an operable public product.
 - [x] Content-free observability with correlation IDs and component health.
 - [x] Add an implementation-based iOS privacy manifest and App Store privacy
   answer draft grounded in the local-first client behavior.
+- [x] Aggregate acceptance and quality evidence into a content-free release
+  readiness report without collapsing human release gates into automation.
 - [ ] Publish the privacy policy, retention/deletion disclosures, security
   contact, and incident-response process after release-owner/legal review.
 - [ ] TestFlight cohorts and real-device iOS/macOS/Windows matrix.
