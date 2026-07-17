@@ -4,6 +4,7 @@ import UserNotifications
 @main
 struct PhoneDexApp: App {
     @StateObject private var settings = PhoneDexSettings()
+    @Environment(\.scenePhase) private var scenePhase
 
     private let notificationDelegate = PhoneDexNotificationDelegate()
 
@@ -14,12 +15,18 @@ struct PhoneDexApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView(settings: settings)
-                .onOpenURL { url in
-                    Task {
-                        await handle(url)
+            ZStack {
+                ContentView(settings: settings)
+                    .onOpenURL { url in
+                        Task {
+                            await handle(url)
+                        }
                     }
+                if PhoneDexPrivacyShieldPolicy.shouldShield(scenePhase) {
+                    PhoneDexPrivacyShield()
                 }
+            }
+            .animation(nil, value: scenePhase)
         }
     }
 
@@ -126,6 +133,37 @@ struct PhoneDexApp: App {
         static let authorizationStatus = "phonedex.lastNotificationAuthorizationStatus"
         static let updatedAt = "phonedex.lastDeepLinkUpdatedAt"
         static let error = "phonedex.lastDeepLinkError"
+    }
+}
+
+enum PhoneDexPrivacyShieldPolicy {
+    static func shouldShield(_ scenePhase: ScenePhase) -> Bool {
+        scenePhase != .active
+    }
+}
+
+private struct PhoneDexPrivacyShield: View {
+    var body: some View {
+        ZStack {
+            Color(uiColor: .systemBackground)
+                .ignoresSafeArea()
+            VStack(spacing: 12) {
+                Image(systemName: "lock.shield.fill")
+                    .font(.system(size: 36, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+                Text("PhoneDex is protected")
+                    .font(.headline)
+                Text("Task details are hidden while the app is inactive.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(24)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("PhoneDex is protected. Task details are hidden while the app is inactive.")
+        .accessibilityAddTraits(.isModal)
     }
 }
 
