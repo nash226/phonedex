@@ -937,6 +937,16 @@ shape; persistence, tamper rejection, retention bounds, and Keychain behavior
 remain covered by the existing cache tests. This is simulator evidence only;
 real-device cache and crash-free validation remain release-owner gates.
 
+Local cache recovery verification for the in-progress release-readiness slice:
+`PhoneDexAppModel` exposes an actionable recovery state when encrypted cache
+decoding or key access fails instead of silently hiding the failure. Settings
+offers a confirmation-gated reset that removes only the iPhone-local cache,
+clears the local projection and unsent commands, and leaves hub history and
+credentials untouched so a later refresh can rebuild the projection.
+`PhoneDexSettingsTests.testUnreadableCacheExposesRecoveryAndResetClearsLocalProjection`
+covers the detection and reset contract. This remains simulator evidence;
+real-device cache and crash-free validation remain release-owner gates.
+
 Native response-bound verification for the in-progress release-readiness
 slice: `PhoneDexBridgeClient` rejects structured responses larger than 2 MiB,
 legacy task responses larger than 4 MiB, and artifact responses larger than the
