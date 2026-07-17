@@ -31,13 +31,15 @@ struct PhoneDexDiffDocument: Equatable {
     let lines: [PhoneDexDiffLine]
     let totalLineCount: Int
     let isTruncated: Bool
+    let hasMalformedHunk: Bool
 
     func document(showingContext: Bool) -> PhoneDexDiffDocument {
         guard !showingContext else { return self }
         return PhoneDexDiffDocument(
             lines: lines.filter { $0.kind != .context },
             totalLineCount: totalLineCount,
-            isTruncated: isTruncated
+            isTruncated: isTruncated,
+            hasMalformedHunk: hasMalformedHunk
         )
     }
 }
@@ -54,18 +56,26 @@ enum PhoneDexDiffParser {
         let boundedLimit = max(1, lineLimit)
         var oldLineNumber: Int?
         var newLineNumber: Int?
+        var hasMalformedHunk = false
         var parsed = [PhoneDexDiffLine]()
 
         for (index, rawLine) in rawLines.enumerated() {
             guard parsed.count < boundedLimit else { break }
-            let line = parseLine(String(rawLine), id: index, oldLineNumber: &oldLineNumber, newLineNumber: &newLineNumber)
+            let line = parseLine(
+                String(rawLine),
+                id: index,
+                oldLineNumber: &oldLineNumber,
+                newLineNumber: &newLineNumber,
+                hasMalformedHunk: &hasMalformedHunk
+            )
             parsed.append(line)
         }
 
         return PhoneDexDiffDocument(
             lines: parsed,
             totalLineCount: rawLines.count,
-            isTruncated: rawLines.count > parsed.count
+            isTruncated: rawLines.count > parsed.count,
+            hasMalformedHunk: hasMalformedHunk
         )
     }
 
@@ -73,10 +83,13 @@ enum PhoneDexDiffParser {
         _ text: String,
         id: Int,
         oldLineNumber: inout Int?,
-        newLineNumber: inout Int?
+        newLineNumber: inout Int?,
+        hasMalformedHunk: inout Bool
     ) -> PhoneDexDiffLine {
         if text.hasPrefix("@@") {
-            updateLineNumbers(from: text, oldLineNumber: &oldLineNumber, newLineNumber: &newLineNumber)
+            if !updateLineNumbers(from: text, oldLineNumber: &oldLineNumber, newLineNumber: &newLineNumber) {
+                hasMalformedHunk = true
+            }
             return PhoneDexDiffLine(id: id, text: text, kind: .hunk, oldLineNumber: nil, newLineNumber: nil)
         }
 
@@ -106,16 +119,24 @@ enum PhoneDexDiffParser {
         from text: String,
         oldLineNumber: inout Int?,
         newLineNumber: inout Int?
-    ) {
+    ) -> Bool {
         let numbers = text.split(separator: " ", maxSplits: 3, omittingEmptySubsequences: true)
         guard numbers.count >= 3 else {
             oldLineNumber = nil
             newLineNumber = nil
-            return
+            return false
         }
 
-        oldLineNumber = lineNumber(from: numbers[1])
-        newLineNumber = lineNumber(from: numbers[2])
+        let parsedOldLineNumber = lineNumber(from: numbers[1])
+        let parsedNewLineNumber = lineNumber(from: numbers[2])
+        guard let parsedOldLineNumber, let parsedNewLineNumber else {
+            oldLineNumber = nil
+            newLineNumber = nil
+            return false
+        }
+        oldLineNumber = parsedOldLineNumber
+        newLineNumber = parsedNewLineNumber
+        return true
     }
 
     private static func lineNumber(from range: Substring) -> Int? {
@@ -224,6 +245,15 @@ private struct PhoneDexDiffContent: View {
 
             if file.patchTruncated == true || document.isTruncated {
                 Label("This patch is truncated to keep mobile review responsive. Use the originating computer for the complete diff.", systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
+                    .accessibilityElement(children: .combine)
+            }
+
+            if document.hasMalformedHunk {
+                Label("This diff includes an incomplete hunk header, so some line numbers may be unavailable. Use the originating computer for the complete diff.", systemImage: "questionmark.folder")
                     .font(.caption)
                     .foregroundStyle(.orange)
                     .padding(.horizontal, 16)

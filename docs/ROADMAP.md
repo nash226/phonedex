@@ -749,6 +749,12 @@ bounded rendering, and stable line identities when context is toggled. The
 unsigned iOS simulator test action passed on the repository's documented
 Xcode 26.3 baseline; no desktop files or private Codex APIs are involved.
 
+Malformed diff evidence: `PhoneDexDiffParser` keeps incomplete unified hunk
+headers visible as metadata, clears ambiguous line-number state, and exposes a
+bounded `hasMalformedHunk` flag so the native viewer explains that line numbers
+may be unavailable. `PhoneDexDiffTests` covers malformed and valid hunk headers;
+the iPhone never reads desktop files or silently presents invented line context.
+
 Verification evidence for the completed file-summary and validation-result
 slice: `ios/PhoneDexApp/PhoneDexReviewSummary.swift` adds a dedicated native
 review surface from task detail with aggregate file counts, additions,

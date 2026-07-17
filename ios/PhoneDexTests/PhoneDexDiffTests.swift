@@ -31,6 +31,24 @@ final class PhoneDexDiffTests: XCTestCase {
         XCTAssertTrue(document.isTruncated)
     }
 
+    func testParserMarksMalformedHunkHeadersWithoutCrashingOrInventingLineNumbers() {
+        let document = PhoneDexDiffParser.parse("@@ -not-a-number +2 @@\n+added")
+
+        XCTAssertTrue(document.hasMalformedHunk)
+        XCTAssertEqual(document.lines.map(\.kind), [.hunk, .addition])
+        XCTAssertNil(document.lines[1].newLineNumber)
+        XCTAssertNil(document.lines[1].oldLineNumber)
+    }
+
+    func testParserKeepsValidHunksOutOfIncompleteWarning() {
+        let document = PhoneDexDiffParser.parse("@@ -2,1 +4,2 @@\n context\n+added")
+
+        XCTAssertFalse(document.hasMalformedHunk)
+        XCTAssertEqual(document.lines[1].oldLineNumber, 2)
+        XCTAssertEqual(document.lines[1].newLineNumber, 4)
+        XCTAssertEqual(document.lines[2].newLineNumber, 5)
+    }
+
     func testParserHandlesTheMobilePerformanceBudgetWithoutExtraRenderedRows() {
         let patch = (0..<PhoneDexDiffParser.defaultLineLimit)
             .map { index in index.isMultiple(of: 2) ? "+added \(index)" : " context \(index)" }
