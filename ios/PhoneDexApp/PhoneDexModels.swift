@@ -1,5 +1,20 @@
 import Foundation
 
+enum PhoneDexDisplayText {
+    static let metadataLimit = 256
+
+    static func metadata(_ value: String?, fallback: String) -> String {
+        guard let value else { return fallback }
+        let cleaned = value.unicodeScalars.map { scalar in
+            CharacterSet.controlCharacters.contains(scalar) ? " " : String(scalar)
+        }.joined()
+        let normalized = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return fallback }
+        guard normalized.count > metadataLimit else { return normalized }
+        return String(normalized.prefix(metadataLimit - 1)) + "…"
+    }
+}
+
 struct PhoneDexTask: Codable, Identifiable, Equatable {
     let id: String
     let at: String?
@@ -103,21 +118,20 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
     var displayWorkspace: String {
         if let workspace = workspaceName?.trimmingCharacters(in: .whitespacesAndNewlines),
            !workspace.isEmpty {
-            return workspace
+            return PhoneDexDisplayText.metadata(workspace, fallback: "Unknown workspace")
         }
         if let directory = Self.lastComponent(cwd), !directory.isEmpty {
-            return directory
+            return PhoneDexDisplayText.metadata(directory, fallback: "Unknown workspace")
         }
         if let repository = Self.lastComponent(repository, removingGitSuffix: true),
            !repository.isEmpty {
-            return repository
+            return PhoneDexDisplayText.metadata(repository, fallback: "Unknown workspace")
         }
         return "Unknown workspace"
     }
 
     var displayMachine: String {
-        guard let machineName, !machineName.isEmpty else { return "Unknown device" }
-        return machineName
+        PhoneDexDisplayText.metadata(machineName, fallback: "Unknown device")
     }
 
     var displayStatus: String {
@@ -196,7 +210,10 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
         case "stop-hook": return Self.localized("task.source.stopHook", "Stop hook", "The Codex stop hook capture source.")
         case "session-watcher": return Self.localized("task.source.sessionWatcher", "session watcher", "The local session watcher capture source.")
         case "remote-agent": return Self.localized("task.source.remoteAgent", "remote agent", "A remote PhoneDex agent capture source.")
-        default: return source?.replacingOccurrences(of: "-", with: " ") ?? Self.localized("task.source.bridge", "bridge", "The PhoneDex bridge capture source.")
+        default: return PhoneDexDisplayText.metadata(
+            source?.replacingOccurrences(of: "-", with: " "),
+            fallback: Self.localized("task.source.bridge", "bridge", "The PhoneDex bridge capture source.")
+        )
         }
     }
 
@@ -414,7 +431,7 @@ struct PhoneDexCaptureSource: Codable, Equatable, Identifiable {
         switch source {
         case "stop-hook": return "Captured by Stop hook"
         case "session-watcher": return "Captured by session watcher"
-        default: return "Captured by \(source.replacingOccurrences(of: "-", with: " "))"
+        default: return "Captured by \(PhoneDexDisplayText.metadata(source.replacingOccurrences(of: "-", with: " "), fallback: "unknown source"))"
         }
     }
 }
@@ -572,7 +589,9 @@ struct PhoneDexEvent: Codable, Equatable, Identifiable {
 
     var displaySummary: String {
         let normalizedSummary = summary?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return normalizedSummary.isEmpty ? displayTitle : normalizedSummary
+        return normalizedSummary.isEmpty
+            ? displayTitle
+            : PhoneDexDisplayText.metadata(normalizedSummary, fallback: displayTitle)
     }
 
     init(

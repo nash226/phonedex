@@ -883,6 +883,16 @@ covers the redaction boundary. This is implementation evidence only; final
 privacy disclosures and real-device release validation remain release-owner
 gates.
 
+Metadata resilience verification for the in-progress release-readiness slice:
+`PhoneDexDisplayText` bounds and single-lines untrusted machine, workspace,
+source, capture, and lifecycle-summary labels before SwiftUI presentation.
+`PhoneDexChatFilteringTests` covers oversized and control-character metadata
+from both Mac and Windows-shaped records. The protocol payload remains intact,
+task content is not truncated in the model, and the boundary adds no network,
+credential, or private Codex API behavior. This is simulator-test evidence for
+malformed-input resilience; real-device crash-free measurement remains a
+release-owner gate.
+
 Verification evidence for the completed migration and recovery slice:
 `scripts/test-recovery.js` exercises legacy JSONL import, current-schema
 upgrade, transactional-backup rollback after a failed migration, rejection of

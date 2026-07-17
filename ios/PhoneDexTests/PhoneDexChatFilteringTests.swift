@@ -172,6 +172,47 @@ final class PhoneDexChatFilteringTests: XCTestCase {
         XCTAssertEqual(validation.displayStatus, "Passed")
     }
 
+    func testUntrustedDisplayMetadataIsSingleLineAndBounded() {
+        let oversizedMachine = String(repeating: "M", count: 400) + "\nsecret"
+        let oversizedWorkspace = String(repeating: "W", count: 400)
+        let task = PhoneDexTask(
+            id: "bounded",
+            at: nil,
+            source: String(repeating: "S", count: 400),
+            title: "Bounded metadata",
+            text: "Result",
+            cwd: nil,
+            workspaceName: oversizedWorkspace,
+            machineName: oversizedMachine,
+            sessionId: nil,
+            status: "completed",
+            branch: nil,
+            repository: nil
+        )
+
+        XCTAssertEqual(task.displayWorkspace.count, PhoneDexDisplayText.metadataLimit)
+        XCTAssertEqual(task.displayMachine.count, PhoneDexDisplayText.metadataLimit)
+        XCTAssertFalse(task.displayMachine.contains("\n"))
+        XCTAssertEqual(task.displaySource.count, PhoneDexDisplayText.metadataLimit)
+        XCTAssertTrue(task.displayWorkspace.hasSuffix("…"))
+    }
+
+    func testEventAndCaptureLabelsBoundUntrustedSourceText() {
+        let source = String(repeating: "x", count: 400)
+        let capture = PhoneDexCaptureSource(source: source, messageId: nil, observedAt: nil)
+        let event = PhoneDexEvent(
+            id: "event",
+            taskId: "task",
+            createdAt: "2026-07-15T12:00:00.000Z",
+            sequence: 1,
+            type: "progress",
+            data: ["summary": String(repeating: "p", count: 400)]
+        )
+
+        XCTAssertLessThanOrEqual(capture.displayName.count, PhoneDexDisplayText.metadataLimit + 13)
+        XCTAssertEqual(event.displaySummary.count, PhoneDexDisplayText.metadataLimit)
+    }
+
     private func task(
         _ id: String,
         status: String?,
