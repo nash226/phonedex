@@ -2,6 +2,39 @@ import XCTest
 @testable import PhoneDex
 
 final class PhoneDexSmokeTests: XCTestCase {
+    func testNotificationActionIdentityIncludesTaskVersion() {
+        let first = PhoneDexNotificationScheduler.notificationResponseKey(
+            notificationID: "task_1",
+            actionIdentifier: "PHONEDEX_OKAY_WHATS_NEXT",
+            taskVersion: 1
+        )
+        let second = PhoneDexNotificationScheduler.notificationResponseKey(
+            notificationID: "task_1",
+            actionIdentifier: "PHONEDEX_OKAY_WHATS_NEXT",
+            taskVersion: 2
+        )
+
+        XCTAssertNotEqual(first, second)
+        XCTAssertEqual(first, "task_1|v1|PHONEDEX_OKAY_WHATS_NEXT")
+        XCTAssertEqual(second, "task_1|v2|PHONEDEX_OKAY_WHATS_NEXT")
+    }
+
+    func testNotificationCommandIdentityChangesWithTaskVersionAndNormalizesLegacyVersion() {
+        let current = PhoneDexNotificationScheduler.notificationCommandID(
+            notificationID: "phonedex-task_1",
+            actionIdentifier: "PHONEDEX_CUSTOM_REPLY",
+            taskVersion: 4
+        )
+        let legacy = PhoneDexNotificationScheduler.notificationCommandID(
+            notificationID: "phonedex-task_1",
+            actionIdentifier: "PHONEDEX_CUSTOM_REPLY",
+            taskVersion: 0
+        )
+
+        XCTAssertEqual(current, "notification-phonedex-task_1-v4-PHONEDEX_CUSTOM_REPLY")
+        XCTAssertEqual(legacy, "notification-phonedex-task_1-v1-PHONEDEX_CUSTOM_REPLY")
+    }
+
     func testPrimaryTabRestoresKnownValuesAndDefaultsSafely() {
         XCTAssertEqual(PhoneDexPrimaryTab.restored(from: "settings"), .settings)
         XCTAssertEqual(PhoneDexPrimaryTab.restored(from: "projects"), .projects)

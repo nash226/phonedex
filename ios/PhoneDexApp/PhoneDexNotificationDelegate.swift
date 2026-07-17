@@ -25,7 +25,8 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
         }
 
         let userInfo = response.notification.request.content.userInfo
-        let responseKey = responseKey(for: response)
+        let taskVersion = userInfo["taskVersion"] as? Int ?? 1
+        let responseKey = responseKey(for: response, taskVersion: taskVersion)
         if isHandled(responseKey) {
             NotificationReplyResult.record(.duplicate("This notification action was already handled."))
             return
@@ -57,9 +58,13 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
 
         let client = PhoneDexBridgeClient(bridgeURL: bridgeURL, token: token)
         let notificationID = response.notification.request.identifier
-        let commandID = "notification-" + notificationID + "-" + response.actionIdentifier
+        let commandID = PhoneDexNotificationScheduler.notificationCommandID(
+            notificationID: notificationID,
+            actionIdentifier: response.actionIdentifier,
+            taskVersion: taskVersion
+        )
         let idempotencyKey = "ios-" + commandID
-        let expectedTaskVersion = userInfo["taskVersion"] as? Int ?? 1
+        let expectedTaskVersion = taskVersion
         let pending = PhoneDexPendingReply(
             commandId: commandID,
             idempotencyKey: idempotencyKey,
@@ -126,8 +131,12 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
         ))
     }
 
-    private func responseKey(for response: UNNotificationResponse) -> String {
-        response.notification.request.identifier + "|" + response.actionIdentifier
+    private func responseKey(for response: UNNotificationResponse, taskVersion: Int) -> String {
+        PhoneDexNotificationScheduler.notificationResponseKey(
+            notificationID: response.notification.request.identifier,
+            actionIdentifier: response.actionIdentifier,
+            taskVersion: taskVersion
+        )
     }
 
     private func isHandled(_ responseKey: String) -> Bool {

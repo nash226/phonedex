@@ -4,6 +4,22 @@ import UserNotifications
 enum PhoneDexNotificationScheduler {
     static let categoryIdentifier = "PHONEDEX_TASK"
 
+    static func notificationResponseKey(
+        notificationID: String,
+        actionIdentifier: String,
+        taskVersion: Int
+    ) -> String {
+        "\(notificationID)|v\(max(taskVersion, 1))|\(actionIdentifier)"
+    }
+
+    static func notificationCommandID(
+        notificationID: String,
+        actionIdentifier: String,
+        taskVersion: Int
+    ) -> String {
+        "notification-\(notificationID)-v\(max(taskVersion, 1))-\(actionIdentifier)"
+    }
+
     static let previewBody = """
     Completed: PR #16 merged to main. README now shows PhoneDex as the iPhone-first notification bridge, with Watch support kept as a fallback. Next: start the native iOS app.
 
