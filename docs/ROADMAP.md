@@ -839,6 +839,15 @@ semantics across views. `PhoneDexChatFilteringTests.testTaskAndReviewStatusCopyU
 covers the fallback contract. This is localization readiness only; translated
 catalogs and locale-specific real-device QA remain release gates.
 
+Notification localization verification for the in-progress release-readiness
+slice: `PhoneDexNotificationCopy` gives the local preview, quick actions,
+custom-reply placeholder, and unsafe-bridge error stable localization keys with
+English fallbacks. The same copy is used by the notification category and
+scheduled content, so action labels cannot drift between the notification UI and
+its reply contract. `PhoneDexSettingsTests.testNotificationCopyHasStableEnglishFallbacks`
+covers the fallback contract. This is localization readiness only; translated
+catalogs and locale-specific notification QA remain release gates.
+
 Privacy snapshot verification for the in-progress release-readiness slice:
 `PhoneDexApp` places a root-level privacy shield over the native shell whenever
 the scene is inactive or backgrounded. The shield uses generic copy, blocks

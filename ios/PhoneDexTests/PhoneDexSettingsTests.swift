@@ -265,6 +265,20 @@ final class PhoneDexSettingsTests: XCTestCase {
         )
     }
 
+    func testNotificationCopyHasStableEnglishFallbacks() {
+        XCTAssertEqual(PhoneDexNotificationCopy.previewTitle, "Codex done: PR update")
+        XCTAssertEqual(PhoneDexNotificationCopy.previewSubtitle, "PhoneDex • MacBook Air")
+        XCTAssertEqual(PhoneDexNotificationCopy.okayWhatsNext, "Okay, what's next")
+        XCTAssertEqual(PhoneDexNotificationCopy.letsDoThat, "Let's do that")
+        XCTAssertEqual(PhoneDexNotificationCopy.customReply, "Custom reply")
+        XCTAssertEqual(PhoneDexNotificationCopy.sendReply, "Send")
+        XCTAssertEqual(PhoneDexNotificationCopy.replyPlaceholder, "Dictate or type your reply")
+        XCTAssertEqual(
+            PhoneDexNotificationError.credentialBearingBridgeURL.errorDescription,
+            "The bridge URL must not contain credentials or query parameters."
+        )
+    }
+
     func testBridgePolicyRequiresHTTPSOutsideLoopback() throws {
         let defaults = try makeDefaults()
         let settings = PhoneDexSettings(defaults: defaults, tokenStore: InMemoryTokenStore())

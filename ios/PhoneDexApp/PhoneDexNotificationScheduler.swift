@@ -31,8 +31,8 @@ enum PhoneDexNotificationScheduler {
         center.removeDeliveredNotifications(withIdentifiers: [identifier])
 
         let content = UNMutableNotificationContent()
-        content.title = "Codex done: PR update"
-        content.subtitle = "PhoneDex • MacBook Air"
+        content.title = PhoneDexNotificationCopy.previewTitle
+        content.subtitle = PhoneDexNotificationCopy.previewSubtitle
         content.body = previewBody
         content.categoryIdentifier = categoryIdentifier
         content.threadIdentifier = "phonedex"
@@ -112,20 +112,20 @@ enum PhoneDexNotificationScheduler {
     static func registerCategories() {
         let next = UNNotificationAction(
             identifier: "PHONEDEX_OKAY_WHATS_NEXT",
-            title: "Okay, what's next",
+            title: PhoneDexNotificationCopy.okayWhatsNext,
             options: []
         )
         let proceed = UNNotificationAction(
             identifier: "PHONEDEX_LETS_DO_THAT",
-            title: "Let's do that",
+            title: PhoneDexNotificationCopy.letsDoThat,
             options: []
         )
         let custom = UNTextInputNotificationAction(
             identifier: "PHONEDEX_CUSTOM_REPLY",
-            title: "Custom reply",
+            title: PhoneDexNotificationCopy.customReply,
             options: [],
-            textInputButtonTitle: "Send",
-            textInputPlaceholder: "Dictate or type your reply"
+            textInputButtonTitle: PhoneDexNotificationCopy.sendReply,
+            textInputPlaceholder: PhoneDexNotificationCopy.replyPlaceholder
         )
 
         let category = UNNotificationCategory(
@@ -139,13 +139,23 @@ enum PhoneDexNotificationScheduler {
     }
 }
 
+enum PhoneDexNotificationCopy {
+    static let previewTitle = String(localized: "notification.preview.title", defaultValue: "Codex done: PR update", comment: "Title for the local notification preview.")
+    static let previewSubtitle = String(localized: "notification.preview.subtitle", defaultValue: "PhoneDex • MacBook Air", comment: "Subtitle for the local notification preview.")
+    static let okayWhatsNext = String(localized: "notification.action.okayWhatsNext", defaultValue: "Okay, what's next", comment: "Quick reply action asking Codex for the next step.")
+    static let letsDoThat = String(localized: "notification.action.letsDoThat", defaultValue: "Let's do that", comment: "Quick reply action accepting a recommended next step.")
+    static let customReply = String(localized: "notification.action.customReply", defaultValue: "Custom reply", comment: "Notification action that opens a typed or dictated reply.")
+    static let sendReply = String(localized: "notification.action.sendReply", defaultValue: "Send", comment: "Button title that submits a custom notification reply.")
+    static let replyPlaceholder = String(localized: "notification.action.replyPlaceholder", defaultValue: "Dictate or type your reply", comment: "Placeholder for a custom notification reply.")
+}
+
 enum PhoneDexNotificationError: LocalizedError, Equatable {
     case credentialBearingBridgeURL
 
     var errorDescription: String? {
         switch self {
         case .credentialBearingBridgeURL:
-            return "The bridge URL must not contain credentials or query parameters."
+            return String(localized: "notification.error.credentialBearingBridgeURL", defaultValue: "The bridge URL must not contain credentials or query parameters.", comment: "Error shown when a notification is asked to use an unsafe bridge URL.")
         }
     }
 }
