@@ -704,8 +704,8 @@ Outcome: let users evaluate completed work without returning to a computer.
   context expansion, copy, and share.
 - [x] Add integrity-checked artifact metadata and explicit downloads.
 - [x] Enforce retention and export policy for sensitive review content.
-- [x] Add a native metadata-only artifact library across synced conversations;
-  downloads remain integrity-checked and session-scoped.
+- [x] Add a native metadata-first artifact library across synced conversations;
+  verified downloads persist in the encrypted iOS cache with bounded retention.
 - [x] Meet the 5,000-line diff performance target on the oldest supported
   iPhone.
 
@@ -843,6 +843,15 @@ maximum-delay, jitter, and no-prior-refresh cases. This reduces redundant
 foreground network and parsing work without pretending that a background
 refresh or APNs provider exists; real-device battery profiling remains required
 before the M8 battery gate can be checked off.
+
+Artifact-library verification for the in-progress release-readiness slice:
+verified downloads now persist in the encrypted iOS cache and remain available
+to the native artifact library and task review after relaunch. The app expires
+saved bytes after 30 days, keeps at most 20 downloads and 25 MB, and provides
+an explicit Settings action to clear them. `PhoneDexLocalCacheTests` covers
+encrypted artifact round trips, legacy cache decoding, tamper rejection, and
+retention bounds. This is local iPhone retention only; the hub remains the
+source of truth and remote artifact retention remains governed by hub policy.
 
 Crash verification for the in-progress release-readiness slice:
 Settings and the embedded browser no longer force-unwrap user-visible sharing
