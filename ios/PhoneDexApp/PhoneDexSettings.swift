@@ -7,7 +7,10 @@ final class PhoneDexSettings: ObservableObject {
     }
 
     @Published var token: String {
-        didSet { persistToken() }
+        didSet {
+            guard !suppressTokenPersistence else { return }
+            persistToken()
+        }
     }
 
     @Published var requireApprovalAuthentication: Bool {
@@ -16,6 +19,7 @@ final class PhoneDexSettings: ObservableObject {
 
     private let defaults: UserDefaults
     private let tokenStore: any PhoneDexTokenStoring
+    private var suppressTokenPersistence = false
 
     @Published private(set) var credentialStorageError: String?
 
@@ -106,6 +110,23 @@ final class PhoneDexSettings: ObservableObject {
         }
 
         return updated
+    }
+
+    /// Removes the locally stored bridge credential only after Keychain removal succeeds.
+    /// The hub credential is not revoked by this local action; pairing can be repeated later.
+    @discardableResult
+    func forgetCredential() -> Bool {
+        do {
+            try tokenStore.removeToken()
+            suppressTokenPersistence = true
+            token = ""
+            suppressTokenPersistence = false
+            credentialStorageError = nil
+            return true
+        } catch {
+            credentialStorageError = Self.credentialStorageErrorMessage
+            return false
+        }
     }
 
     private enum Keys {

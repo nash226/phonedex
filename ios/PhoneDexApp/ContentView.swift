@@ -1888,6 +1888,8 @@ private struct PhoneDexSettingsView: View {
     @State private var diagnosticsStatus = ""
     @State private var isLoadingDiagnostics = false
     @State private var showingClearArtifactConfirmation = false
+    @State private var showingForgetCredentialConfirmation = false
+    @State private var credentialStatus = ""
 
     init(model: PhoneDexAppModel) {
         self.model = model
@@ -1940,6 +1942,25 @@ private struct PhoneDexSettingsView: View {
                     SecureField("Token", text: $settings.token)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
+
+                    Button("Forget stored credential", systemImage: "key.slash", role: .destructive) {
+                        showingForgetCredentialConfirmation = true
+                    }
+                    .disabled(settings.token.isEmpty)
+                    .accessibilityIdentifier("Forget stored credential")
+                    .accessibilityHint("Removes this iPhone's local bridge credential. The hub credential is not revoked.")
+
+                    if !credentialStatus.isEmpty {
+                        Label(
+                            credentialStatus,
+                            systemImage: credentialStatus.hasPrefix("Credential removed")
+                                ? "checkmark.circle.fill"
+                                : "exclamationmark.triangle.fill"
+                        )
+                            .font(.footnote)
+                            .foregroundStyle(credentialStatus.hasPrefix("Credential removed") ? .green : .red)
+                            .accessibilityElement(children: .combine)
+                    }
 
                     if let credentialStorageError = settings.credentialStorageError {
                         Label(credentialStorageError, systemImage: "lock.trianglebadge.exclamationmark")
@@ -2053,6 +2074,18 @@ private struct PhoneDexSettingsView: View {
                 Button("Cancel", role: .cancel) { }
             } message: {
                 Text("Downloaded artifacts will be removed from this iPhone. They can be downloaded again while the originating agent retains them.")
+            }
+            .confirmationDialog("Forget stored credential?", isPresented: $showingForgetCredentialConfirmation, titleVisibility: .visible) {
+                Button("Forget credential", role: .destructive) {
+                    if settings.forgetCredential() {
+                        credentialStatus = "Credential removed. Pair this iPhone again before connecting."
+                    } else {
+                        credentialStatus = settings.credentialStorageError ?? "Credential could not be removed. Try again."
+                    }
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("This removes only the credential stored on this iPhone. It does not revoke the hub credential or change other paired devices.")
             }
         }
     }

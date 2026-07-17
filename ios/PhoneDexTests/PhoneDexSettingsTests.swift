@@ -30,6 +30,32 @@ final class PhoneDexSettingsTests: XCTestCase {
         XCTAssertNil(settings.credentialStorageError)
     }
 
+    func testForgetCredentialRemovesKeychainValueBeforeClearingPublishedToken() throws {
+        let defaults = try makeDefaults()
+        let store = InMemoryTokenStore()
+        let settings = PhoneDexSettings(defaults: defaults, tokenStore: store)
+        settings.token = "paired-secret"
+
+        XCTAssertTrue(settings.forgetCredential())
+        XCTAssertTrue(settings.token.isEmpty)
+        XCTAssertNil(store.token)
+        XCTAssertNil(settings.credentialStorageError)
+    }
+
+    func testForgetCredentialFailurePreservesTokenAndDoesNotLeakSecret() throws {
+        let defaults = try makeDefaults()
+        let store = InMemoryTokenStore()
+        let settings = PhoneDexSettings(defaults: defaults, tokenStore: store)
+        settings.token = "paired-secret"
+        store.shouldFail = true
+
+        XCTAssertFalse(settings.forgetCredential())
+        XCTAssertEqual(settings.token, "paired-secret")
+        XCTAssertEqual(store.token, "paired-secret")
+        XCTAssertEqual(settings.credentialStorageError, "Secure credential storage is unavailable. Try again.")
+        XCTAssertFalse(settings.credentialStorageError?.contains("paired-secret") == true)
+    }
+
     func testApprovalAuthenticationIsEnabledByDefaultAndCanBeDisabled() throws {
         let defaults = try makeDefaults()
         let settings = PhoneDexSettings(defaults: defaults, tokenStore: InMemoryTokenStore())
