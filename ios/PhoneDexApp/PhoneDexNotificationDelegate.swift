@@ -35,6 +35,11 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
             return
         }
 
+        guard let context = PhoneDexNotificationReplyContext(userInfo: userInfo) else {
+            NotificationReplyResult.record(.failed("This notification is missing safe task context. Open PhoneDex to refresh it."))
+            return
+        }
+
         let prompt: String
         if let textResponse = response as? UNTextInputNotificationResponse {
             prompt = textResponse.userText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -59,16 +64,15 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
         let notificationID = response.notification.request.identifier
         let commandID = "notification-" + notificationID + "-" + response.actionIdentifier
         let idempotencyKey = "ios-" + commandID
-        let expectedTaskVersion = userInfo["taskVersion"] as? Int ?? 1
         let pending = PhoneDexPendingReply(
             commandId: commandID,
             idempotencyKey: idempotencyKey,
-            taskId: userInfo["taskId"] as? String ?? "",
+            taskId: context.taskId,
             choice: choice.rawValue,
             prompt: prompt,
-            expectedTaskVersion: expectedTaskVersion,
-            sessionId: userInfo["sessionId"] as? String,
-            machineName: userInfo["machineName"] as? String,
+            expectedTaskVersion: context.expectedTaskVersion,
+            sessionId: context.sessionId,
+            machineName: context.machineName,
             createdAt: Date()
         )
         updatePendingReply(pending, remove: false)
@@ -77,12 +81,12 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
             let receipt = try await client.sendReply(
                 choice: choice,
                 prompt: prompt,
-                taskId: userInfo["taskId"] as? String ?? "",
-                sessionId: userInfo["sessionId"] as? String,
-                machineName: userInfo["machineName"] as? String,
+                taskId: context.taskId,
+                sessionId: context.sessionId,
+                machineName: context.machineName,
                 commandId: commandID,
                 idempotencyKey: idempotencyKey,
-                expectedTaskVersion: expectedTaskVersion
+                expectedTaskVersion: context.expectedTaskVersion
             )
             if receipt.isSuccessful {
                 updatePendingReply(pending, remove: true)
