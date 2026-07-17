@@ -35,6 +35,7 @@ final class PhoneDexShellUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.textFields["Bridge URL"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.secureTextFields["Token"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Forget stored credential"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Test Connection"].waitForExistence(timeout: 5))
         app.swipeUp()
         XCTAssertTrue(app.switches["Require Face ID or passcode"].waitForExistence(timeout: 5))

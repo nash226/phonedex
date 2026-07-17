@@ -216,7 +216,8 @@ device-only Keychain generic-password item with
 the legacy `phonedex.token` UserDefaults value once, removes the legacy value,
 and exposes a generic, non-secret error when secure storage fails.
 `ios/PhoneDexTests/PhoneDexSettingsTests.swift` covers migration, updates,
-clearing, failure redaction, and Keychain round trips; the concrete Keychain
+clearing, explicit credential forgetting, failure redaction, and Keychain round
+trips; the concrete Keychain
 round trip is skipped only when an unsigned simulator reports its expected
 missing entitlement. Notification payload credential removal is now covered by
 the native notification metadata builder and bridge reply integration fixture;

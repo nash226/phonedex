@@ -105,6 +105,9 @@ The repository already proves the core loop, but not the final product.
 - The app stores one bridge URL and a paired device credential in Keychain,
   restores an encrypted local task/device cache, and reconciles from the hub's
   opaque cursor while foregrounded. Legacy token entry remains for migration.
+  Settings can forget the local credential after confirmation; this does not
+  revoke the hub credential or other paired devices and directs the user back
+  through pairing.
 - The app schedules a local notification and registers three reply actions.
 - A notification content extension renders a long, scrollable result.
 - Notification actions post canned or typed/dictated replies to the bridge.
