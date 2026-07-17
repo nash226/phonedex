@@ -818,12 +818,17 @@ metrics, rollback plan, and verification evidence.
 
 Accessibility verification for the in-progress release-readiness slice:
 `PhoneDexShellUITests.testShellPassesSystemAccessibilityAudit` runs Xcode's
-system audit at the largest Dynamic Type size with Reduce Motion and dark
-appearance enabled. The shell fixes keep validation guidance readable, remove
-the fixed-size composer icon, and allow long branch labels to wrap instead of
-clipping. Chats keeps its refresh action in the content hierarchy, including
-the loading/degraded empty-state action, so toolbar compression cannot hide the
-recovery path at accessibility sizes. `PhoneDexShellUITests.testPrimaryDestinationsRemainAccessibleAtLargestDynamicType`
+PhoneDex-owned audit categories (contrast, hit region, descriptions, Dynamic
+Type, clipping, and traits) at the largest Dynamic Type size with Reduce Motion
+and dark appearance enabled. The element-detection category is intentionally
+excluded: on an offline simulator it can wait indefinitely while the app's
+initial bridge refresh settles, making the CI gate flaky without adding
+actionable signal about PhoneDex UI. The shell fixes keep validation guidance
+readable, remove the fixed-size composer icon, and allow long branch labels to
+wrap instead of clipping. Chats keeps its refresh action in the content
+hierarchy, including the loading/degraded empty-state action, so toolbar
+compression cannot hide the recovery path at accessibility sizes.
+`PhoneDexShellUITests.testPrimaryDestinationsRemainAccessibleAtLargestDynamicType`
 selects Chats explicitly before asserting the stable `refresh-conversations`
 identifier, making the check deterministic when tab restoration has persisted
 another last-used tab. This is evidence for the accessibility portion of the
