@@ -122,16 +122,16 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
 
     var displayStatus: String {
         switch status {
-        case "needs_input": return "Needs your input"
-        case "awaiting_approval": return "Needs approval"
-        case "needs_review": return "Needs review"
-        case "queued": return "Queued"
-        case "running": return "Running"
-        case "failed": return "Failed"
-        case "canceling": return "Cancelling"
-        case "cancelled": return "Cancelled"
-        case "completed": return "Completed"
-        default: return "Recent"
+        case "needs_input": return Self.localized("task.status.needsInput", "Needs your input", "A task is waiting for the user's answer.")
+        case "awaiting_approval": return Self.localized("task.status.needsApproval", "Needs approval", "A task is waiting for an approval decision.")
+        case "needs_review": return Self.localized("task.status.needsReview", "Needs review", "A task has work ready for review.")
+        case "queued": return Self.localized("task.status.queued", "Queued", "A PhoneDex-managed task is queued.")
+        case "running": return Self.localized("task.status.running", "Running", "A task is currently running.")
+        case "failed": return Self.localized("task.status.failed", "Failed", "A task failed.")
+        case "canceling": return Self.localized("task.status.cancelling", "Cancelling", "A task cancellation is in progress.")
+        case "cancelled": return Self.localized("task.status.cancelled", "Cancelled", "A task was cancelled.")
+        case "completed": return Self.localized("task.status.completed", "Completed", "A task completed.")
+        default: return Self.localized("task.status.recent", "Recent", "A task with no current lifecycle status.")
         }
     }
 
@@ -163,8 +163,8 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
         if let date = displayDate {
             items.append(PhoneDexTaskActivity(
                 id: "created",
-                title: "Task recorded",
-                detail: "PhoneDex received this task from " + displaySource,
+                title: Self.localized("task.activity.recorded", "Task recorded", "The task was recorded by PhoneDex."),
+                detail: String.localizedStringWithFormat(Self.localized("task.activity.receivedFrom", "PhoneDex received this task from %@", "The task capture source."), displaySource),
                 symbol: "arrow.down.circle",
                 date: date
             ))
@@ -183,7 +183,7 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
             items.append(PhoneDexTaskActivity(
                 id: "updated",
                 title: displayStatus,
-                detail: "Latest known task state",
+                detail: Self.localized("task.activity.latestState", "Latest known task state", "The most recent task state available to PhoneDex."),
                 symbol: statusSymbol,
                 date: date
             ))
@@ -193,11 +193,16 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
 
     var displaySource: String {
         switch source {
-        case "stop-hook": return "Stop hook"
-        case "session-watcher": return "session watcher"
-        case "remote-agent": return "remote agent"
-        default: return source?.replacingOccurrences(of: "-", with: " ") ?? "bridge"
+        case "stop-hook": return Self.localized("task.source.stopHook", "Stop hook", "The Codex stop hook capture source.")
+        case "session-watcher": return Self.localized("task.source.sessionWatcher", "session watcher", "The local session watcher capture source.")
+        case "remote-agent": return Self.localized("task.source.remoteAgent", "remote agent", "A remote PhoneDex agent capture source.")
+        default: return source?.replacingOccurrences(of: "-", with: " ") ?? Self.localized("task.source.bridge", "bridge", "The PhoneDex bridge capture source.")
         }
+    }
+
+    private static func localized(_ key: String, _ fallback: String, _ comment: String) -> String {
+        _ = comment
+        return Bundle.main.localizedString(forKey: key, value: fallback, table: nil)
     }
 
     private func date(from value: String?) -> Date? {
@@ -456,7 +461,13 @@ struct PhoneDexChangedFile: Codable, Equatable, Identifiable {
     }
 
     var displayStatus: String {
-        status.capitalized
+        switch status {
+        case "added": return String(localized: "review.file.added", defaultValue: "Added", comment: "A file was added.")
+        case "modified": return String(localized: "review.file.modified", defaultValue: "Modified", comment: "A file was modified.")
+        case "deleted": return String(localized: "review.file.deleted", defaultValue: "Deleted", comment: "A file was deleted.")
+        case "renamed": return String(localized: "review.file.renamed", defaultValue: "Renamed", comment: "A file was renamed.")
+        default: return status.capitalized
+        }
     }
 }
 
@@ -491,11 +502,11 @@ struct PhoneDexValidationReceipt: Codable, Equatable, Identifiable {
 
     var displayStatus: String {
         switch status {
-        case "passed": return "Passed"
-        case "failed": return "Failed"
-        case "skipped": return "Skipped"
-        case "running": return "Running"
-        default: return "Unknown"
+        case "passed": return String(localized: "review.validation.passed", defaultValue: "Passed", comment: "A validation check passed.")
+        case "failed": return String(localized: "review.validation.failed", defaultValue: "Failed", comment: "A validation check failed.")
+        case "skipped": return String(localized: "review.validation.skipped", defaultValue: "Skipped", comment: "A validation check was skipped.")
+        case "running": return String(localized: "review.validation.running", defaultValue: "Running", comment: "A validation check is running.")
+        default: return String(localized: "review.validation.unknown", defaultValue: "Unknown", comment: "A validation check has an unknown status.")
         }
     }
 

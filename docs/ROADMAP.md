@@ -807,6 +807,15 @@ the fixed-size composer icon, and allow long branch labels to wrap instead of
 clipping. This is evidence for the accessibility portion of the combined M8
 gate; performance, battery, localization, and crash validation remain open.
 
+Localization verification for the in-progress release-readiness slice:
+`PhoneDexTask`, `PhoneDexChangedFile`, and `PhoneDexValidationReceipt` now use
+stable localization keys with English fallbacks for task, capture-source, file,
+and validation status copy. The copy is shared by Chats, task detail, activity,
+and review surfaces, so future translations do not need to duplicate lifecycle
+semantics across views. `PhoneDexChatFilteringTests.testTaskAndReviewStatusCopyUsesStableEnglishFallbacks`
+covers the fallback contract. This is localization readiness only; translated
+catalogs and locale-specific real-device QA remain release gates.
+
 Performance verification for the in-progress release-readiness slice:
 `PhoneDexDiffTests.testFiveThousandLineReviewPathStaysWithinInteractiveOpenBudget`
 and `testWorstCaseFiveThousandLineReviewPathStaysWithinInteractiveOpenBudget`
