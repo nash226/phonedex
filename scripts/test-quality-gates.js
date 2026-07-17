@@ -31,6 +31,14 @@ assert.equal(unsafe.ok, false);
 assert.match(unsafe.issues.map((issue) => issue.message).join(" "), /at least one supported platform/);
 assert.match(unsafe.issues.map((issue) => issue.message).join(" "), /content-free identifier/);
 
+const unsupportedAfterSupported = evaluateQualityGates({ gates: [{ ...passing[0], platforms: ["ios", "android"] }, ...passing.slice(1)] }, { now });
+assert.equal(unsupportedAfterSupported.ok, false);
+assert.match(unsupportedAfterSupported.issues.map((issue) => issue.message).join(" "), /unsupported platform/);
+
+const tooManyPlatforms = evaluateQualityGates({ gates: [{ ...passing[0], platforms: ["ios", "macos", "windows", "ios"] }, ...passing.slice(1)] }, { now });
+assert.equal(tooManyPlatforms.ok, false);
+assert.match(tooManyPlatforms.issues.map((issue) => issue.message).join(" "), /duplicated|no more than/);
+
 const sensitiveField = evaluateQualityGates({ gates: passing.map((gate) => ({ ...gate, taskText: "must never be recorded" })) }, { now });
 assert.equal(sensitiveField.ok, false);
 assert.match(sensitiveField.issues.map((issue) => issue.message).join(" "), /unsupported field/);
