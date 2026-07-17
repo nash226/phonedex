@@ -880,6 +880,18 @@ background notification response cannot erase locally available review state.
 `PhoneDexLocalCacheTests.testNotificationStateReplacementPreservesLocalReviewAndSyncState`
 covers both notification mutation fields and the preserved local-first state.
 
+Quality-gate evidence verification for the in-progress release-readiness slice:
+`lib/phonedex-quality-gates.js` defines the content-free
+`phonedex.quality-gates.v1` report for performance, battery, accessibility,
+localization, and crash evidence. `scripts/quality-gates.js` rejects missing,
+duplicate, stale, future-dated, unsupported, or extra fields and accepts only
+bounded gate ids, platform names, timestamps, statuses, and evidence ids.
+`scripts/test-quality-gates.js` covers complete evidence, missing and failed
+gates, stale timestamps, unsupported platforms, and attempts to include task
+text. This makes the combined M8 gate auditable without claiming simulator
+checks replace real-device measurements, signing, TestFlight, APNs, or release
+owner approval.
+
 Performance verification for the in-progress release-readiness slice:
 `PhoneDexDiffTests.testFiveThousandLineReviewPathStaysWithinInteractiveOpenBudget`
 and `testWorstCaseFiveThousandLineReviewPathStaysWithinInteractiveOpenBudget`
