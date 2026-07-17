@@ -965,6 +965,15 @@ empty group before presenting Projects. This keeps cache or bridge data
 corruption from becoming an iOS index-out-of-range crash; crash-free session
 measurement and real-device validation remain release-owner gates.
 
+Required native model fields now fail closed with structured decoding errors
+instead of force-unwrapping bounded optional values. Task IDs, structured
+question identifiers and prompts, changed-file paths and statuses, and event
+types reject null or malformed cache/hub records without terminating the iOS
+process. `PhoneDexSmokeTests.testRequiredNativeModelFieldsFailClosedWithoutForceUnwraps`
+covers these malformed payloads. This closes a local crash boundary without
+changing the supported sync contract; crash-free session measurement and
+real-device validation remain release-owner gates.
+
 Deep-link privacy verification for the in-progress release-readiness slice:
 Unsupported `phonedex://` URLs now record only their scheme, host, and path in
 local diagnostics. Query values and user information are excluded so malformed
