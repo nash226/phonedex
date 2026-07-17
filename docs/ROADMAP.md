@@ -830,6 +830,14 @@ another last-used tab. This is evidence for the accessibility portion of the
 combined M8 gate; performance, battery, localization, and crash validation
 remain open.
 
+Review accessibility verification: `PhoneDexReviewSummaryView` stacks its
+summary metrics at accessibility Dynamic Type sizes so file and validation
+counts remain readable instead of compressing into clipped cards. Changed-file
+and validation rows expose one concise VoiceOver summary containing status,
+counts, patch availability, and reported validation timing. The pure label
+contract is covered by `PhoneDexReviewSummaryTests`; real-device review
+navigation and accessibility audit evidence remain release-owner gates.
+
 Localization verification for the in-progress release-readiness slice:
 `PhoneDexTask`, `PhoneDexChangedFile`, and `PhoneDexValidationReceipt` now use
 stable localization keys with English fallbacks for task, capture-source, file,
