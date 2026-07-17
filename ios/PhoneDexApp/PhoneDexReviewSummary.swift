@@ -346,7 +346,7 @@ struct PhoneDexReviewSummaryView: View {
                                 downloadingArtifactID = nil
                             } catch {
                                 downloadingArtifactID = nil
-                                artifactError = error.localizedDescription
+                                artifactError = error.phoneDexSafeMessage
                             }
                         }
                     } label: {

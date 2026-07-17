@@ -567,6 +567,57 @@ private struct PhoneDexErrorEnvelope: Decodable {
 }
 
 extension Error {
+    /// Returns bounded, privacy-safe copy for user-visible state and local diagnostics.
+    ///
+    /// Bridge errors can carry server-provided detail or URL-related descriptions. Those
+    /// values are useful for debugging but must not become app UI, notification metadata,
+    /// or persisted deep-link diagnostics.
+    var phoneDexSafeMessage: String {
+        if let authenticationError = self as? PhoneDexApprovalAuthenticationError {
+            return authenticationError.localizedDescription
+        }
+
+        if let bridgeError = self as? PhoneDexBridgeClientError {
+            switch bridgeError {
+            case .invalidURL:
+                return "Bridge URL is invalid."
+            case .invalidResponse:
+                return "The bridge returned an invalid response. Try again."
+            case .httpStatus(let status, _):
+                switch status {
+                case 401, 403:
+                    return "The bridge credential was not accepted. Re-pair this iPhone."
+                case 404, 405:
+                    return "This hub does not support the required PhoneDex connection. Update the hub and try again."
+                case 408, 429:
+                    return "The bridge is busy. Wait a moment and try again."
+                case 500...599:
+                    return "The bridge is temporarily unavailable. Try again shortly."
+                default:
+                    return "The bridge could not complete that request. Try again."
+                }
+            case .protocolIncompatible:
+                return "The hub and PhoneDex app use incompatible protocol versions. Update the hub and try again."
+            case .staleTask:
+                return "This task changed before the action arrived. Refresh and review the latest context."
+            case .pairingFailed:
+                return "Pairing could not be completed. Generate a new grant and try again."
+            case .artifactUnavailable:
+                return "This artifact is not available for download from the originating agent."
+            case .artifactIntegrityFailed:
+                return "The downloaded artifact failed its integrity check and was not shared."
+            case .responseTooLarge:
+                return "The bridge returned more data than PhoneDex can safely process. Try again or contact support."
+            }
+        }
+
+        if let urlError = self as? URLError, urlError.isOffline {
+            return "The hub is unavailable. Check the connection and try again."
+        }
+
+        return "PhoneDex could not complete that action. Try again."
+    }
+
     var isRevoked: Bool {
         (self as? PhoneDexBridgeClientError)?.isRevoked ?? false
     }

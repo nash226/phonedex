@@ -1003,6 +1003,15 @@ decoding and sharing behavior without claiming that `URLSession` never
 allocates transport bytes; hub-side pagination and artifact limits remain the
 primary defense, and real-device memory profiling remains a release gate.
 
+Safe error-surface verification for the in-progress release-readiness slice:
+native UI, notification-action, and deep-link diagnostics paths now use a bounded
+`Error.phoneDexSafeMessage` projection instead of raw localized error text. The
+projection removes server-provided pairing/protocol detail, URL/userinfo, and
+transport diagnostics while preserving actionable offline, revoked, protocol, and
+artifact guidance. `PhoneDexBridgeClientTests.testUserFacingErrorMessagesNeverExposeServerOrURLDetails`
+covers server, HTTP, and URL error inputs. This protects local privacy and support
+output; hub logs and real-device release validation remain separate gates.
+
 Verification evidence for the completed migration and recovery slice:
 `scripts/test-recovery.js` exercises legacy JSONL import, current-schema
 upgrade, transactional-backup rollback after a failed migration, rejection of

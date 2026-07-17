@@ -206,7 +206,7 @@ final class PhoneDexAppModel: ObservableObject {
                 connectionState = .revoked
             } else if error.isProtocolIncompatible {
                 connectionState = .incompatible(
-                    message: error.localizedDescription,
+                    message: error.phoneDexSafeMessage,
                     lastSync: lastSuccessfulSync
                 )
             } else if error.isOffline {
@@ -222,7 +222,7 @@ final class PhoneDexAppModel: ObservableObject {
                     lastSync: lastSuccessfulSync
                 )
             } else {
-                connectionState = .failed(error.localizedDescription, lastSync: lastSuccessfulSync)
+                connectionState = .failed(error.phoneDexSafeMessage, lastSync: lastSuccessfulSync)
             }
         }
     }
@@ -388,7 +388,7 @@ final class PhoneDexAppModel: ObservableObject {
             do {
                 try await approvalAuthenticator.authenticate()
             } catch {
-                lifecycleState = .failed(error.localizedDescription)
+                lifecycleState = .failed(error.phoneDexSafeMessage)
                 return false
             }
         }
@@ -421,7 +421,7 @@ final class PhoneDexAppModel: ObservableObject {
             lifecycleState = .accepted(result.receipt.message ?? "Desktop handoff prepared.")
             return handoff
         } catch {
-            lifecycleState = .failed(error.localizedDescription)
+            lifecycleState = .failed(error.phoneDexSafeMessage)
             return nil
         }
     }
@@ -462,7 +462,7 @@ final class PhoneDexAppModel: ObservableObject {
             lifecycleState = .accepted(result.receipt.message ?? "Task queued.")
             return result.receipt.isSuccessful
         } catch {
-            lifecycleState = .failed(error.localizedDescription)
+            lifecycleState = .failed(error.phoneDexSafeMessage)
             return false
         }
     }
@@ -490,7 +490,7 @@ final class PhoneDexAppModel: ObservableObject {
             lifecycleState = .accepted(result.receipt.message ?? "Command accepted.")
             return result.receipt.isSuccessful
         } catch {
-            lifecycleState = .failed(error.localizedDescription)
+            lifecycleState = .failed(error.phoneDexSafeMessage)
             return false
         }
     }
@@ -552,7 +552,7 @@ final class PhoneDexAppModel: ObservableObject {
             } else if error.isOffline {
                 replyState = .queued(pending.prompt)
             } else {
-                replyState = .failed(error.localizedDescription)
+                replyState = .failed(error.phoneDexSafeMessage)
             }
             return false
         }

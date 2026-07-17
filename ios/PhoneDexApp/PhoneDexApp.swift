@@ -71,7 +71,7 @@ struct PhoneDexApp: App {
             try await PhoneDexNotificationScheduler.schedulePreviewNotification()
             await recordDeepLinkResult(action: "preview")
         } catch {
-            await recordDeepLinkResult(action: "preview", error: error.localizedDescription)
+            await recordDeepLinkResult(action: "preview", error: error.phoneDexSafeMessage)
         }
     }
 
@@ -110,7 +110,7 @@ struct PhoneDexApp: App {
             )
             await recordDeepLinkResult(action: "notify-latest")
         } catch {
-            await recordDeepLinkResult(action: "notify-latest", error: error.localizedDescription)
+            await recordDeepLinkResult(action: "notify-latest", error: error.phoneDexSafeMessage)
         }
     }
 

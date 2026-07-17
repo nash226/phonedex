@@ -3,6 +3,30 @@ import CryptoKit
 @testable import PhoneDex
 
 final class PhoneDexBridgeClientTests: XCTestCase {
+    func testUserFacingErrorMessagesNeverExposeServerOrURLDetails() {
+        let serverMessage = PhoneDexBridgeClientError.pairingFailed(
+            "credential=secret-token path=/Users/example/private"
+        )
+        let responseMessage = PhoneDexBridgeClientError.httpStatus(
+            502,
+            "upstream token=secret-token"
+        )
+        let genericURLMessage = URLError(
+            .cannotConnectToHost,
+            userInfo: [NSLocalizedDescriptionKey: "https://user:secret@example.com/private"]
+        )
+
+        for error in [serverMessage as Error, responseMessage as Error, genericURLMessage as Error] {
+            XCTAssertFalse(error.phoneDexSafeMessage.contains("secret"))
+            XCTAssertFalse(error.phoneDexSafeMessage.contains("/Users"))
+            XCTAssertFalse(error.phoneDexSafeMessage.contains("example.com"))
+        }
+
+        XCTAssertEqual(serverMessage.phoneDexSafeMessage, "Pairing could not be completed. Generate a new grant and try again.")
+        XCTAssertEqual(responseMessage.phoneDexSafeMessage, "The bridge is temporarily unavailable. Try again shortly.")
+        XCTAssertEqual(genericURLMessage.phoneDexSafeMessage, "The hub is unavailable. Check the connection and try again.")
+    }
+
     override func tearDown() {
         URLProtocolStub.handler = nil
         super.tearDown()

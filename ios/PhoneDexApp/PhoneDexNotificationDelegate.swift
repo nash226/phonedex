@@ -96,7 +96,7 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
                 NotificationReplyResult.record(.failed(receipt.message ?? "The reply remains queued for retry."))
             }
         } catch {
-            NotificationReplyResult.record(.failed(error.localizedDescription))
+            NotificationReplyResult.record(.failed(error.phoneDexSafeMessage))
         }
     }
 
