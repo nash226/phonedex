@@ -22,20 +22,15 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
         super.viewDidLoad()
         configureView()
         configureHierarchy()
-        render(
-            app: "PhoneDex",
+        render(PhoneDexNotificationContent(
             title: "Codex update",
             body: "Open the expanded PhoneDex notification to read the full Codex result."
-        )
+        ))
     }
 
     func didReceive(_ notification: UNNotification) {
         let content = notification.request.content
-        render(
-            app: "PhoneDex",
-            title: content.title,
-            body: content.body
-        )
+        render(PhoneDexNotificationContent(title: content.title, body: content.body))
     }
 
     private func configureView() {
@@ -60,20 +55,28 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
 
         appNameLabel.translatesAutoresizingMaskIntoConstraints = false
         appNameLabel.textColor = .white
-        appNameLabel.font = .systemFont(ofSize: 20, weight: .semibold)
+        appNameLabel.font = UIFontMetrics(forTextStyle: .headline)
+            .scaledFont(for: .systemFont(ofSize: 20, weight: .semibold))
+        appNameLabel.adjustsFontForContentSizeCategory = true
         appNameLabel.numberOfLines = 1
+        appNameLabel.accessibilityTraits = .header
 
         timeLabel.translatesAutoresizingMaskIntoConstraints = false
         timeLabel.textColor = UIColor(white: 0.72, alpha: 1)
-        timeLabel.font = .systemFont(ofSize: 16, weight: .regular)
+        timeLabel.font = UIFontMetrics(forTextStyle: .subheadline)
+            .scaledFont(for: .systemFont(ofSize: 16, weight: .regular))
+        timeLabel.adjustsFontForContentSizeCategory = true
         timeLabel.textAlignment = .right
         timeLabel.text = "now"
         timeLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
 
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         titleLabel.textColor = .white
-        titleLabel.font = .systemFont(ofSize: 23, weight: .bold)
+        titleLabel.font = UIFontMetrics(forTextStyle: .title2)
+            .scaledFont(for: .systemFont(ofSize: 23, weight: .bold))
+        titleLabel.adjustsFontForContentSizeCategory = true
         titleLabel.numberOfLines = 2
+        titleLabel.accessibilityTraits = .header
 
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.backgroundColor = .clear
@@ -84,7 +87,9 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
 
         bodyLabel.translatesAutoresizingMaskIntoConstraints = false
         bodyLabel.textColor = .white
-        bodyLabel.font = .systemFont(ofSize: 19, weight: .regular)
+        bodyLabel.font = UIFontMetrics(forTextStyle: .body)
+            .scaledFont(for: .systemFont(ofSize: 19, weight: .regular))
+        bodyLabel.adjustsFontForContentSizeCategory = true
         bodyLabel.numberOfLines = 0
         bodyLabel.lineBreakMode = .byWordWrapping
 
@@ -111,7 +116,7 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
 
         NSLayoutConstraint.activate([
             headerStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 22),
-            headerStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -22),
+            headerStack.trailingAnchor.constraint(equalTo: view.readableContentGuide.trailingAnchor),
             headerStack.topAnchor.constraint(equalTo: view.topAnchor, constant: 20),
 
             iconView.widthAnchor.constraint(equalToConstant: 48),
@@ -121,11 +126,11 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
             iconImageView.widthAnchor.constraint(equalToConstant: 30),
             iconImageView.heightAnchor.constraint(equalTo: iconImageView.widthAnchor),
 
-            titleLabel.leadingAnchor.constraint(equalTo: headerStack.leadingAnchor),
-            titleLabel.trailingAnchor.constraint(equalTo: headerStack.trailingAnchor),
+            titleLabel.leadingAnchor.constraint(equalTo: view.readableContentGuide.leadingAnchor),
+            titleLabel.trailingAnchor.constraint(equalTo: view.readableContentGuide.trailingAnchor),
             titleLabel.topAnchor.constraint(equalTo: headerStack.bottomAnchor, constant: 24),
 
-            scrollView.leadingAnchor.constraint(equalTo: headerStack.leadingAnchor),
+            scrollView.leadingAnchor.constraint(equalTo: view.readableContentGuide.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: scrollRail.leadingAnchor, constant: -12),
             scrollView.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 14),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20),
@@ -148,10 +153,11 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
         ])
     }
 
-    private func render(app: String, title: String, body: String) {
-        appNameLabel.text = app
-        titleLabel.text = title.isEmpty ? "Codex update" : title
-        bodyLabel.text = body.isEmpty ? "No notification body was provided." : body
+    private func render(_ content: PhoneDexNotificationContent) {
+        appNameLabel.text = content.app
+        titleLabel.text = content.title
+        bodyLabel.text = content.body
+        bodyLabel.accessibilityLabel = content.body
         preferredContentSize = CGSize(width: UIScreen.main.bounds.width, height: 500)
         view.setNeedsLayout()
         view.layoutIfNeeded()

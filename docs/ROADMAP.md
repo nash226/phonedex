@@ -874,6 +874,17 @@ reconciliation now use deterministic duplicate-ID resolution instead of
 `PhoneDexBridgeClientTests` cover malformed duplicate records and keep the
 latest record without exposing partial state.
 
+Notification-extension resilience verification for the in-progress
+release-readiness slice: `PhoneDexNotificationContent` bounds app, title, and
+body text before UIKit renders it, supplies safe empty-payload fallbacks, and
+preserves only readable line breaks. `NotificationViewController` uses Dynamic
+Type-scaled fonts, readable-content layout guides, and explicit VoiceOver
+headings so oversized or malformed notification content cannot create an
+unbounded extension layout. `PhoneDexNotificationContentTests` covers empty,
+oversized, and multiline payloads. This is defensive local notification
+rendering only; APNs delivery, crash-free session measurement, and real-device
+notification validation remain release-owner gates.
+
 Deep-link privacy verification for the in-progress release-readiness slice:
 Unsupported `phonedex://` URLs now record only their scheme, host, and path in
 local diagnostics. Query values and user information are excluded so malformed
