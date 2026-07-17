@@ -160,9 +160,22 @@ final class PhoneDexChatFilteringTests: XCTestCase {
         XCTAssertEqual(PhoneDexProject.filtered([first, second], by: "   ").map(\.id), [first.id, second.id])
     }
 
+    func testTaskAndReviewStatusCopyUsesStableEnglishFallbacks() {
+        let task = task("running", status: "running", source: "stop-hook")
+        XCTAssertEqual(task.displayStatus, "Running")
+        XCTAssertEqual(task.displaySource, "Stop hook")
+
+        let file = PhoneDexChangedFile(path: "Sources/App.swift", status: "modified", sourceRef: nil, summary: nil, additions: 2, deletions: 1, patch: nil, patchTruncated: nil)
+        XCTAssertEqual(file.displayStatus, "Modified")
+
+        let validation = PhoneDexValidationReceipt(id: "tests", name: "Tests", status: "passed", summary: nil, durationMs: 120, completedAt: nil)
+        XCTAssertEqual(validation.displayStatus, "Passed")
+    }
+
     private func task(
         _ id: String,
         status: String?,
+        source: String = "codex",
         title: String? = nil,
         text: String = "Codex result",
         cwd: String = "/work/project",
@@ -175,7 +188,7 @@ final class PhoneDexChatFilteringTests: XCTestCase {
         PhoneDexTask(
             id: id,
             at: at,
-            source: "codex",
+            source: source,
             title: title ?? id,
             text: text,
             cwd: cwd,
