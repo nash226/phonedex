@@ -71,7 +71,7 @@ enum PhoneDexNotificationScheduler {
         content.subtitle = task.machineName.map { "PhoneDex • \($0)" } ?? "PhoneDex"
         content.body = task.text
         content.categoryIdentifier = categoryIdentifier
-        content.threadIdentifier = "phonedex"
+        content.threadIdentifier = taskNotificationThreadIdentifier(task)
         content.sound = .default
         content.userInfo = taskNotificationUserInfo(task)
 
@@ -91,6 +91,22 @@ enum PhoneDexNotificationScheduler {
             "sessionId": task.sessionId ?? "",
             "machineName": task.machineName ?? ""
         ]
+    }
+
+    /// Groups alerts by safe display identity without including task content,
+    /// local paths, credentials, or query values in notification metadata.
+    static func taskNotificationThreadIdentifier(_ task: PhoneDexTask) -> String {
+        let workspace = safeThreadComponent(task.displayWorkspace, fallback: "workspace")
+        let machine = safeThreadComponent(task.displayMachine, fallback: "device")
+        return "phonedex.\(workspace).\(machine)"
+    }
+
+    private static func safeThreadComponent(_ value: String, fallback: String) -> String {
+        let allowed = value.unicodeScalars.filter { scalar in
+            CharacterSet.alphanumerics.contains(scalar) || scalar == "-" || scalar == "_"
+        }
+        let normalized = String(String.UnicodeScalarView(allowed))
+        return String((normalized.isEmpty ? fallback : normalized).prefix(32))
     }
 
     static func registerCategories() {

@@ -120,6 +120,52 @@ final class PhoneDexSettingsTests: XCTestCase {
         XCTAssertFalse(metadata.values.contains { String(describing: $0).contains("secret") })
     }
 
+    func testNotificationThreadGroupsByBoundedWorkspaceAndMachineIdentity() {
+        let task = PhoneDexTask(
+            id: "task-1",
+            at: nil,
+            source: "stop-hook",
+            title: "Review",
+            text: "Done",
+            cwd: "/Users/example/PhoneDex",
+            workspaceName: "PhoneDex / Secrets",
+            machineName: "MacBook Pro #1",
+            sessionId: "session-1",
+            status: "completed",
+            branch: nil,
+            repository: nil
+        )
+
+        XCTAssertEqual(
+            PhoneDexNotificationScheduler.taskNotificationThreadIdentifier(task),
+            "phonedex.PhoneDexSecrets.MacBookPro1"
+        )
+    }
+
+    func testNotificationThreadSeparatesSameWorkspaceOnDifferentMachines() {
+        let makeTask: (String) -> PhoneDexTask = { machine in
+            PhoneDexTask(
+                id: "task-\(machine)",
+                at: nil,
+                source: "stop-hook",
+                title: "Review",
+                text: "Done",
+                cwd: nil,
+                workspaceName: "PhoneDex",
+                machineName: machine,
+                sessionId: nil,
+                status: "completed",
+                branch: nil,
+                repository: nil
+            )
+        }
+
+        XCTAssertNotEqual(
+            PhoneDexNotificationScheduler.taskNotificationThreadIdentifier(makeTask("MacBook")),
+            PhoneDexNotificationScheduler.taskNotificationThreadIdentifier(makeTask("Windows"))
+        )
+    }
+
     func testBridgePolicyRequiresHTTPSOutsideLoopback() throws {
         let defaults = try makeDefaults()
         let settings = PhoneDexSettings(defaults: defaults, tokenStore: InMemoryTokenStore())
