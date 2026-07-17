@@ -260,7 +260,7 @@ struct PhoneDexEncryptedCache: PhoneDexCacheStoring {
     private let keyStore: any PhoneDexCacheKeyStoring
 
     init(
-        fileURL: URL = PhoneDexEncryptedCache.defaultFileURL,
+        fileURL: URL = PhoneDexEncryptedCache.defaultFileURL(),
         keyStore: any PhoneDexCacheKeyStoring = PhoneDexKeychainCacheKeyStore()
     ) {
         self.fileURL = fileURL
@@ -349,8 +349,9 @@ struct PhoneDexEncryptedCache: PhoneDexCacheStoring {
         return key
     }
 
-    private static var defaultFileURL: URL {
-        let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+    static func defaultFileURL(fileManager: FileManager = .default) -> URL {
+        let directory = (fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? fileManager.temporaryDirectory)
             .appendingPathComponent("PhoneDex", isDirectory: true)
         return directory.appendingPathComponent("sync-cache.bin")
     }

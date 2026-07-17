@@ -883,6 +883,16 @@ covers the redaction boundary. This is implementation evidence only; final
 privacy disclosures and real-device release validation remain release-owner
 gates.
 
+Cache-path resilience verification for the in-progress release-readiness
+slice: `PhoneDexEncryptedCache` no longer force-indexes the application-support
+directory list. It uses the first supported application-support URL and falls
+back to the process temporary directory if the system returns no application-
+support location, preventing a launch-time crash while preserving encrypted,
+device-local cache behavior. `PhoneDexLocalCacheTests` covers the default path
+shape; persistence, tamper rejection, retention bounds, and Keychain behavior
+remain covered by the existing cache tests. This is simulator evidence only;
+real-device cache and crash-free validation remain release-owner gates.
+
 Verification evidence for the completed migration and recovery slice:
 `scripts/test-recovery.js` exercises legacy JSONL import, current-schema
 upgrade, transactional-backup rollback after a failed migration, rejection of

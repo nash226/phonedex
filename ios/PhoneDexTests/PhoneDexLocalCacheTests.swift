@@ -2,6 +2,13 @@ import XCTest
 @testable import PhoneDex
 
 final class PhoneDexLocalCacheTests: XCTestCase {
+    func testDefaultCachePathUsesApplicationSupportWhenAvailable() {
+        let path = PhoneDexEncryptedCache.defaultFileURL()
+
+        XCTAssertEqual(path.lastPathComponent, "sync-cache.bin")
+        XCTAssertEqual(path.deletingLastPathComponent().lastPathComponent, "PhoneDex")
+    }
+
     func testCacheEncryptsAndRestoresCursorAndState() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("PhoneDexLocalCacheTests-\(UUID().uuidString)", isDirectory: true)
