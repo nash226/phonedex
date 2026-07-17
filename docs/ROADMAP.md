@@ -939,6 +939,13 @@ encrypted artifact round trips, legacy cache decoding, tamper rejection, and
 retention bounds. This is local iPhone retention only; the hub remains the
 source of truth and remote artifact retention remains governed by hub policy.
 
+Restore-time retention verification: `PhoneDexAppModel` rewrites the encrypted
+cache when launch-time pruning removes expired downloaded artifacts. This keeps
+the documented 30-day local retention boundary effective on disk even when the
+user does not perform another app mutation after relaunch. The
+`PhoneDexSettingsTests.testModelRestorePersistsExpiredArtifactPruning` regression
+test verifies expired bytes are removed while recent review artifacts remain.
+
 Crash verification for the in-progress release-readiness slice:
 Settings and the embedded browser no longer force-unwrap user-visible sharing
 URLs. Invalid browser addresses now hide the share action instead of falling
