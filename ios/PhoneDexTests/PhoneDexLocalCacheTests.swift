@@ -164,6 +164,52 @@ final class PhoneDexLocalCacheTests: XCTestCase {
         XCTAssertEqual(indexed["artifact-duplicate"]?.data, Data("latest".utf8))
     }
 
+    func testNotificationStateReplacementPreservesLocalReviewAndSyncState() {
+        let artifact = PhoneDexCachedArtifact(
+            id: "artifact", name: "build.log", mediaType: "text/plain",
+            data: Data("private review output".utf8), downloadedAt: Date(timeIntervalSince1970: 2)
+        )
+        let state = PhoneDexCachedState(
+            cursor: "cursor.v1",
+            tasks: [task(id: "task")],
+            devices: [],
+            events: [event(taskID: "task")],
+            lastSyncAt: Date(timeIntervalSince1970: 1),
+            drafts: ["task": "draft"],
+            readingPositions: ["task": "activity"],
+            pendingReplies: [],
+            replyReceipts: [],
+            handledNotificationResponses: [:],
+            cachedArtifacts: [artifact]
+        )
+
+        let withPendingReply = state.replacingNotificationState(
+            pendingReplies: [PhoneDexPendingReply(
+                commandId: "command",
+                idempotencyKey: "idempotency",
+                taskId: "task",
+                choice: "custom",
+                prompt: "Continue",
+                expectedTaskVersion: 1,
+                sessionId: nil,
+                machineName: nil,
+                createdAt: Date(timeIntervalSince1970: 3)
+            )]
+        )
+        let withHandledResponse = withPendingReply.replacingNotificationState(
+            handledNotificationResponses: ["notification|action": Date(timeIntervalSince1970: 4)]
+        )
+
+        XCTAssertEqual(withHandledResponse.cursor, state.cursor)
+        XCTAssertEqual(withHandledResponse.tasks, state.tasks)
+        XCTAssertEqual(withHandledResponse.events, state.events)
+        XCTAssertEqual(withHandledResponse.drafts, state.drafts)
+        XCTAssertEqual(withHandledResponse.readingPositions, state.readingPositions)
+        XCTAssertEqual(withHandledResponse.cachedArtifacts, state.cachedArtifacts)
+        XCTAssertEqual(withHandledResponse.pendingReplies.count, 1)
+        XCTAssertEqual(withHandledResponse.handledNotificationResponses.count, 1)
+    }
+
     private func task(id: String) -> PhoneDexTask {
         PhoneDexTask(
             id: id,

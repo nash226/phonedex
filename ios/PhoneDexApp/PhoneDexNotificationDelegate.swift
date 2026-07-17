@@ -113,17 +113,7 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
             devices: [],
             lastSyncAt: nil
         )
-        try? cache.save(PhoneDexCachedState(
-            cursor: state.cursor,
-            tasks: state.tasks,
-            devices: state.devices,
-            lastSyncAt: state.lastSyncAt,
-            drafts: state.drafts,
-            readingPositions: state.readingPositions,
-            pendingReplies: pendingReplies,
-            replyReceipts: state.replyReceipts,
-            handledNotificationResponses: state.handledNotificationResponses
-        ))
+        try? cache.save(state.replacingNotificationState(pendingReplies: pendingReplies))
     }
 
     private func responseKey(for response: UNNotificationResponse) -> String {
@@ -147,18 +137,7 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
             staleKeys.forEach { handled.removeValue(forKey: $0) }
         }
         let state = existing ?? PhoneDexCachedState(cursor: nil, tasks: [], devices: [], lastSyncAt: nil)
-        try? cache.save(PhoneDexCachedState(
-            cursor: state.cursor,
-            tasks: state.tasks,
-            devices: state.devices,
-            events: state.events,
-            lastSyncAt: state.lastSyncAt,
-            drafts: state.drafts,
-            readingPositions: state.readingPositions,
-            pendingReplies: state.pendingReplies,
-            replyReceipts: state.replyReceipts,
-            handledNotificationResponses: handled
-        ))
+        try? cache.save(state.replacingNotificationState(handledNotificationResponses: handled))
     }
 
     private func bridgeURLFromCurrentSettings() async -> URL? {

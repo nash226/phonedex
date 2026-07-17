@@ -866,6 +866,15 @@ covers the lifecycle policy. This is implementation protection only; release
 owner review of privacy disclosures and real-device snapshot behavior remains
 required.
 
+Notification cache-preservation verification for the in-progress
+release-readiness slice: notification actions now replace only their pending
+reply or handled-response projection inside the encrypted cache. The shared
+mutation preserves the cursor, synced tasks and devices, lifecycle events,
+drafts, reading positions, reply receipts, and verified artifact bytes, so a
+background notification response cannot erase locally available review state.
+`PhoneDexLocalCacheTests.testNotificationStateReplacementPreservesLocalReviewAndSyncState`
+covers both notification mutation fields and the preserved local-first state.
+
 Performance verification for the in-progress release-readiness slice:
 `PhoneDexDiffTests.testFiveThousandLineReviewPathStaysWithinInteractiveOpenBudget`
 and `testWorstCaseFiveThousandLineReviewPathStaysWithinInteractiveOpenBudget`
