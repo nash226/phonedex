@@ -31,6 +31,31 @@ final class PhoneDexDiagnosticsTests: XCTestCase {
         XCTAssertEqual(project.latestTask?.id, "done")
     }
 
+    func testArtifactLibraryItemRetainsTaskAndMachineContext() {
+        let artifact = PhoneDexArtifact(
+            id: "report",
+            name: "report.json",
+            kind: "validation",
+            sourceRef: "artifacts/report.json",
+            sizeBytes: 12,
+            sha256: String(repeating: "a", count: 64),
+            downloadId: "artifact_report_123",
+            mediaType: "application/json"
+        )
+        let item = PhoneDexArtifactLibraryItem(
+            taskID: "task-1",
+            taskTitle: "Run checks",
+            workspaceName: "PhoneDex",
+            machineName: "Build PC",
+            artifact: artifact
+        )
+
+        XCTAssertEqual(item.id, "task-1-report")
+        XCTAssertEqual(item.workspaceName, "PhoneDex")
+        XCTAssertEqual(item.machineName, "Build PC")
+        XCTAssertTrue(item.artifact.isDownloadable)
+    }
+
     func testConnectionStateTreatsStaleCacheAsBlockingEmptyContent() {
         let state = PhoneDexAppModel.ConnectionState.stale(Date(timeIntervalSince1970: 0))
 

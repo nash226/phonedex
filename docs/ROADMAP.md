@@ -704,6 +704,8 @@ Outcome: let users evaluate completed work without returning to a computer.
   context expansion, copy, and share.
 - [x] Add integrity-checked artifact metadata and explicit downloads.
 - [x] Enforce retention and export policy for sensitive review content.
+- [x] Add a native metadata-only artifact library across synced conversations;
+  downloads remain integrity-checked and session-scoped.
 - [x] Meet the 5,000-line diff performance target on the oldest supported
   iPhone.
 
