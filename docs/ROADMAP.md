@@ -693,6 +693,14 @@ the user should reopen PhoneDex for current task context. This is local
 notification correctness only; APNs provider choice, remote registration, and
 real-device background validation remain human-gated release work.
 
+Local notification grouping evidence: task alerts now use a bounded,
+deterministic thread identifier derived only from the display workspace and
+machine identity. Related alerts stay together in Notification Center while
+task text, local paths, credentials, and query values remain outside the
+grouping metadata. `PhoneDexSettingsTests` covers sanitization and separation
+of identical workspaces on different machines. Per-workspace delivery policy,
+remote registration, and background delivery remain human-gated release work.
+
 ## M7: Mobile Review Experience
 
 Status: **Current**
