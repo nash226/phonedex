@@ -2,6 +2,12 @@ import XCTest
 @testable import PhoneDex
 
 final class PhoneDexSmokeTests: XCTestCase {
+    func testPrivacyShieldCoversInactiveAndBackgroundSnapshots() {
+        XCTAssertFalse(PhoneDexPrivacyShieldPolicy.shouldShield(.active))
+        XCTAssertTrue(PhoneDexPrivacyShieldPolicy.shouldShield(.inactive))
+        XCTAssertTrue(PhoneDexPrivacyShieldPolicy.shouldShield(.background))
+    }
+
     func testPrimaryTabRestoresKnownValuesAndDefaultsSafely() {
         XCTAssertEqual(PhoneDexPrimaryTab.restored(from: "settings"), .settings)
         XCTAssertEqual(PhoneDexPrimaryTab.restored(from: "projects"), .projects)

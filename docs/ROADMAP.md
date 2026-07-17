@@ -839,6 +839,16 @@ semantics across views. `PhoneDexChatFilteringTests.testTaskAndReviewStatusCopyU
 covers the fallback contract. This is localization readiness only; translated
 catalogs and locale-specific real-device QA remain release gates.
 
+Privacy snapshot verification for the in-progress release-readiness slice:
+`PhoneDexApp` places a root-level privacy shield over the native shell whenever
+the scene is inactive or backgrounded. The shield uses generic copy, blocks
+interaction, and disables transitions at the lifecycle boundary so app-switcher
+and system snapshot capture cannot briefly reveal task text, paths, or review
+content. `PhoneDexSmokeTests.testPrivacyShieldCoversInactiveAndBackgroundSnapshots`
+covers the lifecycle policy. This is implementation protection only; release
+owner review of privacy disclosures and real-device snapshot behavior remains
+required.
+
 Performance verification for the in-progress release-readiness slice:
 `PhoneDexDiffTests.testFiveThousandLineReviewPathStaysWithinInteractiveOpenBudget`
 and `testWorstCaseFiveThousandLineReviewPathStaysWithinInteractiveOpenBudget`
