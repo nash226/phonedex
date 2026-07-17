@@ -126,6 +126,23 @@ final class PhoneDexLocalCacheTests: XCTestCase {
         }
     }
 
+    func testOversizedCacheFailsClosedBeforeReadingPayload() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("PhoneDexLocalCacheTests-\(UUID().uuidString)", isDirectory: true)
+        let fileURL = root.appendingPathComponent("cache.bin")
+        let keyStore = InMemoryCacheKeyStore()
+        let cache = PhoneDexEncryptedCache(fileURL: fileURL, keyStore: keyStore)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try Data(repeating: 0, count: PhoneDexEncryptedCache.maxEncryptedBytes + 1).write(to: fileURL)
+
+        XCTAssertThrowsError(try cache.load()) { error in
+            XCTAssertEqual(error as? PhoneDexCacheError, .invalidData)
+        }
+        XCTAssertNil(keyStore.key)
+    }
+
     func testCachedArtifactPolicyExpiresOldEntriesAndBoundsRecentStorage() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let old = PhoneDexCachedArtifact(

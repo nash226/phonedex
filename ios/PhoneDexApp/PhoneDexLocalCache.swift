@@ -256,6 +256,10 @@ protocol PhoneDexCacheKeyStoring {
 }
 
 struct PhoneDexEncryptedCache: PhoneDexCacheStoring {
+    /// Bounds native memory and disk work when recovering a damaged or stale cache.
+    /// The limit includes AES-GCM's combined nonce, ciphertext, and tag.
+    static let maxEncryptedBytes = 32 * 1024 * 1024
+
     private let fileURL: URL
     private let keyStore: any PhoneDexCacheKeyStoring
 
@@ -270,7 +274,16 @@ struct PhoneDexEncryptedCache: PhoneDexCacheStoring {
     func load() throws -> PhoneDexCachedState? {
         guard FileManager.default.fileExists(atPath: fileURL.path) else { return nil }
 
+        if let attributes = try? FileManager.default.attributesOfItem(atPath: fileURL.path),
+           let byteCount = attributes[.size] as? NSNumber,
+           byteCount.intValue > Self.maxEncryptedBytes {
+            throw PhoneDexCacheError.invalidData
+        }
+
         let encrypted = try Data(contentsOf: fileURL)
+        guard encrypted.count <= Self.maxEncryptedBytes else {
+            throw PhoneDexCacheError.invalidData
+        }
         let sealedBox: AES.GCM.SealedBox
         do {
             sealedBox = try AES.GCM.SealedBox(combined: encrypted)
@@ -312,6 +325,9 @@ struct PhoneDexEncryptedCache: PhoneDexCacheStoring {
         do {
             guard let combined = sealedBox.combined else {
                 throw PhoneDexCacheError.encryptionFailed
+            }
+            guard combined.count <= Self.maxEncryptedBytes else {
+                throw PhoneDexCacheError.sizeLimitExceeded
             }
             try combined.write(
                 to: fileURL,
@@ -420,6 +436,7 @@ enum PhoneDexCacheError: LocalizedError, Equatable {
     case invalidData
     case encryptionFailed
     case persistenceFailed
+    case sizeLimitExceeded
 
     var errorDescription: String? {
         switch self {
@@ -427,6 +444,8 @@ enum PhoneDexCacheError: LocalizedError, Equatable {
             return "Secure local cache storage is unavailable."
         case .invalidData, .encryptionFailed, .persistenceFailed:
             return "PhoneDex could not restore its local cache."
+        case .sizeLimitExceeded:
+            return "PhoneDex could not save its local cache because it is too large."
         }
     }
 }
