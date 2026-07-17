@@ -925,6 +925,13 @@ reconciliation now use deterministic duplicate-ID resolution instead of
 `PhoneDexBridgeClientTests` cover malformed duplicate records and keep the
 latest record without exposing partial state.
 
+The native workspace projection now rejects an empty task group before reading
+its first element. `PhoneDexSmokeTests.testEmptyProjectInputIsRejectedWithoutIndexingACollection`
+covers the malformed/empty projection boundary, while the app model drops any
+empty group before presenting Projects. This keeps cache or bridge data
+corruption from becoming an iOS index-out-of-range crash; crash-free session
+measurement and real-device validation remain release-owner gates.
+
 Deep-link privacy verification for the in-progress release-readiness slice:
 Unsupported `phonedex://` URLs now record only their scheme, host, and path in
 local diagnostics. Query values and user information are excluded so malformed

@@ -619,8 +619,8 @@ struct PhoneDexProject: Identifiable, Equatable {
     }
     var path: String? { paths.count == 1 ? paths[0] : nil }
 
-    init(tasks: [PhoneDexTask]) {
-        let first = tasks[0]
+    init?(tasks: [PhoneDexTask]) {
+        guard let first = tasks.first else { return nil }
         id = first.projectID
         name = first.displayWorkspace
         machineNames = Array(Set(tasks.map(\.displayMachine))).sorted {

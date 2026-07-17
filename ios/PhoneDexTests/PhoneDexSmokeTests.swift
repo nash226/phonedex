@@ -74,13 +74,17 @@ final class PhoneDexSmokeTests: XCTestCase {
 
         let projects = Dictionary(grouping: [first, second], by: \PhoneDexTask.projectID)
             .values
-            .map(PhoneDexProject.init(tasks:))
+            .compactMap(PhoneDexProject.init(tasks:))
 
         XCTAssertEqual(projects.count, 1)
         XCTAssertEqual(projects[0].machineNames, ["MacBook Pro", "Windows PC"])
         XCTAssertEqual(projects[0].deviceSummary, "2 devices")
         XCTAssertEqual(projects[0].paths.count, 2)
         XCTAssertEqual(projects[0].tasks.count, 2)
+    }
+
+    func testEmptyProjectInputIsRejectedWithoutIndexingACollection() {
+        XCTAssertNil(PhoneDexProject(tasks: []))
     }
 
     func testProjectsKeepDifferentWorkspaceNamesSeparate() throws {

@@ -140,7 +140,7 @@ final class PhoneDexChatFilteringTests: XCTestCase {
                 branch: "codex/sync-hardening",
                 repository: "nash226/phonedex"
             )
-        ])
+        ])!
 
         XCTAssertTrue(project.matchesSearch("Build Mac"))
         XCTAssertTrue(project.matchesSearch("/work/PhoneDex"))
@@ -150,8 +150,8 @@ final class PhoneDexChatFilteringTests: XCTestCase {
     }
 
     func testWorkspaceSearchTrimsWhitespaceAndPreservesProjectOrder() {
-        let first = PhoneDexProject(tasks: [task("first", status: "completed", cwd: "/work/Alpha")])
-        let second = PhoneDexProject(tasks: [task("second", status: "completed", cwd: "/work/Beta")])
+        let first = PhoneDexProject(tasks: [task("first", status: "completed", cwd: "/work/Alpha")])!
+        let second = PhoneDexProject(tasks: [task("second", status: "completed", cwd: "/work/Beta")])!
 
         XCTAssertEqual(
             PhoneDexProject.filtered([first, second], by: "  beta ").map(\.id),
