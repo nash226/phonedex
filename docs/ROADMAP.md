@@ -865,6 +865,15 @@ reconciliation now use deterministic duplicate-ID resolution instead of
 `PhoneDexBridgeClientTests` cover malformed duplicate records and keep the
 latest record without exposing partial state.
 
+Notification-action safety verification for the in-progress release-readiness
+slice: `PhoneDexNotificationReplyContext` validates notification routing
+metadata before any outbox write or bridge request. Missing task identity,
+non-positive or non-integer task versions, control characters, and oversized
+identifiers fail closed with refresh guidance instead of creating a command
+for an unknown task. `PhoneDexSmokeTests` covers valid trimming and malformed
+payloads. The notification content extension and action handler still require
+real-device validation before the combined M8 crash gate can be checked off.
+
 Deep-link privacy verification for the in-progress release-readiness slice:
 Unsupported `phonedex://` URLs now record only their scheme, host, and path in
 local diagnostics. Query values and user information are excluded so malformed

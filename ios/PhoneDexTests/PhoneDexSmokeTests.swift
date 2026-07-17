@@ -2,6 +2,34 @@ import XCTest
 @testable import PhoneDex
 
 final class PhoneDexSmokeTests: XCTestCase {
+    func testNotificationReplyContextRequiresBoundedTaskIdentityAndVersion() {
+        let context = PhoneDexNotificationReplyContext(userInfo: [
+            "taskId": " task_123 ",
+            "taskVersion": 7,
+            "sessionId": "session_123",
+            "machineName": "Build Mac"
+        ])
+
+        XCTAssertEqual(context?.taskId, "task_123")
+        XCTAssertEqual(context?.expectedTaskVersion, 7)
+        XCTAssertEqual(context?.sessionId, "session_123")
+        XCTAssertEqual(context?.machineName, "Build Mac")
+    }
+
+    func testMalformedNotificationReplyContextFailsClosed() {
+        XCTAssertNil(PhoneDexNotificationReplyContext(userInfo: ["taskVersion": 1]))
+        XCTAssertNil(PhoneDexNotificationReplyContext(userInfo: ["taskId": "task_123", "taskVersion": 0]))
+        XCTAssertNil(PhoneDexNotificationReplyContext(userInfo: ["taskId": "task_123", "taskVersion": "1"]))
+        XCTAssertNil(PhoneDexNotificationReplyContext(userInfo: [
+            "taskId": String(repeating: "x", count: 257),
+            "taskVersion": 1
+        ]))
+        XCTAssertNil(PhoneDexNotificationReplyContext(userInfo: [
+            "taskId": "task\n123",
+            "taskVersion": 1
+        ]))
+    }
+
     func testDeepLinkDiagnosticsExcludeCredentialsAndQueryValues() {
         let url = URL(string: "phonedex://configure?bridgeUrl=https%3A%2F%2Fbridge.test&token=secret")!
 
