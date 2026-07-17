@@ -198,7 +198,7 @@ struct PhoneDexDeviceDetailView: View {
     }
 
     private var visibleTasks: [PhoneDexTask] {
-        model.tasks.filter { $0.displayMachine == device.displayName }
+        model.tasks.filter(device.owns)
     }
 
     private var deviceRoleAndPlatform: String {

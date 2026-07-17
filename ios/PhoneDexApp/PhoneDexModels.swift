@@ -864,6 +864,20 @@ struct PhoneDexDevice: Codable, Identifiable, Equatable {
         return machineName
     }
 
+    /// Matches synced work to this device without conflating same-named machines.
+    /// Older task records may not have a device identity, so they retain a
+    /// bounded machine-name fallback when both sides have a real name.
+    func owns(_ task: PhoneDexTask) -> Bool {
+        if let taskDeviceId = task.deviceId, !taskDeviceId.isEmpty {
+            return taskDeviceId == deviceId
+        }
+        guard let machineName, !machineName.isEmpty,
+              let taskMachineName = task.machineName, !taskMachineName.isEmpty else {
+            return false
+        }
+        return taskMachineName == machineName
+    }
+
     var isOnline: Bool { status == "online" }
 
     func supportsCapability(_ capability: String) -> Bool {
