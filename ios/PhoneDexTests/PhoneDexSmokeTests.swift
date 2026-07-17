@@ -116,6 +116,26 @@ final class PhoneDexSmokeTests: XCTestCase {
         XCTAssertNil(PhoneDexProject(tasks: []))
     }
 
+    func testSyncDecoderRejectsUnknownRecordKindsWithoutAdvancingState() throws {
+        let data = Data("""
+        {
+          "position": 42,
+          "kind": "future_record",
+          "id": "future_1",
+          "deleted": false,
+          "record": {"id": "future_1"}
+        }
+        """.utf8)
+
+        XCTAssertThrowsError(try JSONDecoder().decode(PhoneDexSyncChange.self, from: data)) { error in
+            guard case let DecodingError.dataCorrupted(context) = error else {
+                return XCTFail("Expected an explicit compatibility decoding error, got \(error)")
+            }
+            XCTAssertTrue(context.debugDescription.contains("unsupported record kind"))
+            XCTAssertTrue(context.debugDescription.contains("future_record"))
+        }
+    }
+
     func testProjectsKeepDifferentWorkspaceNamesSeparate() throws {
         let first = try decodeTask(
             id: "task_phonedex",
