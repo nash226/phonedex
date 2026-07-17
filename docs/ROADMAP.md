@@ -1048,9 +1048,9 @@ Verification evidence for the acceptance-evidence contract:
 `lib/phonedex-acceptance.js` defines the bounded
 `phonedex.acceptance-evidence.v1` report for all 15 product acceptance
 scenarios. `scripts/acceptance-evidence.js` rejects missing, duplicate,
-unknown, stale, future-dated, and unsupported-platform records, while
-`scripts/test-acceptance-evidence.js` covers a complete report and the main
-failure paths. The contract is intentionally content-free and reports
+unknown, stale, future-dated, unsupported-platform, and oversized reports,
+while `scripts/test-acceptance-evidence.js` covers a complete report and the
+main failure paths. The contract is intentionally content-free and reports
 evidence readiness only; real-device execution and release-owner decisions
 remain open M8 gates.
 
