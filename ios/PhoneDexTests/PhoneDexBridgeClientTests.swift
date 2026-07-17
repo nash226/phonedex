@@ -672,6 +672,41 @@ final class PhoneDexBridgeClientTests: XCTestCase {
             }
         }
     }
+
+    func testSyncPageRejectsOversizedResponseBeforeDecoding() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [URLProtocolStub.self]
+        let session = URLSession(configuration: configuration)
+        URLProtocolStub.handler = { request in
+            (
+                HTTPURLResponse(
+                    url: try XCTUnwrap(request.url),
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: ["content-type": "application/json"]
+                )!,
+                Data(repeating: 0x20, count: PhoneDexBridgeClient.structuredResponseLimit + 1)
+            )
+        }
+
+        do {
+            _ = try await PhoneDexBridgeClient(
+                bridgeURL: URL(string: "http://bridge.test")!,
+                token: "secret",
+                session: session
+            ).fetchSyncPage()
+            XCTFail("Expected oversized response rejection")
+        } catch let error as PhoneDexBridgeClientError {
+            guard case .responseTooLarge(let maxBytes) = error else {
+                return XCTFail("Unexpected bridge error: \(error)")
+            }
+            XCTAssertEqual(maxBytes, PhoneDexBridgeClient.structuredResponseLimit)
+        }
+    }
+
+    func testArtifactResponseLimitMatchesEncryptedCacheBudget() {
+        XCTAssertEqual(PhoneDexBridgeClient.artifactResponseLimit, 25 * 1024 * 1024)
+    }
 }
 
 private extension InputStream {

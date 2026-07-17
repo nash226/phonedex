@@ -917,6 +917,16 @@ shape; persistence, tamper rejection, retention bounds, and Keychain behavior
 remain covered by the existing cache tests. This is simulator evidence only;
 real-device cache and crash-free validation remain release-owner gates.
 
+Native response-bound verification for the in-progress release-readiness
+slice: `PhoneDexBridgeClient` rejects structured responses larger than 2 MiB,
+legacy task responses larger than 4 MiB, and artifact responses larger than the
+encrypted local artifact budget of 25 MiB before decoding or sharing them.
+`PhoneDexBridgeClientTests` covers the sync rejection and keeps the artifact
+limit aligned with `PhoneDexCachedArtifactPolicy`. The caps bound native
+decoding and sharing behavior without claiming that `URLSession` never
+allocates transport bytes; hub-side pagination and artifact limits remain the
+primary defense, and real-device memory profiling remains a release gate.
+
 Verification evidence for the completed migration and recovery slice:
 `scripts/test-recovery.js` exercises legacy JSONL import, current-schema
 upgrade, transactional-backup rollback after a failed migration, rejection of
