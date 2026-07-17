@@ -1,5 +1,58 @@
 import Foundation
 
+enum PhoneDexNativeDecodeBounds {
+    static let id = 160
+    static let title = 240
+    static let taskText = 10_000
+    static let path = 400
+    static let workspaceName = 240
+    static let machineName = 160
+    static let source = 80
+    static let status = 64
+    static let branch = 240
+    static let repository = 400
+    static let message = 1_000
+    static let questionPrompt = 2_000
+    static let questionChoices = 32
+    static let captureSources = 16
+    static let lifecycleCapabilities = 32
+    static let evidenceItems = 100
+    static let patch = 600_000
+    static let eventData = 32
+    static let eventDataValue = 1_000
+    static let syncPageItems = 100
+
+    static func string(
+        _ value: String?,
+        maxLength: Int,
+        key: String,
+        decoder: Decoder
+    ) throws -> String? {
+        guard let value else { return nil }
+        guard value.count <= maxLength else {
+            throw DecodingError.dataCorrupted(.init(
+                codingPath: decoder.codingPath,
+                debugDescription: "\(key) exceeds the native display limit of \(maxLength) characters"
+            ))
+        }
+        return value
+    }
+
+    static func count(
+        _ value: Int,
+        max: Int,
+        key: String,
+        decoder: Decoder
+    ) throws {
+        guard value <= max else {
+            throw DecodingError.dataCorrupted(.init(
+                codingPath: decoder.codingPath,
+                debugDescription: "\(key) exceeds the native display limit of \(max) items"
+            ))
+        }
+    }
+}
+
 struct PhoneDexTask: Codable, Identifiable, Equatable {
     let id: String
     let at: String?
@@ -31,27 +84,34 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(String.self, forKey: .id)
+        id = try PhoneDexNativeDecodeBounds.string(
+            try container.decode(String.self, forKey: .id),
+            maxLength: PhoneDexNativeDecodeBounds.id,
+            key: "task.id",
+            decoder: decoder
+        )!
         at = try container.decodeIfPresent(String.self, forKey: .at)
         createdAt = try container.decodeIfPresent(String.self, forKey: .createdAt)
         updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt)
         version = try container.decodeIfPresent(Int.self, forKey: .version)
-        source = try container.decodeIfPresent(String.self, forKey: .source)
-        title = try container.decodeIfPresent(String.self, forKey: .title) ?? "Codex task"
-        text = try container.decodeIfPresent(String.self, forKey: .text) ?? ""
-        cwd = try container.decodeIfPresent(String.self, forKey: .cwd)
-        workspaceName = try container.decodeIfPresent(String.self, forKey: .workspaceName)
-        machineName = try container.decodeIfPresent(String.self, forKey: .machineName)
-        deviceId = try container.decodeIfPresent(String.self, forKey: .deviceId)
-        sessionId = try container.decodeIfPresent(String.self, forKey: .sessionId)
-        status = try container.decodeIfPresent(String.self, forKey: .status)
-        branch = try container.decodeIfPresent(String.self, forKey: .branch)
-        repository = try container.decodeIfPresent(String.self, forKey: .repository)
+        source = try PhoneDexNativeDecodeBounds.string(container.decodeIfPresent(String.self, forKey: .source), maxLength: PhoneDexNativeDecodeBounds.source, key: "task.source", decoder: decoder)
+        title = try PhoneDexNativeDecodeBounds.string(container.decodeIfPresent(String.self, forKey: .title), maxLength: PhoneDexNativeDecodeBounds.title, key: "task.title", decoder: decoder) ?? "Codex task"
+        text = try PhoneDexNativeDecodeBounds.string(container.decodeIfPresent(String.self, forKey: .text), maxLength: PhoneDexNativeDecodeBounds.taskText, key: "task.text", decoder: decoder) ?? ""
+        cwd = try PhoneDexNativeDecodeBounds.string(container.decodeIfPresent(String.self, forKey: .cwd), maxLength: PhoneDexNativeDecodeBounds.path, key: "task.cwd", decoder: decoder)
+        workspaceName = try PhoneDexNativeDecodeBounds.string(container.decodeIfPresent(String.self, forKey: .workspaceName), maxLength: PhoneDexNativeDecodeBounds.workspaceName, key: "task.workspaceName", decoder: decoder)
+        machineName = try PhoneDexNativeDecodeBounds.string(container.decodeIfPresent(String.self, forKey: .machineName), maxLength: PhoneDexNativeDecodeBounds.machineName, key: "task.machineName", decoder: decoder)
+        deviceId = try PhoneDexNativeDecodeBounds.string(container.decodeIfPresent(String.self, forKey: .deviceId), maxLength: PhoneDexNativeDecodeBounds.id, key: "task.deviceId", decoder: decoder)
+        sessionId = try PhoneDexNativeDecodeBounds.string(container.decodeIfPresent(String.self, forKey: .sessionId), maxLength: PhoneDexNativeDecodeBounds.id, key: "task.sessionId", decoder: decoder)
+        status = try PhoneDexNativeDecodeBounds.string(container.decodeIfPresent(String.self, forKey: .status), maxLength: PhoneDexNativeDecodeBounds.status, key: "task.status", decoder: decoder)
+        branch = try PhoneDexNativeDecodeBounds.string(container.decodeIfPresent(String.self, forKey: .branch), maxLength: PhoneDexNativeDecodeBounds.branch, key: "task.branch", decoder: decoder)
+        repository = try PhoneDexNativeDecodeBounds.string(container.decodeIfPresent(String.self, forKey: .repository), maxLength: PhoneDexNativeDecodeBounds.repository, key: "task.repository", decoder: decoder)
         question = try container.decodeIfPresent(PhoneDexTaskQuestion.self, forKey: .question)
         approvalRequest = try container.decodeIfPresent(PhoneDexApprovalRequest.self, forKey: .approvalRequest)
         captureSources = try container.decodeIfPresent([PhoneDexCaptureSource].self, forKey: .captureSources) ?? []
+        try PhoneDexNativeDecodeBounds.count(captureSources.count, max: PhoneDexNativeDecodeBounds.captureSources, key: "task.captureSources", decoder: decoder)
         evidence = try container.decodeIfPresent(PhoneDexTaskEvidence.self, forKey: .evidence)
         lifecycleCapabilities = try container.decodeIfPresent([String].self, forKey: .lifecycleCapabilities) ?? []
+        try PhoneDexNativeDecodeBounds.count(lifecycleCapabilities.count, max: PhoneDexNativeDecodeBounds.lifecycleCapabilities, key: "task.lifecycleCapabilities", decoder: decoder)
     }
 
     init(
@@ -330,6 +390,24 @@ struct PhoneDexTaskQuestion: Codable, Equatable {
     let prompt: String
     let choices: [PhoneDexTaskQuestionChoice]
     let allowsFreeText: Bool
+
+    init(id: String, prompt: String, choices: [PhoneDexTaskQuestionChoice], allowsFreeText: Bool) {
+        self.id = id
+        self.prompt = prompt
+        self.choices = choices
+        self.allowsFreeText = allowsFreeText
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try PhoneDexNativeDecodeBounds.string(container.decode(String.self, forKey: .id), maxLength: PhoneDexNativeDecodeBounds.id, key: "question.id", decoder: decoder)!
+        prompt = try PhoneDexNativeDecodeBounds.string(container.decode(String.self, forKey: .prompt), maxLength: PhoneDexNativeDecodeBounds.questionPrompt, key: "question.prompt", decoder: decoder)!
+        choices = try container.decode([PhoneDexTaskQuestionChoice].self, forKey: .choices)
+        try PhoneDexNativeDecodeBounds.count(choices.count, max: PhoneDexNativeDecodeBounds.questionChoices, key: "question.choices", decoder: decoder)
+        allowsFreeText = try container.decode(Bool.self, forKey: .allowsFreeText)
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, prompt, choices, allowsFreeText }
 }
 
 struct PhoneDexTaskQuestionChoice: Codable, Equatable, Identifiable {
@@ -424,6 +502,18 @@ struct PhoneDexTaskEvidence: Codable, Equatable {
     let artifacts: [PhoneDexArtifact]
     let validations: [PhoneDexValidationReceipt]
 
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        changedFiles = try container.decodeIfPresent([PhoneDexChangedFile].self, forKey: .changedFiles) ?? []
+        artifacts = try container.decodeIfPresent([PhoneDexArtifact].self, forKey: .artifacts) ?? []
+        validations = try container.decodeIfPresent([PhoneDexValidationReceipt].self, forKey: .validations) ?? []
+        try PhoneDexNativeDecodeBounds.count(changedFiles.count, max: PhoneDexNativeDecodeBounds.evidenceItems, key: "evidence.changedFiles", decoder: decoder)
+        try PhoneDexNativeDecodeBounds.count(artifacts.count, max: PhoneDexNativeDecodeBounds.evidenceItems, key: "evidence.artifacts", decoder: decoder)
+        try PhoneDexNativeDecodeBounds.count(validations.count, max: PhoneDexNativeDecodeBounds.evidenceItems, key: "evidence.validations", decoder: decoder)
+    }
+
+    private enum CodingKeys: String, CodingKey { case changedFiles, artifacts, validations }
+
     init(
         changedFiles: [PhoneDexChangedFile] = [],
         artifacts: [PhoneDexArtifact] = [],
@@ -452,6 +542,40 @@ struct PhoneDexChangedFile: Codable, Equatable, Identifiable {
     let deletions: Int?
     let patch: String?
     let patchTruncated: Bool?
+
+    init(
+        path: String,
+        status: String,
+        sourceRef: String? = nil,
+        summary: String? = nil,
+        additions: Int? = nil,
+        deletions: Int? = nil,
+        patch: String? = nil,
+        patchTruncated: Bool? = nil
+    ) {
+        self.path = path
+        self.status = status
+        self.sourceRef = sourceRef
+        self.summary = summary
+        self.additions = additions
+        self.deletions = deletions
+        self.patch = patch
+        self.patchTruncated = patchTruncated
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        path = try PhoneDexNativeDecodeBounds.string(container.decode(String.self, forKey: .path), maxLength: PhoneDexNativeDecodeBounds.path, key: "changedFile.path", decoder: decoder)!
+        status = try PhoneDexNativeDecodeBounds.string(container.decode(String.self, forKey: .status), maxLength: PhoneDexNativeDecodeBounds.status, key: "changedFile.status", decoder: decoder)!
+        sourceRef = try PhoneDexNativeDecodeBounds.string(container.decodeIfPresent(String.self, forKey: .sourceRef), maxLength: PhoneDexNativeDecodeBounds.path, key: "changedFile.sourceRef", decoder: decoder)
+        summary = try PhoneDexNativeDecodeBounds.string(container.decodeIfPresent(String.self, forKey: .summary), maxLength: 600, key: "changedFile.summary", decoder: decoder)
+        additions = try container.decodeIfPresent(Int.self, forKey: .additions)
+        deletions = try container.decodeIfPresent(Int.self, forKey: .deletions)
+        patch = try PhoneDexNativeDecodeBounds.string(container.decodeIfPresent(String.self, forKey: .patch), maxLength: PhoneDexNativeDecodeBounds.patch, key: "changedFile.patch", decoder: decoder)
+        patchTruncated = try container.decodeIfPresent(Bool.self, forKey: .patchTruncated)
+    }
+
+    private enum CodingKeys: String, CodingKey { case path, status, sourceRef, summary, additions, deletions, patch, patchTruncated }
 
     var id: String { path }
 
@@ -597,8 +721,13 @@ struct PhoneDexEvent: Codable, Equatable, Identifiable {
         taskId = try container.decode(String.self, forKey: .taskId)
         createdAt = try container.decode(String.self, forKey: .createdAt)
         sequence = try container.decode(Int.self, forKey: .sequence)
-        type = try container.decode(String.self, forKey: .type)
+        type = try PhoneDexNativeDecodeBounds.string(container.decode(String.self, forKey: .type), maxLength: PhoneDexNativeDecodeBounds.status, key: "event.type", decoder: decoder)!
         data = try container.decodeIfPresent([String: String].self, forKey: .data) ?? [:]
+        try PhoneDexNativeDecodeBounds.count(data.count, max: PhoneDexNativeDecodeBounds.eventData, key: "event.data", decoder: decoder)
+        for (key, value) in data {
+            try PhoneDexNativeDecodeBounds.string(key, maxLength: PhoneDexNativeDecodeBounds.id, key: "event.data.key", decoder: decoder)
+            try PhoneDexNativeDecodeBounds.string(value, maxLength: PhoneDexNativeDecodeBounds.eventDataValue, key: "event.data.value", decoder: decoder)
+        }
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -973,6 +1102,9 @@ struct PhoneDexSyncSnapshot: Decodable {
         tasks = try container.decodeIfPresent([PhoneDexTask].self, forKey: .tasks) ?? []
         devices = try container.decodeIfPresent([PhoneDexDevice].self, forKey: .devices) ?? []
         events = try container.decodeIfPresent([PhoneDexEvent].self, forKey: .events) ?? []
+        try PhoneDexNativeDecodeBounds.count(tasks.count, max: PhoneDexNativeDecodeBounds.syncPageItems, key: "sync.tasks", decoder: decoder)
+        try PhoneDexNativeDecodeBounds.count(devices.count, max: PhoneDexNativeDecodeBounds.syncPageItems, key: "sync.devices", decoder: decoder)
+        try PhoneDexNativeDecodeBounds.count(events.count, max: PhoneDexNativeDecodeBounds.syncPageItems, key: "sync.events", decoder: decoder)
     }
 }
 

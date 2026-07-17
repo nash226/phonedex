@@ -1023,6 +1023,17 @@ matches. `PhoneDexChatFilteringTests` covers machine, path, branch, task
 context, whitespace, and ordering behavior; no server-side history or private
 Codex API is introduced.
 
+Native model-boundary verification evidence: `PhoneDexNativeDecodeBounds` keeps
+synced task metadata, question choices, capture sources, lifecycle capabilities,
+evidence collections, patches, event payloads, and snapshot pages within the
+same limits enforced by the local bridge contracts. `PhoneDexTaskEvidence`,
+`PhoneDexChangedFile`, `PhoneDexTaskQuestion`, `PhoneDexEvent`, and
+`PhoneDexSyncSnapshot` fail closed with a decoding error when malformed cache or
+hub data exceeds those limits instead of allowing unbounded native display or
+review work. `PhoneDexSmokeTests` covers overlong task text, oversized patches,
+and oversized evidence collections. This bounds native decoding without
+truncating source-linked review content or changing the local-first transport.
+
 Verification evidence for the bounded live-progress presentation slice:
 `PhoneDexAppModel.latestEvent(for:)` selects the highest-sequence structured
 lifecycle event for a task, and the native Chats row presents its bounded

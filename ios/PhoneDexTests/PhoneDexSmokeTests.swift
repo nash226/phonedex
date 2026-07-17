@@ -58,6 +58,35 @@ final class PhoneDexSmokeTests: XCTestCase {
         XCTAssertEqual(task.sessionId, "session_smoke")
     }
 
+    func testTaskDecoderRejectsOverlongDisplayText() {
+        let data = Data("""
+        {"id":"task_large","text":"\(String(repeating: "x", count: PhoneDexNativeDecodeBounds.taskText + 1))"}
+        """.utf8)
+
+        XCTAssertThrowsError(try JSONDecoder().decode(PhoneDexTask.self, from: data)) { error in
+            guard case DecodingError.dataCorrupted = error else {
+                return XCTFail("Expected a bounded native decoding error, got \(error)")
+            }
+        }
+    }
+
+    func testEvidenceDecoderRejectsOversizedPatchAndCollections() throws {
+        let oversizedPatch = String(repeating: "+line\n", count: PhoneDexNativeDecodeBounds.patch / 6 + 1)
+        let oversizedPatchPayload: [String: Any] = [
+            "changedFiles": [["path": "Sources/App.swift", "status": "modified", "patch": oversizedPatch]]
+        ]
+        let oversizedPatchData = try JSONSerialization.data(withJSONObject: oversizedPatchPayload)
+        XCTAssertThrowsError(try JSONDecoder().decode(PhoneDexTaskEvidence.self, from: oversizedPatchData))
+
+        let oversizedCollectionPayload: [String: Any] = [
+            "validations": (0...PhoneDexNativeDecodeBounds.evidenceItems).map { index in
+                ["id": "validation_\(index)", "name": "Tests", "status": "passed"]
+            }
+        ]
+        let oversizedCollectionData = try JSONSerialization.data(withJSONObject: oversizedCollectionPayload)
+        XCTAssertThrowsError(try JSONDecoder().decode(PhoneDexTaskEvidence.self, from: oversizedCollectionData))
+    }
+
     func testProjectsCombineMatchingNamesAcrossDevices() throws {
         let first = try decodeTask(
             id: "task_mac",
