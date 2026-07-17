@@ -420,6 +420,14 @@ build and the scheme's unit/UI test action. On 2026-07-15, Xcode 26.3 passed
 the two UI tests and the full scheme test action on an iPhone 17 iOS 26.3.1
 simulator without signing credentials.
 
+Verification evidence for the device attribution reliability slice:
+`PhoneDexDevice.owns(_:)` matches tasks with a stable `deviceId` before using a
+non-empty machine-name fallback for legacy records. Native device detail no
+longer groups same-named Mac and Windows agents together, and records without
+either identity are excluded rather than being assigned to every “Unknown
+device”. `PhoneDexDiagnosticsTests` covers same-name collision, identity match,
+and the legacy fallback boundary.
+
 ## M4: Supported Codex Control Adapters
 
 Status: **Current**

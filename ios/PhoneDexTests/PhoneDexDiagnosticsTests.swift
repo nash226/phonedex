@@ -106,6 +106,62 @@ final class PhoneDexDiagnosticsTests: XCTestCase {
         XCTAssertTrue(device.capabilityDetails[1].isActionable)
     }
 
+    func testDeviceTaskAttributionPrefersStableIdentityOverDisplayName() {
+        let device = makeDevice(status: "online")
+        let sameNameOtherDevice = PhoneDexTask(
+            id: "other-task",
+            at: "2026-07-15T12:00:00Z",
+            source: "remote-agent",
+            title: "Other machine",
+            text: "Done",
+            cwd: "/workspace/other",
+            workspaceName: "Other",
+            machineName: device.machineName,
+            sessionId: "other-session",
+            status: "completed",
+            branch: nil,
+            repository: nil,
+            deviceId: "other-device"
+        )
+        let matchingTask = PhoneDexTask(
+            id: "matching-task",
+            at: "2026-07-15T12:00:00Z",
+            source: "remote-agent",
+            title: "Matching machine",
+            text: "Done",
+            cwd: "/workspace/matching",
+            workspaceName: "Matching",
+            machineName: device.machineName,
+            sessionId: "matching-session",
+            status: "completed",
+            branch: nil,
+            repository: nil,
+            deviceId: device.deviceId
+        )
+
+        XCTAssertFalse(device.owns(sameNameOtherDevice))
+        XCTAssertTrue(device.owns(matchingTask))
+    }
+
+    func testLegacyTaskAttributionRequiresNonEmptyMachineIdentity() {
+        let device = makeDevice(status: "online")
+        let legacyTask = makeTask(id: "legacy", status: "completed", at: "2026-07-15T12:00:00Z")
+        let unknownDevice = PhoneDexDevice(
+            deviceId: "unknown-device",
+            machineName: nil,
+            platform: "windows",
+            role: "agent",
+            status: "online",
+            lastSeenAt: nil,
+            version: nil,
+            publicUrl: nil,
+            expected: nil
+        )
+
+        XCTAssertTrue(device.owns(legacyTask))
+        XCTAssertFalse(unknownDevice.owns(legacyTask))
+    }
+
     func testTaskControlsExplainMissingCapabilityWithoutAdvertisingUnsupportedActions() {
         let task = PhoneDexTask(
             id: "running",
