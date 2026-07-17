@@ -128,6 +128,38 @@ final class PhoneDexChatFilteringTests: XCTestCase {
         XCTAssertEqual(conversations.count, 2)
     }
 
+    func testWorkspaceSearchCoversMachinePathAndCachedTaskContext() {
+        let project = PhoneDexProject(tasks: [
+            task(
+                "workspace-task",
+                status: "completed",
+                title: "Review sync boundary",
+                text: "The iOS reconciliation tests passed.",
+                cwd: "/work/PhoneDex",
+                machineName: "Build Mac",
+                branch: "codex/sync-hardening",
+                repository: "nash226/phonedex"
+            )
+        ])
+
+        XCTAssertTrue(project.matchesSearch("Build Mac"))
+        XCTAssertTrue(project.matchesSearch("/work/PhoneDex"))
+        XCTAssertTrue(project.matchesSearch("sync-hardening"))
+        XCTAssertTrue(project.matchesSearch("reconciliation tests"))
+        XCTAssertFalse(project.matchesSearch("unrelated workspace"))
+    }
+
+    func testWorkspaceSearchTrimsWhitespaceAndPreservesProjectOrder() {
+        let first = PhoneDexProject(tasks: [task("first", status: "completed", cwd: "/work/Alpha")])
+        let second = PhoneDexProject(tasks: [task("second", status: "completed", cwd: "/work/Beta")])
+
+        XCTAssertEqual(
+            PhoneDexProject.filtered([first, second], by: "  beta ").map(\.id),
+            [second.id]
+        )
+        XCTAssertEqual(PhoneDexProject.filtered([first, second], by: "   ").map(\.id), [first.id, second.id])
+    }
+
     private func task(
         _ id: String,
         status: String?,
