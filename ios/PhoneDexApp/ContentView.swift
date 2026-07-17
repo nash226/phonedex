@@ -1824,7 +1824,7 @@ private struct PhoneDexArtifactLibraryView: View {
             do {
                 _ = try await model.downloadArtifact(item.artifact)
             } catch {
-                errorMessage = error.localizedDescription
+                errorMessage = error.phoneDexSafeMessage
             }
             downloadingID = nil
         }
@@ -2006,7 +2006,7 @@ private struct PhoneDexSettingsView: View {
                                 let allowed = try await PhoneDexNotificationScheduler.requestAuthorization()
                                 notificationStatus = allowed ? "Notifications are enabled." : "Notifications are disabled."
                             } catch {
-                                notificationStatus = error.localizedDescription
+                                notificationStatus = error.phoneDexSafeMessage
                             }
                         }
                     }
@@ -2115,7 +2115,7 @@ private struct PhoneDexSettingsView: View {
             )
             notificationStatus = "Notification scheduled."
         } catch {
-            notificationStatus = error.localizedDescription
+            notificationStatus = error.phoneDexSafeMessage
         }
     }
 
@@ -2142,7 +2142,7 @@ private struct PhoneDexSettingsView: View {
             pairingStatus = "Paired as \(response.identity.name)."
             await model.refresh()
         } catch {
-            pairingStatus = error.localizedDescription
+            pairingStatus = error.phoneDexSafeMessage
         }
     }
 
@@ -2153,7 +2153,7 @@ private struct PhoneDexSettingsView: View {
             _ = try await model.fetchDiagnostics()
             diagnosticsStatus = "Diagnostics refreshed."
         } catch {
-            diagnosticsStatus = error.localizedDescription
+            diagnosticsStatus = error.phoneDexSafeMessage
         }
     }
 }
