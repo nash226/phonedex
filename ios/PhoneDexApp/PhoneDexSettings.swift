@@ -1,5 +1,28 @@
 import Foundation
 
+struct PhoneDexReleaseIdentity: Equatable {
+    let version: String
+    let build: String
+
+    var displayValue: String {
+        build.isEmpty ? version : "\(version) (\(build))"
+    }
+
+    init(version: String?, build: String?) {
+        let normalizedVersion = version?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let normalizedBuild = build?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        self.version = normalizedVersion.isEmpty ? "Development" : normalizedVersion
+        self.build = normalizedBuild
+    }
+
+    init(bundle: Bundle) {
+        self.init(
+            version: bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
+            build: bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+        )
+    }
+}
+
 @MainActor
 final class PhoneDexSettings: ObservableObject {
     @Published var bridgeURL: String {

@@ -4,6 +4,22 @@ import Security
 
 @MainActor
 final class PhoneDexSettingsTests: XCTestCase {
+    func testReleaseIdentityDisplaysVersionAndBuild() {
+        let identity = PhoneDexReleaseIdentity(version: "1.2.3", build: "42")
+
+        XCTAssertEqual(identity.version, "1.2.3")
+        XCTAssertEqual(identity.build, "42")
+        XCTAssertEqual(identity.displayValue, "1.2.3 (42)")
+    }
+
+    func testReleaseIdentityUsesSafeFallbacksForMissingBundleValues() {
+        let identity = PhoneDexReleaseIdentity(version: " ", build: nil)
+
+        XCTAssertEqual(identity.version, "Development")
+        XCTAssertEqual(identity.build, "")
+        XCTAssertEqual(identity.displayValue, "Development")
+    }
+
     func testLegacyUserDefaultsTokenMigratesToSecureStoreAndIsRemoved() throws {
         let defaults = try makeDefaults()
         defaults.set("legacy-secret", forKey: "phonedex.token")

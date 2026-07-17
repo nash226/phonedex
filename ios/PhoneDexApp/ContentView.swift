@@ -2067,7 +2067,7 @@ private struct PhoneDexSettingsView: View {
                 }
 
                 Section("About") {
-                    LabeledContent("Version", value: "0.1 development")
+                    LabeledContent("Version", value: PhoneDexReleaseIdentity(bundle: .main).displayValue)
                     if let projectURL = URL(string: "https://github.com/nash226/phonedex") {
                         Link("PhoneDex on GitHub", destination: projectURL)
                     }
