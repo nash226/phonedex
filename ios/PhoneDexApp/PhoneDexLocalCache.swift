@@ -18,9 +18,10 @@ struct PhoneDexCachedState: Codable, Equatable {
     let pendingReplies: [PhoneDexPendingReply]
     let replyReceipts: [PhoneDexReplyDeliveryRecord]
     let handledNotificationResponses: [String: Date]
+    let cachedArtifacts: [PhoneDexCachedArtifact]
 
     private enum CodingKeys: String, CodingKey {
-        case schema, version, cursor, tasks, devices, events, lastSyncAt, drafts, readingPositions, pendingReplies, replyReceipts, handledNotificationResponses
+        case schema, version, cursor, tasks, devices, events, lastSyncAt, drafts, readingPositions, pendingReplies, replyReceipts, handledNotificationResponses, cachedArtifacts
     }
 
     init(
@@ -34,6 +35,7 @@ struct PhoneDexCachedState: Codable, Equatable {
         pendingReplies: [PhoneDexPendingReply] = [],
         replyReceipts: [PhoneDexReplyDeliveryRecord] = [],
         handledNotificationResponses: [String: Date] = [:],
+        cachedArtifacts: [PhoneDexCachedArtifact] = [],
         schema: String = PhoneDexCachedState.currentSchema,
         version: Int = PhoneDexCachedState.currentVersion
     ) {
@@ -49,6 +51,7 @@ struct PhoneDexCachedState: Codable, Equatable {
         self.pendingReplies = pendingReplies
         self.replyReceipts = replyReceipts
         self.handledNotificationResponses = handledNotificationResponses
+        self.cachedArtifacts = cachedArtifacts
     }
 
     init(from decoder: Decoder) throws {
@@ -65,6 +68,7 @@ struct PhoneDexCachedState: Codable, Equatable {
         pendingReplies = try container.decodeIfPresent([PhoneDexPendingReply].self, forKey: .pendingReplies) ?? []
         replyReceipts = try container.decodeIfPresent([PhoneDexReplyDeliveryRecord].self, forKey: .replyReceipts) ?? []
         handledNotificationResponses = try container.decodeIfPresent([String: Date].self, forKey: .handledNotificationResponses) ?? [:]
+        cachedArtifacts = try container.decodeIfPresent([PhoneDexCachedArtifact].self, forKey: .cachedArtifacts) ?? []
     }
 
     func encode(to encoder: Encoder) throws {
@@ -81,6 +85,35 @@ struct PhoneDexCachedState: Codable, Equatable {
         try container.encode(pendingReplies, forKey: .pendingReplies)
         try container.encode(replyReceipts, forKey: .replyReceipts)
         try container.encode(handledNotificationResponses, forKey: .handledNotificationResponses)
+        try container.encode(cachedArtifacts, forKey: .cachedArtifacts)
+    }
+}
+
+struct PhoneDexCachedArtifact: Codable, Equatable, Identifiable {
+    let id: String
+    let name: String
+    let mediaType: String?
+    let data: Data
+    let downloadedAt: Date
+
+    var byteCount: Int { data.count }
+}
+
+enum PhoneDexCachedArtifactPolicy {
+    static let retention: TimeInterval = 30 * 24 * 60 * 60
+    static let limit = 20
+    static let bytesLimit = 25 * 1024 * 1024
+
+    static func prune(_ artifacts: [PhoneDexCachedArtifact], now: Date) -> [PhoneDexCachedArtifact] {
+        let recent = artifacts.filter { now.timeIntervalSince($0.downloadedAt) < retention }
+        var retained = [PhoneDexCachedArtifact]()
+        var totalBytes = 0
+        for artifact in recent.sorted(by: { $0.downloadedAt > $1.downloadedAt }) where retained.count < limit {
+            guard totalBytes + artifact.byteCount <= bytesLimit else { continue }
+            retained.append(artifact)
+            totalBytes += artifact.byteCount
+        }
+        return retained
     }
 }
 

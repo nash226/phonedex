@@ -1633,7 +1633,6 @@ private struct PhoneDexArtifactLibraryView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var searchText = ""
     @State private var selectedMachine: String?
-    @State private var downloaded: [String: Data] = [:]
     @State private var downloadingID: String?
     @State private var errorMessage: String?
 
@@ -1720,7 +1719,7 @@ private struct PhoneDexArtifactLibraryView: View {
             Label("\(item.workspaceName) · \(item.machineName)", systemImage: "desktopcomputer")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
-            if let data = downloaded[item.id] {
+            if let data = model.cachedArtifactData(for: artifact) {
                 ShareLink(item: data, preview: SharePreview(artifact.name)) {
                     Label("Share verified download", systemImage: "square.and.arrow.up")
                 }
@@ -1749,7 +1748,7 @@ private struct PhoneDexArtifactLibraryView: View {
         downloadingID = item.id
         Task {
             do {
-                downloaded[item.id] = try await model.downloadArtifact(item.artifact)
+                _ = try await model.downloadArtifact(item.artifact)
             } catch {
                 errorMessage = error.localizedDescription
             }
@@ -1819,6 +1818,7 @@ private struct PhoneDexSettingsView: View {
     @State private var isPairing = false
     @State private var diagnosticsStatus = ""
     @State private var isLoadingDiagnostics = false
+    @State private var showingClearArtifactConfirmation = false
 
     init(model: PhoneDexAppModel) {
         self.model = model
@@ -1958,6 +1958,19 @@ private struct PhoneDexSettingsView: View {
                     Text("Diagnostics include component health, protocol versions, capabilities, and aggregate request metrics only. They never include task text, paths, credentials, or artifact bytes.")
                 }
 
+                Section {
+                    LabeledContent("Saved downloads", value: "\(model.cachedArtifacts.count)")
+                    LabeledContent("Storage used", value: ByteCountFormatter.string(fromByteCount: Int64(model.cachedArtifactBytes), countStyle: .file))
+                    Button("Clear saved downloads", role: .destructive) {
+                        showingClearArtifactConfirmation = true
+                    }
+                    .disabled(model.cachedArtifacts.isEmpty)
+                } header: {
+                    Text("Review storage")
+                } footer: {
+                    Text("Verified artifacts are encrypted with the local cache, retained for up to 30 days, and capped at 20 downloads or 25 MB. The hub remains the source of truth.")
+                }
+
                 Section("About") {
                     LabeledContent("Version", value: "0.1 development")
                     if let projectURL = URL(string: "https://github.com/nash226/phonedex") {
@@ -1966,6 +1979,12 @@ private struct PhoneDexSettingsView: View {
                 }
             }
             .navigationTitle("Settings")
+            .confirmationDialog("Clear saved downloads?", isPresented: $showingClearArtifactConfirmation, titleVisibility: .visible) {
+                Button("Clear downloads", role: .destructive) { model.clearCachedArtifacts() }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("Downloaded artifacts will be removed from this iPhone. They can be downloaded again while the originating agent retains them.")
+            }
         }
     }
 

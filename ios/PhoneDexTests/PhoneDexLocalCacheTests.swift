@@ -51,7 +51,14 @@ final class PhoneDexLocalCacheTests: XCTestCase {
                 pending: pendingReply,
                 recordedAt: Date(timeIntervalSince1970: 1_750_000_002)
             )],
-            handledNotificationResponses: ["notification-123|PHONEDEX_OKAY_WHATS_NEXT": Date(timeIntervalSince1970: 1_750_000_003)]
+            handledNotificationResponses: ["notification-123|PHONEDEX_OKAY_WHATS_NEXT": Date(timeIntervalSince1970: 1_750_000_003)],
+            cachedArtifacts: [PhoneDexCachedArtifact(
+                id: "artifact_123",
+                name: "build.log",
+                mediaType: "text/plain",
+                data: Data("private artifact".utf8),
+                downloadedAt: Date(timeIntervalSince1970: 1_750_000_004)
+            )]
         )
 
         try cache.save(state)
@@ -64,6 +71,7 @@ final class PhoneDexLocalCacheTests: XCTestCase {
         XCTAssertEqual(try cache.load()?.replyReceipts.first?.message, "Delivered to Studio Mac")
         XCTAssertEqual(try cache.load()?.events.first?.type, "progress")
         XCTAssertEqual(try cache.load()?.handledNotificationResponses.count, 1)
+        XCTAssertEqual(try cache.load()?.cachedArtifacts.first?.data, Data("private artifact".utf8))
         XCTAssertEqual(keyStore.key?.count, 32)
 
         try cache.remove()
@@ -90,6 +98,7 @@ final class PhoneDexLocalCacheTests: XCTestCase {
         XCTAssertTrue(decoded.readingPositions.isEmpty)
         XCTAssertTrue(decoded.replyReceipts.isEmpty)
         XCTAssertTrue(decoded.handledNotificationResponses.isEmpty)
+        XCTAssertTrue(decoded.cachedArtifacts.isEmpty)
     }
 
     func testTamperedCacheFailsClosedWithoutReturningPartialState() throws {
@@ -108,6 +117,27 @@ final class PhoneDexLocalCacheTests: XCTestCase {
         XCTAssertThrowsError(try cache.load()) { error in
             XCTAssertEqual(error as? PhoneDexCacheError, .invalidData)
         }
+    }
+
+    func testCachedArtifactPolicyExpiresOldEntriesAndBoundsRecentStorage() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let old = PhoneDexCachedArtifact(
+            id: "old", name: "old.log", mediaType: "text/plain",
+            data: Data("old".utf8), downloadedAt: now.addingTimeInterval(-PhoneDexCachedArtifactPolicy.retention - 1)
+        )
+        let recent = (0..<PhoneDexCachedArtifactPolicy.limit + 2).map { index in
+            PhoneDexCachedArtifact(
+                id: "recent-\(index)", name: "recent.log", mediaType: "text/plain",
+                data: Data("recent-\(index)".utf8), downloadedAt: now.addingTimeInterval(-Double(index))
+            )
+        }
+
+        let retained = PhoneDexCachedArtifactPolicy.prune([old] + recent, now: now)
+
+        XCTAssertFalse(retained.contains(old))
+        XCTAssertEqual(retained.count, PhoneDexCachedArtifactPolicy.limit)
+        XCTAssertEqual(retained.first?.id, "recent-0")
+        XCTAssertLessThanOrEqual(retained.reduce(0) { $0 + $1.byteCount }, PhoneDexCachedArtifactPolicy.bytesLimit)
     }
 
     private func task(id: String) -> PhoneDexTask {

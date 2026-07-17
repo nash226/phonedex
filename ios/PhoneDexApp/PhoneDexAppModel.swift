@@ -67,6 +67,7 @@ final class PhoneDexAppModel: ObservableObject {
     @Published private(set) var readingPositions: [PhoneDexTask.ID: String] = [:]
     @Published private(set) var pendingReplies: [PhoneDexPendingReply] = []
     @Published private(set) var replyReceipts: [PhoneDexReplyDeliveryRecord] = []
+    @Published private(set) var cachedArtifacts: [String: PhoneDexCachedArtifact] = [:]
     @Published var selectedTaskID: PhoneDexTask.ID?
     @Published var connectionState: ConnectionState = .idle
     @Published var replyState: ReplyState = .idle
@@ -217,7 +218,31 @@ final class PhoneDexAppModel: ObservableObject {
         guard let client = bridgeClient else {
             throw PhoneDexBridgeClientError.invalidURL
         }
-        return try await client.downloadArtifact(artifact)
+        let data = try await client.downloadArtifact(artifact)
+        let cached = PhoneDexCachedArtifact(
+            id: artifact.id,
+            name: artifact.name,
+            mediaType: artifact.mediaType,
+            data: data,
+            downloadedAt: Date()
+        )
+        cachedArtifacts[artifact.id] = cached
+        pruneCachedArtifacts(now: cached.downloadedAt)
+        persistCachedState(lastSyncAt: lastSuccessfulSync)
+        return data
+    }
+
+    func cachedArtifactData(for artifact: PhoneDexArtifact) -> Data? {
+        cachedArtifacts[artifact.id]?.data
+    }
+
+    var cachedArtifactBytes: Int {
+        cachedArtifacts.values.reduce(0) { $0 + $1.byteCount }
+    }
+
+    func clearCachedArtifacts() {
+        cachedArtifacts.removeAll()
+        persistCachedState(lastSyncAt: lastSuccessfulSync)
     }
 
     func fetchDiagnostics() async throws -> PhoneDexDiagnosticsSnapshot {
@@ -606,6 +631,8 @@ final class PhoneDexAppModel: ObservableObject {
             readingPositions = cached.readingPositions
             pendingReplies = cached.pendingReplies
             replyReceipts = cached.replyReceipts
+            cachedArtifacts = Dictionary(uniqueKeysWithValues: cached.cachedArtifacts.map { ($0.id, $0) })
+            pruneCachedArtifacts(now: Date())
             syncCursor = cached.cursor
             lastSuccessfulSync = cached.lastSyncAt
             connectionState = .offline(cached.lastSyncAt)
@@ -627,8 +654,13 @@ final class PhoneDexAppModel: ObservableObject {
                 readingPositions: readingPositions,
                 pendingReplies: pendingReplies,
                 replyReceipts: replyReceipts,
-                handledNotificationResponses: (try? cache.load())?.handledNotificationResponses ?? [:]
+                handledNotificationResponses: (try? cache.load())?.handledNotificationResponses ?? [:],
+                cachedArtifacts: cachedArtifacts.values.sorted { $0.downloadedAt > $1.downloadedAt }
             )
         )
+    }
+
+    private func pruneCachedArtifacts(now: Date) {
+        cachedArtifacts = Dictionary(uniqueKeysWithValues: PhoneDexCachedArtifactPolicy.prune(Array(cachedArtifacts.values), now: now).map { ($0.id, $0) })
     }
 }
