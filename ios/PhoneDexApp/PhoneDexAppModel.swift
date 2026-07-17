@@ -111,6 +111,22 @@ final class PhoneDexAppModel: ObservableObject {
             }
     }
 
+    var artifactLibrary: [PhoneDexArtifactLibraryItem] {
+        tasks.flatMap { task in
+            (task.evidence?.artifacts ?? []).map {
+                PhoneDexArtifactLibraryItem(
+                    taskID: task.id,
+                    taskTitle: task.title,
+                    workspaceName: task.displayWorkspace,
+                    machineName: task.displayMachine,
+                    artifact: $0
+                )
+            }
+        }.sorted {
+            $0.taskTitle.localizedCaseInsensitiveCompare($1.taskTitle) == .orderedAscending
+        }
+    }
+
     func refresh() async {
         guard let client = bridgeClient else {
             connectionState = .failed(settings.bridgeURLValidationMessage, lastSync: lastSuccessfulSync)

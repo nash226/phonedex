@@ -1554,6 +1554,7 @@ private struct PhoneDexTaskDetailAnchorPreferenceKey: PreferenceKey {
 
 private struct PhoneDexProjectsView: View {
     @ObservedObject var model: PhoneDexAppModel
+    @State private var showingArtifactLibrary = false
 
     var body: some View {
         NavigationStack {
@@ -1590,6 +1591,17 @@ private struct PhoneDexProjectsView: View {
                 }
             }
             .navigationTitle("Projects")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showingArtifactLibrary = true
+                    } label: {
+                        Image(systemName: "shippingbox")
+                    }
+                    .accessibilityLabel("Open artifact library")
+                    .accessibilityHint("Browse exported artifacts from synced conversations")
+                }
+            }
             .refreshable { await model.refresh() }
             .overlay {
                 if model.projects.isEmpty {
@@ -1603,6 +1615,9 @@ private struct PhoneDexProjectsView: View {
                 }
             }
         }
+        .sheet(isPresented: $showingArtifactLibrary) {
+            PhoneDexArtifactLibraryView(model: model)
+        }
     }
 
     private func workspaceStatus(_ project: PhoneDexProject) -> String {
@@ -1610,6 +1625,136 @@ private struct PhoneDexProjectsView: View {
             return "\(project.attentionTaskCount) need attention"
         }
         return "\(project.activeTaskCount) active"
+    }
+}
+
+private struct PhoneDexArtifactLibraryView: View {
+    @ObservedObject var model: PhoneDexAppModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var searchText = ""
+    @State private var selectedMachine: String?
+    @State private var downloaded: [String: Data] = [:]
+    @State private var downloadingID: String?
+    @State private var errorMessage: String?
+
+    private var items: [PhoneDexArtifactLibraryItem] {
+        model.artifactLibrary.filter { item in
+            (selectedMachine == nil || item.machineName == selectedMachine) &&
+            (searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+             [item.artifact.name, item.artifact.kind, item.taskTitle, item.workspaceName, item.machineName]
+                .contains { $0.localizedCaseInsensitiveContains(searchText) })
+        }
+    }
+
+    private var machines: [String] {
+        Array(Set(model.artifactLibrary.map(\.machineName))).sorted {
+            $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if items.isEmpty {
+                    ContentUnavailableView(
+                        "No exported artifacts",
+                        systemImage: "shippingbox",
+                        description: Text(model.artifactLibrary.isEmpty
+                            ? "Artifacts exported by supported agents will appear here."
+                            : "Try a different search or machine filter.")
+                    )
+                } else {
+                    ForEach(items) { item in
+                        artifactRow(item)
+                    }
+                }
+            }
+            .listStyle(.insetGrouped)
+            .searchable(text: $searchText, prompt: "Search artifacts")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Picker("Machine", selection: $selectedMachine) {
+                            Text("All machines").tag(nil as String?)
+                            ForEach(machines, id: \.self) { machine in
+                                Text(machine).tag(machine as String?)
+                            }
+                        }
+                    } label: {
+                        Image(systemName: selectedMachine == nil ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+                    }
+                    .accessibilityLabel(selectedMachine == nil ? "Filter artifacts" : "Artifact machine filter active")
+                }
+            }
+            .navigationTitle("Artifacts")
+            .navigationBarTitleDisplayMode(.inline)
+            .alert("Artifact unavailable", isPresented: Binding(
+                get: { errorMessage != nil },
+                set: { if !$0 { errorMessage = nil } }
+            )) {
+                Button("OK", role: .cancel) { errorMessage = nil }
+            } message: {
+                Text(errorMessage ?? "The artifact could not be downloaded.")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func artifactRow(_ item: PhoneDexArtifactLibraryItem) -> some View {
+        let artifact = item.artifact
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Label(artifact.name, systemImage: "shippingbox.fill")
+                    .font(.headline)
+                Spacer(minLength: 8)
+                Text(artifact.displaySize ?? "Size unavailable")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Text("\(artifact.kind) · \(item.taskTitle)")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            Label("\(item.workspaceName) · \(item.machineName)", systemImage: "desktopcomputer")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+            if let data = downloaded[item.id] {
+                ShareLink(item: data, preview: SharePreview(artifact.name)) {
+                    Label("Share verified download", systemImage: "square.and.arrow.up")
+                }
+                .font(.caption.weight(.semibold))
+            } else {
+                Button {
+                    download(item)
+                } label: {
+                    if downloadingID == item.id {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Label(artifact.isDownloadable ? "Download and share" : "Download unavailable", systemImage: "arrow.down.circle")
+                    }
+                }
+                .disabled(!artifact.isDownloadable || downloadingID != nil)
+                .font(.caption.weight(.semibold))
+            }
+        }
+        .padding(.vertical, 6)
+        .privacySensitive()
+        .accessibilityElement(children: .contain)
+    }
+
+    private func download(_ item: PhoneDexArtifactLibraryItem) {
+        downloadingID = item.id
+        Task {
+            do {
+                downloaded[item.id] = try await model.downloadArtifact(item.artifact)
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            downloadingID = nil
+        }
     }
 }
 

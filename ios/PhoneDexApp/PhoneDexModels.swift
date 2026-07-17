@@ -623,6 +623,16 @@ struct PhoneDexProject: Identifiable, Equatable {
     }
 }
 
+struct PhoneDexArtifactLibraryItem: Identifiable, Equatable {
+    let taskID: String
+    let taskTitle: String
+    let workspaceName: String
+    let machineName: String
+    let artifact: PhoneDexArtifact
+
+    var id: String { "\(taskID)-\(artifact.id)" }
+}
+
 enum PhoneDexChatScope: String, CaseIterable, Identifiable {
     case needsYou
     case running
