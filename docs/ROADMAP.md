@@ -884,8 +884,9 @@ Quality-gate evidence verification for the in-progress release-readiness slice:
 `lib/phonedex-quality-gates.js` defines the content-free
 `phonedex.quality-gates.v1` report for performance, battery, accessibility,
 localization, and crash evidence. `scripts/quality-gates.js` rejects missing,
-duplicate, stale, future-dated, unsupported, or extra fields and accepts only
-bounded gate ids, platform names, timestamps, statuses, and evidence ids.
+duplicate, stale, future-dated, unsupported, or over-broad platform evidence
+and extra fields, and accepts only bounded gate ids, platform names,
+timestamps, statuses, and evidence ids.
 `scripts/test-quality-gates.js` covers complete evidence, missing and failed
 gates, stale timestamps, unsupported platforms, and attempts to include task
 text. This makes the combined M8 gate auditable without claiming simulator
