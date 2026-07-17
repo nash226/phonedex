@@ -502,6 +502,17 @@ removes the disposable Scheduled Task and verifies that status reports it as
 absent afterward. Full update, sleep/reconnect, session-file, and revoke
 validation remain real Windows release-matrix work.
 
+Verification evidence for the completed Windows service resilience slice:
+`scripts/install-windows-task.ps1` configures the user-scoped Scheduled Task to
+start when an unavailable trigger becomes runnable and to retry a failed
+PhoneDex service up to five times at one-minute intervals. `windows:status`
+reports this bounded restart policy with the last task result, while
+`scripts/test-windows-service-lifecycle.js` checks the contract on every
+platform and exercises disposable install/start/stop/remove behavior on
+Windows. This provides deterministic task-runner recovery semantics without
+claiming that real-machine sleep/reconnect, session-file access, or agent
+revocation have passed; those remain release-owner validation gates.
+
 Verification evidence for the completed cross-platform contract slice:
 `scripts/test-cross-platform-contract.js` runs one local hub with simulated
 Mac and Windows agent heartbeats, captures one task from each machine, reads

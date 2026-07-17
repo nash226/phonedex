@@ -3,13 +3,21 @@
 const assert = require("node:assert/strict");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
+const fs = require("node:fs");
+
+const script = path.join(__dirname, "install-windows-task.ps1");
+const scriptSource = fs.readFileSync(script, "utf8");
+assert.match(scriptSource, /-StartWhenAvailable\b/);
+assert.match(scriptSource, /-RestartCount\s+\$RestartCount\b/);
+assert.match(scriptSource, /\$RestartCount\s*=\s*5\b/);
+assert.match(scriptSource, /\$RestartInterval\s*=\s*New-TimeSpan\s+-Minutes\s+1/);
+assert.match(scriptSource, /RestartPolicy\s*=\s*"up to \$RestartCount attempts/);
 
 if (process.platform !== "win32") {
   console.log("Windows service lifecycle fixture skipped outside Windows.");
   process.exit(0);
 }
 
-const script = path.join(__dirname, "install-windows-task.ps1");
 let installed = false;
 
 function run(action) {

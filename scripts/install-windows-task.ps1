@@ -12,6 +12,8 @@ $ScriptPath = Join-Path $Root "scripts\install-windows-task.ps1"
 $BridgePath = Join-Path $Root "bin\codex-watch.js"
 $LocalDir = Join-Path $Root ".local"
 $LogPath = Join-Path $LocalDir "windows-service.log"
+$RestartCount = 5
+$RestartInterval = New-TimeSpan -Minutes 1
 
 if ($env:USERDOMAIN) {
   $TaskUser = "$env:USERDOMAIN\$env:USERNAME"
@@ -58,10 +60,11 @@ function Install-Task {
   $settings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries `
+    -StartWhenAvailable `
     -ExecutionTimeLimit (New-TimeSpan -Days 365) `
     -MultipleInstances IgnoreNew `
-    -RestartCount 3 `
-    -RestartInterval (New-TimeSpan -Minutes 1)
+    -RestartCount $RestartCount `
+    -RestartInterval $RestartInterval
 
   Register-ScheduledTask `
     -TaskName $TaskName `
@@ -100,6 +103,7 @@ function Show-Status {
     LastRunTime = $info.LastRunTime
     LastTaskResult = $info.LastTaskResult
     NextRunTime = $info.NextRunTime
+    RestartPolicy = "up to $RestartCount attempts at $($RestartInterval.TotalMinutes)-minute intervals; starts when available"
     LogPath = $LogPath
   } | Format-List
 }
