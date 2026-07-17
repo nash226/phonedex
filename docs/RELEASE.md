@@ -37,3 +37,17 @@ Apple signing, TestFlight, real-device validation, and final App Store privacy
 decisions remain release-owner work and are not automated by this manifest.
 Use [`docs/REAL_DEVICE_VALIDATION.md`](REAL_DEVICE_VALIDATION.md) to record
 those manual results without weakening the local-first security boundary.
+
+The 15 product acceptance scenarios have a separate, content-free evidence
+contract. Validate a release-owner evidence file with:
+
+```sh
+npm run acceptance:verify -- --input ./acceptance-evidence.json
+```
+
+Each scenario record contains only its stable id, pass/fail/not-run status,
+supported platform names, and a recent UTC validation timestamp. The validator
+rejects missing, duplicate, unknown, stale, future-dated, and unsupported
+platform records. A passing report proves only that the evidence is complete
+and current enough to review; it does not replace real-device execution,
+signing, TestFlight, APNs, privacy, or release-owner approval.
