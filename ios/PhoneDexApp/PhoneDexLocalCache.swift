@@ -87,6 +87,27 @@ struct PhoneDexCachedState: Codable, Equatable {
         try container.encode(handledNotificationResponses, forKey: .handledNotificationResponses)
         try container.encode(cachedArtifacts, forKey: .cachedArtifacts)
     }
+
+    func replacingNotificationState(
+        pendingReplies: [PhoneDexPendingReply]? = nil,
+        handledNotificationResponses: [String: Date]? = nil
+    ) -> PhoneDexCachedState {
+        PhoneDexCachedState(
+            cursor: cursor,
+            tasks: tasks,
+            devices: devices,
+            events: events,
+            lastSyncAt: lastSyncAt,
+            drafts: drafts,
+            readingPositions: readingPositions,
+            pendingReplies: pendingReplies ?? self.pendingReplies,
+            replyReceipts: replyReceipts,
+            handledNotificationResponses: handledNotificationResponses ?? self.handledNotificationResponses,
+            cachedArtifacts: cachedArtifacts,
+            schema: schema,
+            version: version
+        )
+    }
 }
 
 struct PhoneDexCachedArtifact: Codable, Equatable, Identifiable {
