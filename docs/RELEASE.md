@@ -42,7 +42,7 @@ The 15 product acceptance scenarios have a separate, content-free evidence
 contract. Validate a release-owner evidence file with:
 
 ```sh
-npm run acceptance:verify -- --input ./acceptance-evidence.json
+npm run acceptance:verify -- --input ./acceptance-evidence.json --output ./acceptance-report.json
 ```
 
 Each scenario record contains only its stable id, pass/fail/not-run status,
@@ -56,7 +56,7 @@ The combined M8 quality gate has a separate content-free evidence contract for
 performance, battery, accessibility, localization, and crash validation:
 
 ```sh
-npm run quality:verify -- --input ./quality-gates.json
+npm run quality:verify -- --input ./quality-gates.json --output ./quality-report.json
 ```
 
 Each record contains only a stable gate id, pass/fail/not-run status, supported
@@ -67,3 +67,9 @@ credentials, paths, and screenshots cannot be smuggled into a release report.
 A passing report makes evidence reviewable;
 it does not claim that simulator checks replace real-device profiling or
 release-owner approval.
+
+Both validators print the normalized report and, when `--output` is supplied,
+write the same content-free JSON to that path with restrictive local file
+permissions. A failed validation still writes its report before returning a
+non-zero exit code, so CI can preserve actionable evidence without treating a
+failed gate as a release approval.

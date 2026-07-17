@@ -8,7 +8,7 @@ const { DEFAULT_MAX_AGE_DAYS, evaluateAcceptanceEvidence } = require("../lib/pho
 
 const flags = parseFlags(process.argv.slice(2));
 if (!flags.input) {
-  console.error("Usage: node scripts/acceptance-evidence.js --input <evidence.json> [--now <ISO-8601>] [--max-age-days <n>]");
+  console.error("Usage: node scripts/acceptance-evidence.js --input <evidence.json> [--output <report.json>] [--now <ISO-8601>] [--max-age-days <n>]");
   process.exitCode = 2;
 } else {
   try {
@@ -18,7 +18,13 @@ if (!flags.input) {
     const maxAgeDays = flags.maxagedays === undefined ? DEFAULT_MAX_AGE_DAYS : Number(flags.maxagedays);
     if (!Number.isFinite(maxAgeDays) || maxAgeDays < 0) throw new Error("--max-age-days must be a non-negative number.");
     const report = evaluateAcceptanceEvidence(input, { now, maxAgeDays });
-    process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+    const serialized = `${JSON.stringify(report, null, 2)}\n`;
+    process.stdout.write(serialized);
+    if (flags.output) {
+      const outputPath = path.resolve(flags.output);
+      fs.writeFileSync(outputPath, serialized, { mode: 0o600 });
+      fs.chmodSync(outputPath, 0o600);
+    }
     if (!report.ok) process.exitCode = 1;
   } catch (error) {
     console.error(`Acceptance evidence validation failed: ${error.message}`);
