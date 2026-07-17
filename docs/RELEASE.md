@@ -73,3 +73,19 @@ write the same content-free JSON to that path with restrictive local file
 permissions. A failed validation still writes its report before returning a
 non-zero exit code, so CI can preserve actionable evidence without treating a
 failed gate as a release approval.
+
+To combine both reports for a release review, run:
+
+```sh
+npm run release:readiness -- \
+  --acceptance ./acceptance-report.json \
+  --quality ./quality-report.json \
+  --output ./release-readiness.json
+```
+
+The aggregate is content-free and reports automated evidence readiness
+separately from the four release-owner gates that still require signing,
+privacy/legal, real-device/TestFlight, and APNs decisions. It never reports a
+release as ready merely because simulator or fixture evidence passed; failed
+automated evidence returns a non-zero exit code and is still persisted with
+restrictive local permissions.
