@@ -51,3 +51,18 @@ rejects missing, duplicate, unknown, stale, future-dated, unsupported-platform,
 and oversized reports. A passing report proves only that the evidence is
 complete and current enough to review; it does not replace real-device
 execution, signing, TestFlight, APNs, privacy, or release-owner approval.
+
+The combined M8 quality gate has a separate content-free evidence contract for
+performance, battery, accessibility, localization, and crash validation:
+
+```sh
+npm run quality:verify -- --input ./quality-gates.json
+```
+
+Each record contains only a stable gate id, pass/fail/not-run status, supported
+platform names, a UTC validation timestamp, and a bounded evidence id. The
+validator rejects missing, duplicate, stale, future-dated, unsupported, or
+additional fields so task content, credentials, paths, and screenshots cannot
+be smuggled into a release report. A passing report makes evidence reviewable;
+it does not claim that simulator checks replace real-device profiling or
+release-owner approval.
