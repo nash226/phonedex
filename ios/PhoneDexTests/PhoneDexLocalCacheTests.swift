@@ -126,6 +126,25 @@ final class PhoneDexLocalCacheTests: XCTestCase {
         }
     }
 
+    func testQuarantineMovesTamperedCacheAsideForFreshRecovery() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("PhoneDexLocalCacheTests-\(UUID().uuidString)", isDirectory: true)
+        let fileURL = root.appendingPathComponent("cache.bin")
+        let keyStore = InMemoryCacheKeyStore()
+        let cache = PhoneDexEncryptedCache(fileURL: fileURL, keyStore: keyStore)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        try cache.save(PhoneDexCachedState(cursor: "cursor", tasks: [task(id: "private")], devices: [], lastSyncAt: nil))
+        try cache.quarantine()
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fileURL.path))
+        let quarantined = try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)
+        XCTAssertEqual(quarantined.count, 1)
+        XCTAssertTrue(quarantined[0].lastPathComponent.hasPrefix("cache.corrupt-"))
+        XCTAssertNil(try cache.load())
+        XCTAssertEqual(keyStore.key?.count, 32)
+    }
+
     func testCachedArtifactPolicyExpiresOldEntriesAndBoundsRecentStorage() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let old = PhoneDexCachedArtifact(

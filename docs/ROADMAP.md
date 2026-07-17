@@ -925,6 +925,17 @@ existing encrypted outbox and idempotency-key retry path. The shared budget is
 asserted by `PhoneDexBridgeClientTests`; timeout classification and real-device
 poor-connectivity behavior remain part of the release-owner validation gate.
 
+Crash recovery verification for the in-progress release-readiness slice:
+`PhoneDexEncryptedCache.quarantine()` moves an unreadable encrypted cache aside
+under a generated, non-sensitive filename while preserving the device-only
+encryption key. `PhoneDexAppModel` invokes that boundary after a failed restore,
+continues with an empty trusted projection, and shows an actionable recovery
+message so a fresh hub sync can recover without a crash or an endless retry of
+the same corrupt file. `PhoneDexLocalCacheTests` covers fail-closed tamper
+detection, quarantine, fresh-load behavior, and key preservation. This does not
+claim crash-free real-device behavior; corrupted-cache recovery, notification
+actions, and cold relaunch remain part of the release-owner crash gate.
+
 Transient transport verification for the in-progress release-readiness slice:
 the native client classifies DNS lookup, host reachability, interrupted
 connections, unavailable network resources, active-call, roaming, and timeout
