@@ -59,3 +59,21 @@ Attach a short table with scenario, result, environment, command/build
 identity, correlation ID, and next action. Redact bearer credentials, pairing
 codes, local paths, repository contents, task prompts, response text, and
 artifact bytes before sharing.
+
+## Content-free release-matrix preflight
+
+Release owners may convert the scenario table into a metadata-only JSON file
+and run:
+
+```sh
+npm run release:matrix -- --input ./release-matrix-evidence.json
+```
+
+Each record contains only `deviceId`, `platform` (`ios`, `macos`, or
+`windows`), `validatedAt`, and a `scenarios` map whose values are `pass`,
+`fail`, or `not-run`. The preflight requires current passing evidence for all
+three platforms and the scenarios listed in this runbook. It rejects duplicate
+device IDs, future or stale evidence, and missing or non-passing scenarios.
+Its report is a release gate aid, not proof of signing, TestFlight, APNs,
+privacy/legal approval, or real-device crash, battery, performance, or
+localization completion.
