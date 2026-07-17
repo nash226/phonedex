@@ -2,6 +2,7 @@
 
 const fs = require("node:fs");
 const http = require("node:http");
+const https = require("node:https");
 const os = require("node:os");
 const path = require("node:path");
 const crypto = require("node:crypto");
@@ -48,6 +49,7 @@ const {
 const {
   createPhoneDexLifecycleManager
 } = require("../lib/phonedex-lifecycle");
+const { createTransportConfig } = require("../lib/phonedex-transport");
 const {
   DELETE_CONFIRMATION,
   RETENTION_CONFIRMATION,
@@ -259,6 +261,14 @@ function config() {
   const publicUrl = trimTrailingSlash(
     env.WATCH_BRIDGE_PUBLIC_URL || `http://${host}:${port}`
   );
+  const transport = createTransportConfig({
+    host,
+    port,
+    publicUrl,
+    requireTls: parseBoolean(env.PHONEDEX_REQUIRE_TLS, false),
+    certificateFile: env.PHONEDEX_TLS_CERT_FILE || "",
+    keyFile: env.PHONEDEX_TLS_KEY_FILE || ""
+  });
   const machineName = env.PHONEDEX_MACHINE_NAME || env.WATCHDEX_MACHINE_NAME || os.hostname();
   const deviceId = env.PHONEDEX_DEVICE_ID || env.WATCHDEX_DEVICE_ID || os.hostname();
   const provider = env.WATCH_BRIDGE_PROVIDER || "pushcut";
@@ -313,6 +323,7 @@ function config() {
     ),
     host,
     port,
+    transport,
     dataDir: env.WATCH_BRIDGE_DATA_DIR || DATA_DIR_DEFAULT,
     agentBundleDir: path.resolve(ROOT, env.PHONEDEX_AGENT_BUNDLE_DIR || AGENT_BOOTSTRAP_DIR_DEFAULT),
     pushcutSound: env.PUSHCUT_SOUND || "jobDone",
@@ -1080,7 +1091,7 @@ async function startServer(providedCfg) {
     console.warn("Warning: WATCH_BRIDGE_TOKEN is empty. /reply is not protected.");
   }
 
-  const server = http.createServer(async (req, res) => {
+  const requestHandler = async (req, res) => {
     const requestStartedAt = process.hrtime.bigint();
     const correlationId = correlationIdFromRequest(req.headers["x-phonedex-correlation-id"]);
     req.phonedexCorrelationId = correlationId;
@@ -1091,7 +1102,7 @@ async function startServer(providedCfg) {
       ...rest
     );
     try {
-      const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+      const requestUrl = new URL(req.url, `${cfg.transport.protocol}://${req.headers.host || "localhost"}`);
 
       if (requestUrl.pathname === "/health") {
         return sendJson(res, 200, {
@@ -1101,6 +1112,7 @@ async function startServer(providedCfg) {
           deviceId: cfg.deviceId,
           publicUrl: safeSupportURL(cfg.publicUrl),
           replyUrl: `${safeSupportURL(cfg.publicUrl)}/reply`,
+          transport: { protocol: cfg.transport.protocol, tls: cfg.transport.tls },
           role: cfg.agentMode ? "agent" : "hub",
           hubUrl: safeSupportURL(cfg.hubUrl),
           protocolVersion: 1,
@@ -1316,10 +1328,17 @@ async function startServer(providedCfg) {
         errorClass: status >= 500 ? "server_error" : status >= 400 ? `http_${status}` : ""
       });
     }
-  });
+  };
+
+  const server = cfg.transport.tls
+    ? https.createServer({
+        cert: fs.readFileSync(cfg.transport.certificateFile),
+        key: fs.readFileSync(cfg.transport.keyFile)
+      }, requestHandler)
+    : http.createServer(requestHandler);
 
   await new Promise((resolve) => server.listen(cfg.port, cfg.host, resolve));
-  console.log(`PhoneDex listening on http://${cfg.host}:${cfg.port}`);
+  console.log(`PhoneDex listening on ${cfg.transport.protocol}://${cfg.host}:${cfg.port}`);
   console.log(`Phone reply callback public URL should be: ${safeSupportURL(cfg.publicUrl)}/reply`);
   if (cfg.hubUrl) {
     console.log(`Forwarding local Codex completions to PhoneDex hub: ${safeSupportURL(cfg.hubUrl)}`);

@@ -38,6 +38,22 @@ decisions remain release-owner work and are not automated by this manifest.
 Use [`docs/REAL_DEVICE_VALIDATION.md`](REAL_DEVICE_VALIDATION.md) to record
 those manual results without weakening the local-first security boundary.
 
+For a network-reachable hub or agent, configure TLS before release:
+
+```sh
+PHONEDEX_REQUIRE_TLS=true
+PHONEDEX_TLS_CERT_FILE=/path/to/certificate.pem
+PHONEDEX_TLS_KEY_FILE=/path/to/private-key.pem
+WATCH_BRIDGE_PUBLIC_URL=https://bridge.example.test:8765
+```
+
+The bridge fails closed when the required setting is enabled without an HTTPS
+public URL, when certificate and key configuration is incomplete, or when an
+HTTPS URL has no matching certificate files. Loopback HTTP remains available
+for local development. Certificate provisioning, rotation, and deployment
+are operator/release-owner responsibilities; private keys are never included
+in PhoneDex reports or diagnostics.
+
 The 15 product acceptance scenarios have a separate, content-free evidence
 contract. Validate a release-owner evidence file with:
 
