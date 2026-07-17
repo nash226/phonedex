@@ -937,6 +937,15 @@ decoding and sharing behavior without claiming that `URLSession` never
 allocates transport bytes; hub-side pagination and artifact limits remain the
 primary defense, and real-device memory profiling remains a release gate.
 
+Encrypted-cache size verification for the in-progress release-readiness slice:
+`PhoneDexEncryptedCache` rejects cache files larger than its 32 MiB encrypted
+storage budget before loading their bytes, and refuses to persist a combined
+AES-GCM payload above the same bound. `PhoneDexLocalCacheTests` covers the
+oversized-file recovery path, so malformed local state fails closed and lets a
+fresh sync proceed without an unbounded native allocation. This is a simulator
+and local-failure guard; real-device memory and crash-free measurements remain
+release-owner gates.
+
 Verification evidence for the completed migration and recovery slice:
 `scripts/test-recovery.js` exercises legacy JSONL import, current-schema
 upgrade, transactional-backup rollback after a failed migration, rejection of
