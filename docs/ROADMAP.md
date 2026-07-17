@@ -709,6 +709,15 @@ grouping metadata. `PhoneDexSettingsTests` covers sanitization and separation
 of identical workspaces on different machines. Per-workspace delivery policy,
 remote registration, and background delivery remain human-gated release work.
 
+Notification action identity evidence: handled-response keys and command
+idempotency identities include the bounded task version, so a new notification
+for the same task is not suppressed by an earlier handled action or rejected
+as a replay. Legacy or missing versions normalize to version 1, while the
+existing encrypted cache, receipt, and retry behavior remains unchanged.
+`PhoneDexSmokeTests` covers version separation and legacy normalization. This
+is local action correctness only; it does not add remote push or background
+delivery.
+
 ## M7: Mobile Review Experience
 
 Status: **Current**
