@@ -236,9 +236,18 @@ struct PhoneDexBridgeClient {
     ) async throws -> PhoneDexSyncResult {
         var currentCursor = cursor?.isEmpty == true ? nil : cursor
         var restartedFromSnapshot = false
-        var tasksByID = Dictionary(uniqueKeysWithValues: currentCursor == nil ? [] : tasks.map { ($0.id, $0) })
-        var devicesByID = Dictionary(uniqueKeysWithValues: currentCursor == nil ? [] : devices.map { ($0.id, $0) })
-        var eventsByID = Dictionary(uniqueKeysWithValues: currentCursor == nil ? [] : events.map { ($0.id, $0) })
+        var tasksByID = Dictionary(
+            (currentCursor == nil ? [] : tasks).map { ($0.id, $0) },
+            uniquingKeysWith: { _, latest in latest }
+        )
+        var devicesByID = Dictionary(
+            (currentCursor == nil ? [] : devices).map { ($0.id, $0) },
+            uniquingKeysWith: { _, latest in latest }
+        )
+        var eventsByID = Dictionary(
+            (currentCursor == nil ? [] : events).map { ($0.id, $0) },
+            uniquingKeysWith: { _, latest in latest }
+        )
 
         while true {
             let page: PhoneDexSyncPage

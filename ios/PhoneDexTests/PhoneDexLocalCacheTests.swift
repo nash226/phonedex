@@ -140,6 +140,23 @@ final class PhoneDexLocalCacheTests: XCTestCase {
         XCTAssertLessThanOrEqual(retained.reduce(0) { $0 + $1.byteCount }, PhoneDexCachedArtifactPolicy.bytesLimit)
     }
 
+    func testCachedArtifactIndexKeepsLatestDuplicateWithoutTrapping() {
+        let first = PhoneDexCachedArtifact(
+            id: "artifact-duplicate", name: "old.log", mediaType: "text/plain",
+            data: Data("old".utf8), downloadedAt: Date(timeIntervalSince1970: 1)
+        )
+        let latest = PhoneDexCachedArtifact(
+            id: "artifact-duplicate", name: "latest.log", mediaType: "text/plain",
+            data: Data("latest".utf8), downloadedAt: Date(timeIntervalSince1970: 2)
+        )
+
+        let indexed = PhoneDexCachedArtifactPolicy.index([first, latest])
+
+        XCTAssertEqual(indexed.count, 1)
+        XCTAssertEqual(indexed["artifact-duplicate"]?.name, "latest.log")
+        XCTAssertEqual(indexed["artifact-duplicate"]?.data, Data("latest".utf8))
+    }
+
     private func task(id: String) -> PhoneDexTask {
         PhoneDexTask(
             id: id,

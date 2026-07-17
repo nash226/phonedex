@@ -859,7 +859,11 @@ URLs. Invalid browser addresses now hide the share action instead of falling
 back through another force unwrap, and `PhoneDexBrowserTests` covers both valid
 and malformed addresses. This removes two production crash paths; crash-free
 session measurement and real-device validation remain required before the
-combined M8 release-readiness gate can be checked off.
+combined M8 release-readiness gate can be checked off. Cache and sync
+reconciliation now use deterministic duplicate-ID resolution instead of
+`Dictionary(uniqueKeysWithValues:)` traps; `PhoneDexLocalCacheTests` and
+`PhoneDexBridgeClientTests` cover malformed duplicate records and keep the
+latest record without exposing partial state.
 
 Deep-link privacy verification for the in-progress release-readiness slice:
 Unsupported `phonedex://` URLs now record only their scheme, host, and path in

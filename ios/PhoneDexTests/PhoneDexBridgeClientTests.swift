@@ -364,6 +364,44 @@ final class PhoneDexBridgeClientTests: XCTestCase {
         XCTAssertEqual(result.cursor, "cursor.new")
     }
 
+    func testIncrementalSyncKeepsLatestDuplicateCachedRecordsWithoutTrapping() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [URLProtocolStub.self]
+        let session = URLSession(configuration: configuration)
+
+        URLProtocolStub.handler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "http://bridge.test/sync?limit=50&cursor=cursor.old")
+            return (
+                HTTPURLResponse(
+                    url: try XCTUnwrap(request.url),
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: ["content-type": "application/json"]
+                )!,
+                Data("""
+                {"snapshot":{"complete":true,"revision":2,"position":2,"tasks":[
+                  {"id":"task_duplicate","title":"Old","text":"old"},
+                  {"id":"task_duplicate","title":"Latest","text":"latest"}
+                ],"devices":[
+                  {"deviceId":"device_duplicate","machineName":"Old Mac"},
+                  {"deviceId":"device_duplicate","machineName":"Latest Mac"}
+                ],"events":[]},"changes":[],"cursor":"cursor.new","hasMore":false}
+                """.utf8)
+            )
+        }
+
+        let result = try await PhoneDexBridgeClient(
+            bridgeURL: URL(string: "http://bridge.test")!,
+            token: "secret",
+            session: session
+        ).fetchSyncState(cursor: "cursor.old")
+
+        XCTAssertEqual(result.tasks?.count, 1)
+        XCTAssertEqual(result.tasks?.first?.title, "Latest")
+        XCTAssertEqual(result.devices?.count, 1)
+        XCTAssertEqual(result.devices?.first?.machineName, "Latest Mac")
+    }
+
     func testStaleCursorRestartsFromFreshSnapshot() async throws {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [URLProtocolStub.self]
