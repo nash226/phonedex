@@ -76,6 +76,21 @@ final class PhoneDexReviewSummaryTests: XCTestCase {
         XCTAssertEqual(summary.validationCountLabel, "0 checks")
     }
 
+    func testReviewAccessibilityLabelsIncludeActionableEvidence() {
+        let file = changedFile(path: "Sources/App.swift", additions: 12, deletions: 4)
+        let fileLabel = PhoneDexReviewAccessibility.fileLabel(file)
+        XCTAssertTrue(fileLabel.contains("Sources/App.swift"))
+        XCTAssertTrue(fileLabel.contains("12 additions"))
+        XCTAssertTrue(fileLabel.contains("4 deletions"))
+        XCTAssertTrue(fileLabel.contains("Patch not exported"))
+
+        let validation = validation(id: "tests", status: "passed", durationMs: 1200)
+        let validationLabel = PhoneDexReviewAccessibility.validationLabel(validation)
+        XCTAssertTrue(validationLabel.contains("Tests"))
+        XCTAssertTrue(validationLabel.contains("Passed"))
+        XCTAssertTrue(validationLabel.contains("1,200 milliseconds") || validationLabel.contains("1200 milliseconds"))
+    }
+
     private func changedFile(path: String, additions: Int, deletions: Int) -> PhoneDexChangedFile {
         PhoneDexChangedFile(
             path: path,
