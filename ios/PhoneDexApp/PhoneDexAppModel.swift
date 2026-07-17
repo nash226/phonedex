@@ -648,12 +648,20 @@ final class PhoneDexAppModel: ObservableObject {
             readingPositions = cached.readingPositions
             pendingReplies = cached.pendingReplies
             replyReceipts = cached.replyReceipts
-            cachedArtifacts = PhoneDexCachedArtifactPolicy.index(cached.cachedArtifacts)
+            let persistedArtifacts = PhoneDexCachedArtifactPolicy.index(cached.cachedArtifacts)
+            cachedArtifacts = persistedArtifacts
             pruneCachedArtifacts(now: Date())
             syncCursor = cached.cursor
             lastSuccessfulSync = cached.lastSyncAt
             connectionState = .offline(cached.lastSyncAt)
             selectedTaskID = tasks.first?.id
+
+            // Retention is a privacy boundary, not just a view concern. Rewrite
+            // the encrypted cache during restore so expired artifact bytes do
+            // not remain on disk until an unrelated later mutation.
+            if cachedArtifacts != persistedArtifacts {
+                persistCachedState(lastSyncAt: cached.lastSyncAt)
+            }
         } catch {
             // A corrupt or unavailable cache must never prevent a fresh sync.
         }

@@ -93,6 +93,39 @@ final class PhoneDexSettingsTests: XCTestCase {
         XCTAssertTrue(cache.state?.pendingReplies.isEmpty == true)
     }
 
+    func testModelRestorePersistsExpiredArtifactPruning() throws {
+        let defaults = try makeDefaults()
+        let settings = PhoneDexSettings(defaults: defaults, tokenStore: InMemoryTokenStore())
+        let now = Date()
+        let expired = PhoneDexCachedArtifact(
+            id: "expired",
+            name: "old.log",
+            mediaType: "text/plain",
+            data: Data("expired private bytes".utf8),
+            downloadedAt: now.addingTimeInterval(-PhoneDexCachedArtifactPolicy.retention - 1)
+        )
+        let recent = PhoneDexCachedArtifact(
+            id: "recent",
+            name: "current.log",
+            mediaType: "text/plain",
+            data: Data("recent private bytes".utf8),
+            downloadedAt: now
+        )
+        let cache = TestCache(state: PhoneDexCachedState(
+            cursor: "cursor",
+            tasks: [],
+            devices: [],
+            lastSyncAt: now,
+            cachedArtifacts: [expired, recent]
+        ))
+
+        let model = PhoneDexAppModel(settings: settings, cache: cache)
+
+        XCTAssertNil(model.cachedArtifacts[expired.id])
+        XCTAssertEqual(model.cachedArtifacts[recent.id], recent)
+        XCTAssertEqual(cache.state?.cachedArtifacts, [recent])
+    }
+
     func testModelForgetCredentialFailurePreservesPendingReplies() throws {
         let defaults = try makeDefaults()
         let store = InMemoryTokenStore()
