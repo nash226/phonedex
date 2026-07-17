@@ -104,6 +104,13 @@ enum PhoneDexCachedArtifactPolicy {
     static let limit = 20
     static let bytesLimit = 25 * 1024 * 1024
 
+    static func index(_ artifacts: [PhoneDexCachedArtifact]) -> [String: PhoneDexCachedArtifact] {
+        Dictionary(
+            artifacts.map { ($0.id, $0) },
+            uniquingKeysWith: { _, latest in latest }
+        )
+    }
+
     static func prune(_ artifacts: [PhoneDexCachedArtifact], now: Date) -> [PhoneDexCachedArtifact] {
         let recent = artifacts.filter { now.timeIntervalSince($0.downloadedAt) < retention }
         var retained = [PhoneDexCachedArtifact]()

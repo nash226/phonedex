@@ -631,7 +631,7 @@ final class PhoneDexAppModel: ObservableObject {
             readingPositions = cached.readingPositions
             pendingReplies = cached.pendingReplies
             replyReceipts = cached.replyReceipts
-            cachedArtifacts = Dictionary(uniqueKeysWithValues: cached.cachedArtifacts.map { ($0.id, $0) })
+            cachedArtifacts = PhoneDexCachedArtifactPolicy.index(cached.cachedArtifacts)
             pruneCachedArtifacts(now: Date())
             syncCursor = cached.cursor
             lastSuccessfulSync = cached.lastSyncAt
@@ -661,6 +661,8 @@ final class PhoneDexAppModel: ObservableObject {
     }
 
     private func pruneCachedArtifacts(now: Date) {
-        cachedArtifacts = Dictionary(uniqueKeysWithValues: PhoneDexCachedArtifactPolicy.prune(Array(cachedArtifacts.values), now: now).map { ($0.id, $0) })
+        cachedArtifacts = PhoneDexCachedArtifactPolicy.index(
+            PhoneDexCachedArtifactPolicy.prune(Array(cachedArtifacts.values), now: now)
+        )
     }
 }
