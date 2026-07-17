@@ -89,7 +89,7 @@ private struct PhoneDexChatsView: View {
                     Section {
                         ForEach(filteredTasks) { task in
                             NavigationLink(value: task.id) {
-                                PhoneDexTaskRow(task: task)
+                                PhoneDexTaskRow(task: task, latestEvent: model.latestEvent(for: task.id))
                             }
                         }
                     } header: {
@@ -221,6 +221,26 @@ private struct PhoneDexChatsView: View {
 
 struct PhoneDexTaskRow: View {
     let task: PhoneDexTask
+    let latestEvent: PhoneDexEvent?
+
+    init(task: PhoneDexTask, latestEvent: PhoneDexEvent? = nil) {
+        self.task = task
+        self.latestEvent = latestEvent
+    }
+
+    private var activityText: String {
+        guard ["queued", "running"].contains(task.status ?? ""), let latestEvent else {
+            return task.text
+        }
+        return latestEvent.displaySummary
+    }
+
+    private var activityLabel: String {
+        guard ["queued", "running"].contains(task.status ?? ""), latestEvent != nil else {
+            return "Latest task result"
+        }
+        return "Latest task activity"
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -245,10 +265,11 @@ struct PhoneDexTaskRow: View {
                     }
                 }
 
-                Text(task.text)
+                Text(activityText)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
+                    .accessibilityLabel(activityLabel)
 
                 Label(task.displayStatus, systemImage: task.statusSymbol)
                     .font(.caption)
