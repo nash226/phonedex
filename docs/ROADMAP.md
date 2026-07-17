@@ -987,6 +987,12 @@ and supported build matrix, and excludes credentials, local paths, and task
 content. Node CI runs `npm run release:verify`; signing, entitlements,
 TestFlight, and real-device validation remain release-owner gates.
 
+The native Settings About section now reads the app bundle's
+`CFBundleShortVersionString` and `CFBundleVersion`, so user-visible release
+identity cannot drift from the generated Xcode project. `PhoneDexSettingsTests`
+covers the version/build presentation and its safe development fallback. This
+does not provide signing or TestFlight evidence.
+
 Verification evidence for the completed App Review and support-runbook slice:
 `docs/APP_REVIEW.md` provides a release-owner checklist and truthful App Review
 explanation for local-network use, notification privacy, supported Mac/Windows

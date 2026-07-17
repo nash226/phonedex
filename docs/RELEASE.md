@@ -20,6 +20,11 @@ workspace path, task text, or signing secret. The `signing` field deliberately
 records the release-owner gate; it does not claim that unsigned simulator CI
 proves signing or entitlements.
 
+The native Settings About section reads `CFBundleShortVersionString` and
+`CFBundleVersion` from the app bundle, displaying the same release identity as
+the generated project. If either value is unavailable, it uses a safe
+development label rather than presenting a stale hard-coded version.
+
 When `ios/project.yml` changes, regenerate the committed project before
 running the verifier:
 
