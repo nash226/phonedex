@@ -591,6 +591,32 @@ final class PhoneDexBridgeClientTests: XCTestCase {
         XCTAssertTrue(URLError(.notConnectedToInternet).isOffline)
     }
 
+    func testTransientTransportFailuresUseOfflineRecoveryPath() {
+        let transientFailures: [URLError.Code] = [
+            .callIsActive,
+            .cannotLoadFromNetwork,
+            .cannotConnectToHost,
+            .cannotFindHost,
+            .dataNotAllowed,
+            .dnsLookupFailed,
+            .internationalRoamingOff,
+            .networkConnectionLost,
+            .notConnectedToInternet,
+            .resourceUnavailable,
+            .timedOut
+        ]
+
+        for code in transientFailures {
+            XCTAssertTrue(URLError(code).isOffline, "Expected \\(code) to use the offline path")
+        }
+    }
+
+    func testAuthenticationAndTLSFailuresDoNotPretendToBeOffline() {
+        XCTAssertFalse(PhoneDexBridgeClientError.httpStatus(401, "").isOffline)
+        XCTAssertFalse(PhoneDexBridgeClientError.httpStatus(403, "").isOffline)
+        XCTAssertFalse(URLError(.secureConnectionFailed).isOffline)
+    }
+
     func testDownloadArtifactUsesBearerAuthAndVerifiesDigest() async throws {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [URLProtocolStub.self]

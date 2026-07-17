@@ -590,11 +590,16 @@ extension Error {
     var isOffline: Bool {
         guard let urlError = self as? URLError else { return false }
         return [
+            .callIsActive,
+            .cannotLoadFromNetwork,
             .cannotConnectToHost,
             .cannotFindHost,
             .dataNotAllowed,
+            .dnsLookupFailed,
+            .internationalRoamingOff,
             .networkConnectionLost,
             .notConnectedToInternet,
+            .resourceUnavailable,
             .timedOut
         ].contains(urlError.code)
     }

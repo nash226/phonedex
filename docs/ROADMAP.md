@@ -877,6 +877,16 @@ existing encrypted outbox and idempotency-key retry path. The shared budget is
 asserted by `PhoneDexBridgeClientTests`; timeout classification and real-device
 poor-connectivity behavior remain part of the release-owner validation gate.
 
+Transient transport verification for the in-progress release-readiness slice:
+the native client classifies DNS lookup, host reachability, interrupted
+connections, unavailable network resources, active-call, roaming, and timeout
+failures as offline. The existing cached projection and encrypted reply outbox
+therefore remain available for temporary Mac or Windows hub connectivity loss,
+while HTTP authentication failures and TLS negotiation failures stay explicit
+errors instead of being misreported as offline. `PhoneDexBridgeClientTests`
+covers the allowlist and fail-closed security boundary; real-device poor-
+connectivity behavior remains a release-owner validation gate.
+
 Artifact-library verification for the in-progress release-readiness slice:
 verified downloads now persist in the encrypted iOS cache and remain available
 to the native artifact library and task review after relaunch. The app expires
