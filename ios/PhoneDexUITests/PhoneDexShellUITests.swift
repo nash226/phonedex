@@ -40,6 +40,23 @@ final class PhoneDexShellUITests: XCTestCase {
         XCTAssertTrue(app.switches["Require Face ID or passcode"].waitForExistence(timeout: 5))
     }
 
+    func testSelectedPrimaryTabRestoresAfterRelaunch() {
+        let app = launchApp(arguments: ["-AppleInterfaceStyle", "Light"])
+
+        let settingsTab = app.tabBars.buttons["Settings"]
+        XCTAssertTrue(settingsTab.waitForExistence(timeout: 5))
+        settingsTab.tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
+
+        app.terminate()
+        app.launch()
+
+        XCTAssertTrue(
+            app.navigationBars["Settings"].waitForExistence(timeout: 5),
+            "The last stable primary tab should be restored after relaunch."
+        )
+    }
+
     func testShellPassesSystemAccessibilityAudit() throws {
         let app = launchApp(arguments: [
             "-UIPreferredContentSizeCategoryName",

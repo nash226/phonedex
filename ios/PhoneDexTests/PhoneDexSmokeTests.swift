@@ -2,6 +2,19 @@ import XCTest
 @testable import PhoneDex
 
 final class PhoneDexSmokeTests: XCTestCase {
+    func testPrimaryTabRestoresKnownValuesAndDefaultsSafely() {
+        XCTAssertEqual(PhoneDexPrimaryTab.restored(from: "settings"), .settings)
+        XCTAssertEqual(PhoneDexPrimaryTab.restored(from: "projects"), .projects)
+        XCTAssertEqual(PhoneDexPrimaryTab.restored(from: nil), .chats)
+        XCTAssertEqual(PhoneDexPrimaryTab.restored(from: "future-tab"), .chats)
+    }
+
+    func testPrimaryTabStorageKeyIsStableAndContainsNoTaskContext() {
+        XCTAssertEqual(PhoneDexPrimaryTab.storageKey, "phonedex.primaryTab")
+        XCTAssertFalse(PhoneDexPrimaryTab.storageKey.contains("task"))
+        XCTAssertEqual(PhoneDexPrimaryTab.allCases.count, 5)
+    }
+
     func testDeepLinkDiagnosticsExcludeCredentialsAndQueryValues() {
         let url = URL(string: "phonedex://configure?bridgeUrl=https%3A%2F%2Fbridge.test&token=secret")!
 
