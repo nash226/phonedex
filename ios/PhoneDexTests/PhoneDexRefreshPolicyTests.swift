@@ -5,6 +5,7 @@ final class PhoneDexRefreshPolicyTests: XCTestCase {
     private let policy = PhoneDexRefreshPolicy(
         automaticMinimumInterval: 30,
         automaticMaximumInterval: 120,
+        lowPowerModeMaximumInterval: 300,
         jitterFraction: 0.2
     )
     private let baseline = Date(timeIntervalSince1970: 1_000)
@@ -45,6 +46,42 @@ final class PhoneDexRefreshPolicyTests: XCTestCase {
         XCTAssertEqual(policy.automaticDelay(consecutiveFailures: 1, jitter: -1), 48)
         XCTAssertEqual(policy.automaticDelay(consecutiveFailures: 1, jitter: 1), 72)
         XCTAssertEqual(policy.automaticDelay(consecutiveFailures: 1, jitter: 4), 72)
+    }
+
+    func testLowPowerModeUsesLongerAutomaticRefreshCeiling() {
+        XCTAssertEqual(
+            policy.automaticDelay(consecutiveFailures: 4, lowPowerModeEnabled: true),
+            300
+        )
+        XCTAssertEqual(
+            policy.automaticDelay(consecutiveFailures: 4, lowPowerModeEnabled: false),
+            120
+        )
+    }
+
+    func testLowPowerModeStillHonorsFailureBackoffAndJitter() {
+        XCTAssertEqual(
+            policy.automaticDelay(
+                consecutiveFailures: 1,
+                jitter: -1,
+                lowPowerModeEnabled: true
+            ),
+            48
+        )
+        XCTAssertFalse(policy.shouldRefresh(
+            trigger: .becameActive,
+            now: baseline.addingTimeInterval(299.9),
+            lastAutomaticRefreshAt: baseline,
+            consecutiveFailures: 4,
+            lowPowerModeEnabled: true
+        ))
+        XCTAssertTrue(policy.shouldRefresh(
+            trigger: .becameActive,
+            now: baseline.addingTimeInterval(300),
+            lastAutomaticRefreshAt: baseline,
+            consecutiveFailures: 4,
+            lowPowerModeEnabled: true
+        ))
     }
 
     func testFailureBackoffDelaysForegroundRefresh() {
