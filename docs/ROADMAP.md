@@ -901,6 +901,14 @@ support record template. Neither document requests secrets or claims private
 Codex Desktop API parity; provider, signing, and real-device release decisions
 remain explicit human gates.
 
+Verification evidence for the real-device validation slice:
+`docs/REAL_DEVICE_VALIDATION.md` defines the content-free evidence boundary,
+real-iPhone pairing, offline, notification-action, approval, review, privacy,
+recovery, accessibility, Mac, and Windows scenarios, plus the release-owner
+gates that unsigned simulator CI cannot prove. It keeps signing, TestFlight,
+APNs, legal privacy approval, and real-device measurements as explicit gates;
+the runbook does not claim them complete.
+
 Verification evidence for the completed native diagnostics export slice:
 `PhoneDexBridgeClient.fetchDiagnostics()` consumes the authenticated
 `phonedex.diagnostics.v1` projection, while Settings exposes loading, success,

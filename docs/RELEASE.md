@@ -30,3 +30,5 @@ npm run release:verify
 
 Apple signing, TestFlight, real-device validation, and final App Store privacy
 decisions remain release-owner work and are not automated by this manifest.
+Use [`docs/REAL_DEVICE_VALIDATION.md`](REAL_DEVICE_VALIDATION.md) to record
+those manual results without weakening the local-first security boundary.
