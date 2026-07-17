@@ -1149,9 +1149,10 @@ struct PhoneDexSyncChange: Decodable {
             device = nil
             event = try container.decode(PhoneDexEvent.self, forKey: .record)
         default:
-            task = nil
-            device = nil
-            event = nil
+            throw DecodingError.dataCorrupted(.init(
+                codingPath: decoder.codingPath,
+                debugDescription: "sync change has unsupported record kind: \(kind)"
+            ))
         }
     }
 }

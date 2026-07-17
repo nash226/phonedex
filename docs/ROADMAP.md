@@ -1057,6 +1057,13 @@ review work. `PhoneDexSmokeTests` covers overlong task text, oversized patches,
 and oversized evidence collections. This bounds native decoding without
 truncating source-linked review content or changing the local-first transport.
 
+Native sync compatibility verification: `PhoneDexSyncChange` now rejects an
+unknown record kind with an explicit decoding error instead of silently
+advancing the opaque cursor while dropping state. `PhoneDexSmokeTests` covers a
+future record kind and verifies the fail-closed boundary. Additive unknown JSON
+fields remain compatible; unsupported required record kinds surface through the
+existing refresh error path and preserve the last trusted local projection.
+
 Verification evidence for the bounded live-progress presentation slice:
 `PhoneDexAppModel.latestEvent(for:)` selects the highest-sequence structured
 lifecycle event for a task, and the native Chats row presents its bounded
