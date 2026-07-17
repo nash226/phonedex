@@ -268,6 +268,12 @@ protocol PhoneDexCacheStoring {
     func load() throws -> PhoneDexCachedState?
     func save(_ state: PhoneDexCachedState) throws
     func remove() throws
+    func quarantine() throws
+}
+
+extension PhoneDexCacheStoring {
+    /// Test doubles and non-file stores have nothing to quarantine.
+    func quarantine() throws {}
 }
 
 protocol PhoneDexCacheKeyStoring {
@@ -353,6 +359,19 @@ struct PhoneDexEncryptedCache: PhoneDexCacheStoring {
             try keyStore.removeKey()
         } catch let error as PhoneDexCacheError {
             throw error
+        } catch {
+            throw PhoneDexCacheError.persistenceFailed
+        }
+    }
+
+    func quarantine() throws {
+        guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
+
+        let quarantineURL = fileURL
+            .deletingLastPathComponent()
+            .appendingPathComponent("\(fileURL.deletingPathExtension().lastPathComponent).corrupt-\(UUID().uuidString).\(fileURL.pathExtension)")
+        do {
+            try FileManager.default.moveItem(at: fileURL, to: quarantineURL)
         } catch {
             throw PhoneDexCacheError.persistenceFailed
         }

@@ -74,6 +74,7 @@ final class PhoneDexAppModel: ObservableObject {
     @Published var lifecycleState: LifecycleState = .idle
     @Published private(set) var lastSuccessfulSync: Date?
     @Published private(set) var diagnostics: PhoneDexDiagnosticsSnapshot?
+    @Published private(set) var cacheRecoveryMessage: String?
 
     static let staleAfter: TimeInterval = 5 * 60
 
@@ -664,6 +665,11 @@ final class PhoneDexAppModel: ObservableObject {
             }
         } catch {
             // A corrupt or unavailable cache must never prevent a fresh sync.
+            // Move a corrupt file aside so notification actions and the next
+            // launch can start from a clean encrypted state instead of
+            // retrying the same failure forever.
+            try? cache.quarantine()
+            cacheRecoveryMessage = "PhoneDex could not restore its local cache. Fresh data will be fetched when the hub is reachable."
         }
     }
 

@@ -151,6 +151,18 @@ private struct PhoneDexChatsView: View {
                 .listStyle(.plain)
                 .overlay { emptyState }
                 .refreshable { await model.refresh() }
+
+                if let cacheRecoveryMessage = model.cacheRecoveryMessage {
+                    Label(cacheRecoveryMessage, systemImage: "externaldrive.badge.exclamationmark")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.leading)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(.thinMaterial)
+                        .accessibilityElement(children: .combine)
+                }
             }
             .navigationTitle("PhoneDex")
             .toolbar {
