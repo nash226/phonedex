@@ -888,6 +888,15 @@ support record template. Neither document requests secrets or claims private
 Codex Desktop API parity; provider, signing, and real-device release decisions
 remain explicit human gates.
 
+Verification evidence for the completed native diagnostics export slice:
+`PhoneDexBridgeClient.fetchDiagnostics()` consumes the authenticated
+`phonedex.diagnostics.v1` projection, while Settings exposes loading, success,
+and failure states plus a ShareLink containing only aggregate metrics,
+component health, protocol version, and capability identifiers. The native
+diagnostics test decodes the contract and guards against paths and credential
+text entering the shared summary. This improves content-free S2 support
+intake without adding a hosted relay, background push, or private Codex API.
+
 ## Human-Decision Queue
 
 Create or update a GitHub issue labeled `needs-human-decision` only when work

@@ -50,6 +50,13 @@ tokens, URLs containing credentials, workspace roots, or artifact bytes into a
 ticket. A healthy result can still report `unknown` for an unsupported adapter;
 that is not evidence of a hub outage.
 
+The iPhone Settings screen can fetch the same authenticated `/diagnostics`
+projection and share a compact, content-free summary. Use **Share safe
+diagnostics** when collecting an S2 support record. Confirm that the shared
+text contains only component states, aggregate request counts, protocol and
+capability identifiers, and timestamps; never request a screenshot of task
+content or a screen recording of the app.
+
 ## Device and connectivity checks
 
 ### iPhone

@@ -72,6 +72,7 @@ final class PhoneDexAppModel: ObservableObject {
     @Published var replyState: ReplyState = .idle
     @Published var lifecycleState: LifecycleState = .idle
     @Published private(set) var lastSuccessfulSync: Date?
+    @Published private(set) var diagnostics: PhoneDexDiagnosticsSnapshot?
 
     static let staleAfter: TimeInterval = 5 * 60
 
@@ -217,6 +218,15 @@ final class PhoneDexAppModel: ObservableObject {
             throw PhoneDexBridgeClientError.invalidURL
         }
         return try await client.downloadArtifact(artifact)
+    }
+
+    func fetchDiagnostics() async throws -> PhoneDexDiagnosticsSnapshot {
+        guard let client = bridgeClient else {
+            throw PhoneDexBridgeClientError.invalidURL
+        }
+        let snapshot = try await client.fetchDiagnostics()
+        diagnostics = snapshot
+        return snapshot
     }
 
     func send(_ choice: PhoneDexReplyChoice, prompt: String? = nil, to task: PhoneDexTask) async -> Bool {

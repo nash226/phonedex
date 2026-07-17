@@ -2,6 +2,17 @@ import XCTest
 @testable import PhoneDex
 
 final class PhoneDexDiagnosticsTests: XCTestCase {
+    func testDiagnosticsDecodeAndShareTextRemainContentFree() throws {
+        let data = Data(#"{"schema":"phonedex.diagnostics.v1","generatedAt":"2026-07-17T00:00:00Z","startedAt":"2026-07-16T00:00:00Z","service":"watchdex","role":"hub","version":"0.1.0","protocolVersion":1,"components":{"hub":"healthy","agent":"unknown"},"metrics":{"requests":4,"failures":1,"commands":2,"routes":{"/sync":{"requests":4,"failures":1,"averageLatencyMs":12}}},"recentRequests":[],"capabilities":[{"id":"sync.snapshot.v1","supported":true}]}"#.utf8)
+        let snapshot = try JSONDecoder().decode(PhoneDexDiagnosticsSnapshot.self, from: data)
+
+        XCTAssertEqual(snapshot.schema, "phonedex.diagnostics.v1")
+        XCTAssertEqual(snapshot.metrics.failures, 1)
+        XCTAssertTrue(snapshot.shareText.contains("sync.snapshot.v1=available"))
+        XCTAssertFalse(snapshot.shareText.contains("/workspace"))
+        XCTAssertFalse(snapshot.shareText.contains("token"))
+    }
+
     func testDeviceHealthMapsProtocolStatesAndUnknownValues() {
         XCTAssertEqual(PhoneDexDeviceHealth(status: "online"), .online)
         XCTAssertEqual(PhoneDexDeviceHealth(status: "stale"), .stale)
