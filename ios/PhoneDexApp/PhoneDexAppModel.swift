@@ -102,6 +102,19 @@ final class PhoneDexAppModel: ObservableObject {
         tasks.first { $0.id == selectedTaskID }
     }
 
+    /// Removes commands authenticated by the credential being forgotten.
+    /// Cached task history and review artifacts remain available, but an old
+    /// reply must never be retried after pairing changes.
+    @discardableResult
+    func forgetCredential() -> Bool {
+        guard settings.forgetCredential() else { return false }
+
+        pendingReplies.removeAll()
+        replyState = .idle
+        persistCachedState(lastSyncAt: lastSuccessfulSync)
+        return true
+    }
+
     var projects: [PhoneDexProject] {
         Dictionary(grouping: tasks, by: \PhoneDexTask.projectID)
             .values

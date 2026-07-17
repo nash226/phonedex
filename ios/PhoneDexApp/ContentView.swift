@@ -2077,15 +2077,15 @@ private struct PhoneDexSettingsView: View {
             }
             .confirmationDialog("Forget stored credential?", isPresented: $showingForgetCredentialConfirmation, titleVisibility: .visible) {
                 Button("Forget credential", role: .destructive) {
-                    if settings.forgetCredential() {
-                        credentialStatus = "Credential removed. Pair this iPhone again before connecting."
+                    if model.forgetCredential() {
+                        credentialStatus = "Credential removed. Pending replies cleared. Pair this iPhone again before connecting."
                     } else {
                         credentialStatus = settings.credentialStorageError ?? "Credential could not be removed. Try again."
                     }
                 }
                 Button("Cancel", role: .cancel) { }
             } message: {
-                Text("This removes only the credential stored on this iPhone. It does not revoke the hub credential or change other paired devices.")
+                Text("This removes only the credential stored on this iPhone and clears unsent local replies. It does not revoke the hub credential, delete task history, or change other paired devices.")
             }
         }
     }
