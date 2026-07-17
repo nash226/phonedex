@@ -113,6 +113,8 @@ struct PhoneDexPairedIdentity: Decodable, Equatable {
 }
 
 struct PhoneDexBridgeClient {
+    static let requestTimeout: TimeInterval = 15
+
     var bridgeURL: URL
     var token: String
     var session: URLSession = .shared
@@ -174,7 +176,7 @@ struct PhoneDexBridgeClient {
         let url = bridgeURL.appending(path: "pair")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.timeoutInterval = 15
+        request.timeoutInterval = Self.requestTimeout
         request.setValue("application/json", forHTTPHeaderField: "content-type")
         request.httpBody = try JSONSerialization.data(withJSONObject: [
             "grant": grant,
@@ -358,6 +360,7 @@ struct PhoneDexBridgeClient {
         let url = bridgeURL.appending(path: "reply")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        request.timeoutInterval = Self.requestTimeout
         request.setValue("application/json", forHTTPHeaderField: "content-type")
         if !token.isEmpty {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
@@ -410,7 +413,7 @@ struct PhoneDexBridgeClient {
         let url = bridgeURL.appending(path: "command")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.timeoutInterval = 15
+        request.timeoutInterval = Self.requestTimeout
         request.setValue("application/json", forHTTPHeaderField: "content-type")
         if !token.isEmpty {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
@@ -443,7 +446,7 @@ struct PhoneDexBridgeClient {
 
     private func authorizedRequest(url: URL) -> URLRequest {
         var request = URLRequest(url: url)
-        request.timeoutInterval = 15
+        request.timeoutInterval = Self.requestTimeout
         request.setValue("1", forHTTPHeaderField: "x-phonedex-protocol-version")
         request.setValue(
             "sync.snapshot.v1,device.health.v1",

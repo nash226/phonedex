@@ -861,6 +861,14 @@ foreground network and parsing work without pretending that a background
 refresh or APNs provider exists; real-device battery profiling remains required
 before the M8 battery gate can be checked off.
 
+Network reliability verification for the in-progress release-readiness slice:
+all native bridge operations, including authenticated reply delivery, use the
+same bounded 15-second request timeout. This prevents a stalled Mac or Windows
+hub from leaving a foreground action indeterminate while preserving the
+existing encrypted outbox and idempotency-key retry path. The shared budget is
+asserted by `PhoneDexBridgeClientTests`; timeout classification and real-device
+poor-connectivity behavior remain part of the release-owner validation gate.
+
 Artifact-library verification for the in-progress release-readiness slice:
 verified downloads now persist in the encrypted iOS cache and remain available
 to the native artifact library and task review after relaunch. The app expires

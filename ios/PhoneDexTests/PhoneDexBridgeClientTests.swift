@@ -16,6 +16,7 @@ final class PhoneDexBridgeClientTests: XCTestCase {
         URLProtocolStub.handler = { request in
             XCTAssertEqual(request.url?.absoluteString, "http://bridge.test/reply")
             XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.timeoutInterval, PhoneDexBridgeClient.requestTimeout)
             XCTAssertEqual(request.value(forHTTPHeaderField: "authorization"), "Bearer secret")
             XCTAssertEqual(request.value(forHTTPHeaderField: "content-type"), "application/json")
 
