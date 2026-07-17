@@ -918,6 +918,15 @@ diagnostics test decodes the contract and guards against paths and credential
 text entering the shared summary. This improves content-free S2 support
 intake without adding a hosted relay, background push, or private Codex API.
 
+Verification evidence for the bounded live-progress presentation slice:
+`PhoneDexAppModel.latestEvent(for:)` selects the highest-sequence structured
+lifecycle event for a task, and the native Chats row presents its bounded
+summary for queued and running work while retaining the last task response for
+completed or legacy records. Empty event summaries fall back to the localized
+event title, and `PhoneDexChatFilteringTests` covers sequence ordering and the
+fallback. This is foreground, durable-sync presentation only; it does not
+claim continuous background delivery or infer progress from desktop UI.
+
 ## Human-Decision Queue
 
 Create or update a GitHub issue labeled `needs-human-decision` only when work

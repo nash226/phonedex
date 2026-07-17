@@ -598,6 +598,10 @@ final class PhoneDexAppModel: ObservableObject {
             .sorted { $0.sequence < $1.sequence }
     }
 
+    func latestEvent(for taskID: PhoneDexTask.ID) -> PhoneDexEvent? {
+        events(for: taskID).last
+    }
+
     func updateReadingPosition(_ position: String?, for taskID: PhoneDexTask.ID) {
         let normalizedPosition = position?.trimmingCharacters(in: .whitespacesAndNewlines)
         guard readingPositions[taskID] != normalizedPosition else { return }

@@ -559,6 +559,11 @@ struct PhoneDexEvent: Codable, Equatable, Identifiable {
         data["summary"]
     }
 
+    var displaySummary: String {
+        let normalizedSummary = summary?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return normalizedSummary.isEmpty ? displayTitle : normalizedSummary
+    }
+
     init(
         id: String,
         taskId: String,

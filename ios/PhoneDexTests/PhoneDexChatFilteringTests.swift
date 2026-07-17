@@ -2,6 +2,33 @@ import XCTest
 @testable import PhoneDex
 
 final class PhoneDexChatFilteringTests: XCTestCase {
+    func testLatestEventUsesSequenceOrderAndProvidesSafeFallbackSummary() {
+        let events = [
+            PhoneDexEvent(
+                id: "progress-2",
+                taskId: "running",
+                createdAt: "2026-07-15T12:02:00.000Z",
+                sequence: 2,
+                type: "progress",
+                data: [:]
+            ),
+            PhoneDexEvent(
+                id: "progress-1",
+                taskId: "running",
+                createdAt: "2026-07-15T12:01:00.000Z",
+                sequence: 1,
+                type: "progress",
+                data: ["summary": "Running focused tests"]
+            )
+        ]
+
+        let latest = events.sorted { $0.sequence < $1.sequence }.last
+
+        XCTAssertEqual(latest?.id, "progress-2")
+        XCTAssertEqual(latest?.displaySummary, "Progress")
+        XCTAssertEqual(events[1].displaySummary, "Running focused tests")
+    }
+
     func testScopesSeparateActionableRunningAndRecentWork() {
         let tasks = [
             task("question", status: "needs_input"),
