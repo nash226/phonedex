@@ -306,6 +306,16 @@ shows an actionable Settings message when the configured URL is invalid.
 and loopback HTTP compatibility. Hub and agent TLS termination, certificate
 deployment, and legacy query-token removal remain separate release work.
 
+Verification evidence for the legacy query-token boundary: URL query-token
+authentication is now disabled by default across the shared Mac/Windows hub
+routes, task pages, and standard agent-bootstrap URLs. Header-authenticated
+requests continue to work, short-lived invite URLs remain supported, and older
+form-body clients remain available during migration. Setting
+`PHONEDEX_ENABLE_LEGACY_QUERY_TOKENS=true` explicitly restores the old URL
+compatibility path for a bounded local migration. `scripts/test-query-token-
+boundary.js` proves the default fail-closed behavior and retained header/body
+compatibility without putting credentials in generated support URLs.
+
 Verification evidence for the completed Chats scope slice: the native SwiftUI
 Chats surface in `ios/PhoneDexApp/ContentView.swift` provides Needs You,
 Running, and Recent scopes, searchable conversation context, machine and

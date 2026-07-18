@@ -134,6 +134,7 @@ async function main() {
     WATCH_BRIDGE_PORT: String(port),
     WATCH_BRIDGE_PUBLIC_URL: hubUrl,
     WATCH_BRIDGE_TOKEN: "hub-token",
+    PHONEDEX_ENABLE_LEGACY_QUERY_TOKENS: "true",
     PHONEDEX_AGENT_INVITE_MAX_ACTIVE: "3",
     WATCH_BRIDGE_PROVIDER: "pushcut",
     PUSHCUT_WEBHOOK_URL: ""

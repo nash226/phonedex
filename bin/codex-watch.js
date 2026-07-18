@@ -294,6 +294,10 @@ function config() {
     publicUrl,
     replyUrl: `${publicUrl}/reply`,
     token: env.WATCH_BRIDGE_TOKEN || "",
+    legacyQueryTokenCompatibility: parseBoolean(
+      env.PHONEDEX_ENABLE_LEGACY_QUERY_TOKENS,
+      false
+    ),
     hubUrl,
     hubToken: env.PHONEDEX_HUB_TOKEN || env.WATCH_BRIDGE_TOKEN || "",
     agentMode: parseBoolean(env.PHONEDEX_AGENT_MODE, false),
@@ -1024,7 +1028,9 @@ function isScopedBearerAuthorized(req, cfg, scope) {
 
 function isRequestAuthorized(req, requestUrl, cfg, scope) {
   if (!cfg.token) return true;
-  if (requestUrl.searchParams.get("token") === cfg.token) return true;
+  if (cfg.legacyQueryTokenCompatibility && requestUrl.searchParams.get("token") === cfg.token) {
+    return true;
+  }
 
   const authHeader = req.headers.authorization || "";
   const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
@@ -2161,7 +2167,7 @@ function readAgentBootstrapSetup(cfg, options = {}) {
     const platform = target.platform || guessAgentPlatform(target);
     const downloadUrl = options.inviteCode
       ? agentBootstrapInviteDownloadUrl(hubUrl, options.inviteCode, target.fileName)
-      : agentBootstrapDownloadUrl(hubUrl, target.fileName, cfg.token);
+      : agentBootstrapDownloadUrl(hubUrl, target.fileName, cfg);
     return {
       deviceId: target.deviceId || "",
       machineName: target.machineName || target.deviceId || "",
@@ -2179,7 +2185,7 @@ function readAgentBootstrapSetup(cfg, options = {}) {
     hubUrl: safeSupportURL(hubUrl),
     setupUrl: options.inviteCode
       ? `${hubUrl}/agent-bootstrap/invite/${encodeURIComponent(options.inviteCode)}`
-      : `${hubUrl}/agent-bootstrap/setup?token=${encodeURIComponent(cfg.token)}`,
+      : legacyAgentBootstrapSetupUrl(hubUrl, cfg),
     expectedDevices: manifest.expectedDevices || "",
     targets
   };
@@ -2207,8 +2213,18 @@ function latestAgentInstallReportsByDevice(dataDir) {
   return byDevice;
 }
 
-function agentBootstrapDownloadUrl(hubUrl, fileName, token) {
-  return `${hubUrl}/agent-bootstrap/${encodeURIComponent(fileName)}?token=${encodeURIComponent(token)}`;
+function agentBootstrapDownloadUrl(hubUrl, fileName, cfg) {
+  const baseUrl = `${hubUrl}/agent-bootstrap/${encodeURIComponent(fileName)}`;
+  return cfg.legacyQueryTokenCompatibility
+    ? `${baseUrl}?token=${encodeURIComponent(cfg.token)}`
+    : baseUrl;
+}
+
+function legacyAgentBootstrapSetupUrl(hubUrl, cfg) {
+  const baseUrl = `${hubUrl}/agent-bootstrap/setup`;
+  return cfg.legacyQueryTokenCompatibility
+    ? `${baseUrl}?token=${encodeURIComponent(cfg.token)}`
+    : baseUrl;
 }
 
 function agentBootstrapInviteDownloadUrl(hubUrl, inviteCode, fileName) {
@@ -2233,7 +2249,7 @@ function agentBootstrapInstallCommands(target, downloadUrl) {
 
 async function handleTaskPageRequest(req, res, requestUrl, cfg) {
   const token = requestUrl.searchParams.get("token") || "";
-  if (cfg.token && token !== cfg.token) {
+  if (cfg.token && (!cfg.legacyQueryTokenCompatibility || token !== cfg.token)) {
     return sendHtml(res, 401, renderMessagePage("PhoneDex", "Invalid token."));
   }
 
@@ -5088,7 +5104,7 @@ function printAgentBundle(bundle) {
   console.log(`PhoneDex agent bootstrap bundle written to ${safe.outputDir}`);
   console.log(`Manifest: ${safe.manifestPath}`);
   console.log(`Readme: ${safe.readmePath}`);
-  console.log(`Setup page: ${safe.hubUrl}/agent-bootstrap/setup?token=HUB_TOKEN`);
+  console.log(`Setup page: ${safe.hubUrl}/agent-bootstrap/setup (use a short-lived agent invite)`);
   if (safe.targets.length === 0) {
     console.log("No missing expected agents need bootstrap scripts right now.");
     return;
@@ -5096,7 +5112,7 @@ function printAgentBundle(bundle) {
 
   for (const target of safe.targets) {
     console.log(`- ${target.machineName} [${target.deviceId}] ${target.platform}: ${target.filePath}`);
-    console.log(`  Hub download: ${safe.hubUrl}/agent-bootstrap/${target.fileName}?token=HUB_TOKEN`);
+    console.log(`  Hub download: ${safe.hubUrl}/agent-bootstrap/${target.fileName} (use a short-lived agent invite)`);
   }
 }
 
@@ -5109,8 +5125,8 @@ function renderAgentBundleReadme(manifest) {
     `Expected devices: ${manifest.expectedDevices || "(none)"}`,
     "",
     "Download or copy each script to its matching target device and run it there.",
-    "The hub serves these private files from /agent-bootstrap/<file>?token=HUB_TOKEN.",
-    `Setup page: ${safeSupportURL(manifest.hubUrl)}/agent-bootstrap/setup?token=HUB_TOKEN`,
+    "The hub serves these private files through short-lived agent invites.",
+    `Setup page: ${safeSupportURL(manifest.hubUrl)}/agent-bootstrap/setup (use a short-lived agent invite)`,
     "Each script contains local tokens from this hub. Treat the files as private.",
     ""
   ];
@@ -5118,7 +5134,7 @@ function renderAgentBundleReadme(manifest) {
   for (const target of manifest.targets) {
     lines.push(`${target.machineName} [${target.deviceId}]`);
     lines.push(`  Script: ${target.fileName}`);
-    lines.push(`  Hub download: ${safeSupportURL(manifest.hubUrl)}/agent-bootstrap/${target.fileName}?token=HUB_TOKEN`);
+    lines.push(`  Hub download: ${safeSupportURL(manifest.hubUrl)}/agent-bootstrap/${target.fileName} (use a short-lived agent invite)`);
     lines.push(
       target.platform === "windows"
         ? `  Run on Windows PowerShell: powershell -ExecutionPolicy Bypass -File .\\${target.fileName}`
