@@ -54,6 +54,15 @@ remains available for local development. Certificate provisioning, rotation,
 and deployment are operator/release-owner responsibilities; private keys are
 never included in PhoneDex reports or diagnostics.
 
+Legacy query-token compatibility is disabled by default. Production clients
+must use the `Authorization: Bearer` header with a scoped identity or the
+existing short-lived agent invite flow; credentials are not emitted in
+bootstrap URLs or support output. Set
+`PHONEDEX_ENABLE_LEGACY_QUERY_TOKENS=true` only for a time-bounded migration
+of older local tooling, and remove it before external beta. Legacy form-body
+authentication remains a separate compatibility path until the shared-token
+migration is complete.
+
 The 15 product acceptance scenarios have a separate, content-free evidence
 contract. Validate a release-owner evidence file with:
 
