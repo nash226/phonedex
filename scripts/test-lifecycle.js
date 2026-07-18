@@ -128,7 +128,6 @@ else console.log("completed: " + prompt);
       method: "POST",
       headers: { authorization: "Bearer phone-token", "content-type": "application/json" },
       body: JSON.stringify({
-        token: "phone-token",
         task: {
           id: "origin-handoff-task",
           title: "Review the desktop task",
@@ -178,9 +177,8 @@ else console.log("completed: " + prompt);
 
     const missingSessionTask = await request(`${url}/tasks`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { authorization: "Bearer phone-token", "content-type": "application/json" },
       body: JSON.stringify({
-        token: "phone-token",
         task: {
           id: "origin-missing-session",
           title: "Missing session",

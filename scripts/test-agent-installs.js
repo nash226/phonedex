@@ -118,8 +118,8 @@ async function main() {
 
     const started = await fetchJson(`${hubUrl}/agent-installs`, {
       method: "POST",
+      headers: { authorization: "Bearer hub-token" },
       body: new URLSearchParams({
-        token: "hub-token",
         deviceId: "macbook-air",
         machineName: "MacBook Air",
         platform: "macos",
@@ -140,8 +140,8 @@ async function main() {
 
     const progress = await fetchJson(`${hubUrl}/agent-installs`, {
       method: "POST",
+      headers: { authorization: "Bearer hub-token" },
       body: new URLSearchParams({
-        token: "hub-token",
         deviceId: "macbook-air",
         machineName: "MacBook Air",
         platform: "macos",

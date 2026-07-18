@@ -866,7 +866,9 @@ credential cannot inspect or mutate privacy controls.
 ### Current security blockers
 
 Before external beta, legacy shared-token setup must be retired in favor of
-scoped pairing and revocable identities. Native notification metadata contains
+scoped pairing and revocable identities. Legacy query and form-body token
+compatibility is disabled by default and may be enabled only for a bounded
+migration. Native notification metadata contains
 no durable credential, and the Pushcut fallback uses a ten-minute, single-use
 opaque action grant whose hash is stored at rest; the iOS settings token is no
 longer stored in `UserDefaults`. Pairing grants are now short-lived,

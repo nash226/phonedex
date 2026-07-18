@@ -298,6 +298,10 @@ function config() {
       env.PHONEDEX_ENABLE_LEGACY_QUERY_TOKENS,
       false
     ),
+    legacyBodyTokenCompatibility: parseBoolean(
+      env.PHONEDEX_ENABLE_LEGACY_BODY_TOKENS,
+      false
+    ),
     hubUrl,
     hubToken: env.PHONEDEX_HUB_TOKEN || env.WATCH_BRIDGE_TOKEN || "",
     agentMode: parseBoolean(env.PHONEDEX_AGENT_MODE, false),
@@ -1041,6 +1045,15 @@ function isRequestAuthorized(req, requestUrl, cfg, scope) {
   return Boolean(identity && (!scope || hasScope(identity, scope)));
 }
 
+function isLegacyBodyTokenAuthorized(bodyFields, cfg) {
+  return Boolean(
+    cfg.token &&
+    cfg.legacyBodyTokenCompatibility &&
+    bodyFields &&
+    bodyFields.token === cfg.token
+  );
+}
+
 function findIdentityForRequest(req, cfg) {
   const authHeader = req.headers.authorization || "";
   const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
@@ -1593,13 +1606,14 @@ async function startService(args) {
 
 async function handleTaskIngestRequest(req, res, requestUrl, cfg) {
   const body = await readHttpBody(req);
+  const bodyFields = parseBodyFields(body, req.headers["content-type"] || "");
   const fields = {
     ...Object.fromEntries(requestUrl.searchParams.entries()),
-    ...parseBodyFields(body, req.headers["content-type"] || "")
+    ...bodyFields
   };
-  const token = fields.token || "";
 
-  if (cfg.token && token !== cfg.token && !isRequestAuthorized(req, requestUrl, cfg, "tasks.ingest")) {
+  if (cfg.token && !isLegacyBodyTokenAuthorized(bodyFields, cfg) &&
+      !isRequestAuthorized(req, requestUrl, cfg, "tasks.ingest")) {
     return sendJson(res, 401, { ok: false, error: "Invalid token" });
   }
 
@@ -1738,13 +1752,14 @@ async function handleDeviceHeartbeatRequest(req, res, requestUrl, cfg) {
   }
 
   const body = await readHttpBody(req);
+  const bodyFields = parseBodyFields(body, req.headers["content-type"] || "");
   const fields = {
     ...Object.fromEntries(requestUrl.searchParams.entries()),
-    ...parseBodyFields(body, req.headers["content-type"] || "")
+    ...bodyFields
   };
-  const token = fields.token || "";
 
-  if (cfg.token && token !== cfg.token && !isRequestAuthorized(req, requestUrl, cfg, "devices.heartbeat")) {
+  if (cfg.token && !isLegacyBodyTokenAuthorized(bodyFields, cfg) &&
+      !isRequestAuthorized(req, requestUrl, cfg, "devices.heartbeat")) {
     return sendJson(res, 401, { ok: false, error: "Invalid token" });
   }
 
@@ -1756,13 +1771,14 @@ async function handleDeviceHeartbeatRequest(req, res, requestUrl, cfg) {
 
 async function handleAgentInstallReportRequest(req, res, requestUrl, cfg) {
   const body = await readHttpBody(req);
+  const bodyFields = parseBodyFields(body, req.headers["content-type"] || "");
   const fields = {
     ...Object.fromEntries(requestUrl.searchParams.entries()),
-    ...parseBodyFields(body, req.headers["content-type"] || "")
+    ...bodyFields
   };
-  const token = fields.token || "";
 
-  if (cfg.token && token !== cfg.token && !isRequestAuthorized(req, requestUrl, cfg, "devices.heartbeat")) {
+  if (cfg.token && !isLegacyBodyTokenAuthorized(bodyFields, cfg) &&
+      !isRequestAuthorized(req, requestUrl, cfg, "devices.heartbeat")) {
     return sendJson(res, 401, { ok: false, error: "Invalid token" });
   }
 
@@ -2266,9 +2282,10 @@ async function handleTaskPageRequest(req, res, requestUrl, cfg) {
 
 async function handleReplyRequest(req, res, requestUrl, cfg) {
   const body = await readHttpBody(req);
+  const bodyFields = parseBodyFields(body, req.headers["content-type"] || "");
   const fields = {
     ...Object.fromEntries(requestUrl.searchParams.entries()),
-    ...parseBodyFields(body, req.headers["content-type"] || "")
+    ...bodyFields
   };
 
   let notificationAction = null;
@@ -2308,7 +2325,9 @@ async function handleReplyRequest(req, res, requestUrl, cfg) {
     fields.action = "notification";
   }
 
-  if (cfg.token && !notificationAction && fields.token !== cfg.token && !isRequestAuthorized(req, requestUrl, cfg, "tasks.reply")) {
+  if (cfg.token && !notificationAction &&
+      !isLegacyBodyTokenAuthorized(bodyFields, cfg) &&
+      !isRequestAuthorized(req, requestUrl, cfg, "tasks.reply")) {
     return sendJson(res, 401, { ok: false, error: "Invalid token" });
   }
 

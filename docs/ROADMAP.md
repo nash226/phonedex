@@ -310,11 +310,13 @@ Verification evidence for the legacy query-token boundary: URL query-token
 authentication is now disabled by default across the shared Mac/Windows hub
 routes, task pages, and standard agent-bootstrap URLs. Header-authenticated
 requests continue to work, short-lived invite URLs remain supported, and older
-form-body clients remain available during migration. Setting
+form-body clients are disabled by default. Setting
 `PHONEDEX_ENABLE_LEGACY_QUERY_TOKENS=true` explicitly restores the old URL
-compatibility path for a bounded local migration. `scripts/test-query-token-
-boundary.js` proves the default fail-closed behavior and retained header/body
-compatibility without putting credentials in generated support URLs.
+compatibility path, while `PHONEDEX_ENABLE_LEGACY_BODY_TOKENS=true` explicitly
+restores form-body token authentication, each for a bounded local migration.
+`scripts/test-query-token-boundary.js` proves default fail-closed behavior,
+explicit compatibility, and retained header authentication without putting
+credentials in generated support URLs.
 
 Verification evidence for the completed Chats scope slice: the native SwiftUI
 Chats surface in `ios/PhoneDexApp/ContentView.swift` provides Needs You,

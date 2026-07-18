@@ -100,9 +100,11 @@ async function main() {
     for (const id of ["remote_task_1", "remote_task_2"]) {
       const ingested = await request(`${hubUrl}/tasks`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          authorization: "Bearer hub-token",
+          "content-type": "application/json"
+        },
         body: JSON.stringify({
-          token: "hub-token",
           id,
           title: id,
           text: "safe result",

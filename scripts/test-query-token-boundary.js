@@ -41,11 +41,9 @@ async function waitForHealth(url) {
   throw new Error("Timed out waiting for PhoneDex health");
 }
 
-async function main() {
-  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "phonedex-query-token-"));
-  const port = await freePort();
+function spawnHub(dataDir, port, { legacyBodyTokens = false } = {}) {
   const hubUrl = `http://127.0.0.1:${port}`;
-  const hub = spawn(process.execPath, [bridge, "server"], {
+  const processHandle = spawn(process.execPath, [bridge, "server"], {
     cwd: root,
     stdio: ["ignore", "pipe", "pipe"],
     env: {
@@ -55,12 +53,27 @@ async function main() {
       WATCH_BRIDGE_PORT: String(port),
       WATCH_BRIDGE_PUBLIC_URL: hubUrl,
       WATCH_BRIDGE_TOKEN: "hub-token",
+      PHONEDEX_ENABLE_LEGACY_BODY_TOKENS: legacyBodyTokens ? "true" : "false",
       WATCH_BRIDGE_PROVIDER: "pushcut",
       WATCH_BRIDGE_AUTO_RESUME: "false",
       PHONEDEX_ADAPTER_MODE: "cli",
       PUSHCUT_WEBHOOK_URL: ""
     }
   });
+  return { hubUrl, processHandle };
+}
+
+async function stopHub(processHandle) {
+  if (processHandle.exitCode === null) processHandle.kill();
+  await new Promise((resolve) => processHandle.once("exit", resolve));
+}
+
+async function main() {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "phonedex-query-token-"));
+  const port = await freePort();
+  const first = spawnHub(dataDir, port);
+  const hubUrl = first.hubUrl;
+  const hub = first.processHandle;
 
   try {
     await waitForHealth(`${hubUrl}/health`);
@@ -84,7 +97,7 @@ async function main() {
         machineName: "Windows Workstation"
       })
     });
-    assert.equal(bodyToken.response.status, 201);
+    assert.equal(bodyToken.response.status, 401);
 
     const privacyQuery = await request(`${hubUrl}/privacy?token=hub-token`);
     assert.equal(privacyQuery.response.status, 401);
@@ -93,7 +106,27 @@ async function main() {
     });
     assert.equal(privacyBearer.response.status, 200);
   } finally {
-    if (hub.exitCode === null) hub.kill();
+    await stopHub(hub);
+  }
+
+  const compatibilityPort = await freePort();
+  const compatibility = spawnHub(dataDir, compatibilityPort, { legacyBodyTokens: true });
+  try {
+    await waitForHealth(`${compatibility.hubUrl}/health`);
+    const bodyToken = await request(`${compatibility.hubUrl}/tasks`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        token: "hub-token",
+        id: "body-token-compatibility-task",
+        title: "Body token compatibility",
+        text: "Legacy body authentication is explicitly enabled for migration.",
+        machineName: "Windows Workstation"
+      })
+    });
+    assert.equal(bodyToken.response.status, 201);
+  } finally {
+    await stopHub(compatibility.processHandle);
     fs.rmSync(dataDir, { recursive: true, force: true });
   }
 
