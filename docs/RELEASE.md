@@ -60,8 +60,9 @@ existing short-lived agent invite flow; credentials are not emitted in
 bootstrap URLs or support output. Set
 `PHONEDEX_ENABLE_LEGACY_QUERY_TOKENS=true` only for a time-bounded migration
 of older local tooling, and remove it before external beta. Legacy form-body
-authentication remains a separate compatibility path until the shared-token
-migration is complete.
+authentication is also disabled by default; set
+`PHONEDEX_ENABLE_LEGACY_BODY_TOKENS=true` only for a time-bounded migration
+of older local tooling, and remove it before external beta.
 
 The 15 product acceptance scenarios have a separate, content-free evidence
 contract. Validate a release-owner evidence file with:

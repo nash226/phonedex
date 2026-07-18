@@ -52,13 +52,13 @@ async function run() {
     const missing = await postReply(port, {
       taskId: "task_missing",
       sessionId: "thread_exact"
-    });
+    }, { useHeader: true, omitBodyToken: true });
     assert.equal(missing.status, 404);
 
     const mismatch = await postReply(port, {
       taskId: task.id,
       sessionId: "thread_wrong"
-    });
+    }, { useHeader: true, omitBodyToken: true });
     assert.equal(mismatch.status, 409);
 
     const exact = await postReply(port, {
