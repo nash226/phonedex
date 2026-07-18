@@ -1034,11 +1034,12 @@ Transport security verification for the in-progress release-readiness slice:
 `lib/phonedex-transport.js` validates the bridge's public URL and TLS
 configuration before startup. `PHONEDEX_REQUIRE_TLS=true` fails closed unless
 the hub or agent has an HTTPS public URL and a matching certificate/key pair;
-when configured, the bridge serves HTTPS and reports the protocol and TLS
+when configured, the bridge validates that both materials are non-empty,
+readable regular files before serving HTTPS and reports the protocol and TLS
 state through `/health`. Loopback HTTP remains an explicit development path.
 `scripts/test-transport.js` covers the safe loopback default, complete TLS
-configuration, missing credentials, and mixed HTTP/TLS settings. Certificate
-provisioning and rotation remain release-owner deployment work.
+configuration, missing or unreadable materials, and mixed HTTP/TLS settings.
+Certificate provisioning and rotation remain release-owner deployment work.
 
 Native response-bound verification for the in-progress release-readiness
 slice: `PhoneDexBridgeClient` rejects structured responses larger than 2 MiB,
