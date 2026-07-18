@@ -49,10 +49,10 @@ WATCH_BRIDGE_PUBLIC_URL=https://bridge.example.test:8765
 
 The bridge fails closed when the required setting is enabled without an HTTPS
 public URL, when certificate and key configuration is incomplete, or when an
-HTTPS URL has no matching certificate files. Loopback HTTP remains available
-for local development. Certificate provisioning, rotation, and deployment
-are operator/release-owner responsibilities; private keys are never included
-in PhoneDex reports or diagnostics.
+HTTPS URL has missing, empty, or unreadable certificate files. Loopback HTTP
+remains available for local development. Certificate provisioning, rotation,
+and deployment are operator/release-owner responsibilities; private keys are
+never included in PhoneDex reports or diagnostics.
 
 The 15 product acceptance scenarios have a separate, content-free evidence
 contract. Validate a release-owner evidence file with:
