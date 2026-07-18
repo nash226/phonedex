@@ -70,6 +70,29 @@ final class PhoneDexSmokeTests: XCTestCase {
         }
     }
 
+    func testRequiredNativeModelFieldsFailClosedWithoutForceUnwraps() throws {
+        let malformedPayloads: [(String, String)] = [
+            ("task id", "{\"id\":null}"),
+            ("question id", "{\"id\":\"task\",\"question\":{\"id\":null,\"prompt\":\"Choose\",\"choices\":[],\"allowsFreeText\":false}}"),
+            ("question prompt", "{\"id\":\"task\",\"question\":{\"id\":\"question\",\"prompt\":null,\"choices\":[],\"allowsFreeText\":false}}")
+        ]
+
+        for (label, json) in malformedPayloads {
+            XCTAssertThrowsError(try JSONDecoder().decode(PhoneDexTask.self, from: Data(json.utf8)), label) { error in
+                guard case DecodingError.valueNotFound = error else {
+                    return XCTFail("Expected a required-field decoding error for \(label), got \(error)")
+                }
+            }
+        }
+
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(PhoneDexChangedFile.self, from: Data("{\"path\":null,\"status\":\"modified\"}".utf8))
+        )
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(PhoneDexEvent.self, from: Data("{\"id\":\"event\",\"taskId\":\"task\",\"createdAt\":\"now\",\"sequence\":1,\"type\":null}".utf8))
+        )
+    }
+
     func testEvidenceDecoderRejectsOversizedPatchAndCollections() throws {
         let oversizedPatch = String(repeating: "+line\n", count: PhoneDexNativeDecodeBounds.patch / 6 + 1)
         let oversizedPatchPayload: [String: Any] = [
