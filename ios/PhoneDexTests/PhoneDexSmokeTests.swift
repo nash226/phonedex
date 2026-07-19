@@ -70,6 +70,21 @@ final class PhoneDexSmokeTests: XCTestCase {
         }
     }
 
+    func testRequiredBoundedFieldsRejectOversizedDataWithoutTrapping() throws {
+        let oversizedID = String(repeating: "x", count: PhoneDexNativeDecodeBounds.id + 1)
+        let oversizedPath = String(repeating: "x", count: PhoneDexNativeDecodeBounds.path + 1)
+        let oversizedType = String(repeating: "x", count: PhoneDexNativeDecodeBounds.status + 1)
+        let taskData = Data("{\"id\":\"\(oversizedID)\"}".utf8)
+        let questionData = Data("{\"id\":\"\(oversizedID)\",\"prompt\":\"Choose\",\"choices\":[],\"allowsFreeText\":false}".utf8)
+        let fileData = Data("{\"path\":\"\(oversizedPath)\",\"status\":\"modified\"}".utf8)
+        let eventData = Data("{\"id\":\"event_1\",\"taskId\":\"task_1\",\"createdAt\":\"2026-07-15T00:00:00.000Z\",\"sequence\":1,\"type\":\"\(oversizedType)\"}".utf8)
+
+        XCTAssertThrowsError(try JSONDecoder().decode(PhoneDexTask.self, from: taskData))
+        XCTAssertThrowsError(try JSONDecoder().decode(PhoneDexTaskQuestion.self, from: questionData))
+        XCTAssertThrowsError(try JSONDecoder().decode(PhoneDexChangedFile.self, from: fileData))
+        XCTAssertThrowsError(try JSONDecoder().decode(PhoneDexEvent.self, from: eventData))
+    }
+
     func testEvidenceDecoderRejectsOversizedPatchAndCollections() throws {
         let oversizedPatch = String(repeating: "+line\n", count: PhoneDexNativeDecodeBounds.patch / 6 + 1)
         let oversizedPatchPayload: [String: Any] = [

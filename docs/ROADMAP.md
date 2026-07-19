@@ -1007,6 +1007,15 @@ reconciliation now use deterministic duplicate-ID resolution instead of
 `PhoneDexBridgeClientTests` cover malformed duplicate records and keep the
 latest record without exposing partial state.
 
+Native model decoding verification for the in-progress release-readiness
+slice: required bounded strings now use a throwing decoder boundary instead of
+force-unwrapping an optional result. Oversized task, question, changed-file,
+and lifecycle-event fields therefore fail as safe decoding errors rather than
+crashing the iPhone process. `PhoneDexSmokeTests` covers all four required
+field families. This hardens malformed hub-projection recovery without
+weakening the existing size limits or claiming crash-free real-device
+behavior.
+
 The native workspace projection now rejects an empty task group before reading
 its first element. `PhoneDexSmokeTests.testEmptyProjectInputIsRejectedWithoutIndexingACollection`
 covers the malformed/empty projection boundary, while the app model drops any
