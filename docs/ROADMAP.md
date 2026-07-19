@@ -936,6 +936,14 @@ body updates do not repeat the bounded parse on context toggles, Dynamic Type,
 or accessibility state changes; the view identity is reset per selected file
 so that cache cannot be reused for the wrong patch.
 
+Crash-gate verification for the in-progress release-readiness slice:
+`scripts/test-ios-crash-recovery.js` guards the native cold-start recovery
+contract: cache restore is isolated from app launch, corrupt encrypted state is
+quarantined with an opaque generated filename, and the user receives generic
+recovery-safe guidance before a fresh sync. This is a source-level regression
+guard for simulator and CI changes; it does not claim real-device crash or
+launch-cycle coverage, which remains a release-owner gate.
+
 Observability verification for the completed release-readiness slice:
 `lib/phonedex-observability.js` defines the content-free
 `phonedex.diagnostics.v1` projection with component health, route-level
