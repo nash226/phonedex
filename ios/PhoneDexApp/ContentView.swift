@@ -141,7 +141,26 @@ private struct PhoneDexChatsView: View {
                     Section {
                         ForEach(filteredTasks) { task in
                             NavigationLink(value: task.id) {
-                                PhoneDexTaskRow(task: task, latestEvent: model.latestEvent(for: task.id))
+                                PhoneDexTaskRow(
+                                    task: task,
+                                    latestEvent: model.latestEvent(for: task.id),
+                                    isRead: model.isRead(task)
+                                )
+                            }
+                            .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                Button {
+                                    if model.isRead(task) {
+                                        model.markUnread(task)
+                                    } else {
+                                        model.markRead(task)
+                                    }
+                                } label: {
+                                    Label(
+                                        model.isRead(task) ? "Mark unread" : "Mark read",
+                                        systemImage: model.isRead(task) ? "envelope.badge" : "envelope.open"
+                                    )
+                                }
+                                .tint(.blue)
                             }
                         }
                     } header: {
@@ -277,10 +296,12 @@ private struct PhoneDexChatsView: View {
 struct PhoneDexTaskRow: View {
     let task: PhoneDexTask
     let latestEvent: PhoneDexEvent?
+    let isRead: Bool
 
-    init(task: PhoneDexTask, latestEvent: PhoneDexEvent? = nil) {
+    init(task: PhoneDexTask, latestEvent: PhoneDexEvent? = nil, isRead: Bool = false) {
         self.task = task
         self.latestEvent = latestEvent
+        self.isRead = isRead
     }
 
     private var activityText: String {
@@ -311,7 +332,8 @@ struct PhoneDexTaskRow: View {
                 HStack(alignment: .firstTextBaseline) {
                     Text(task.title)
                         .font(.headline)
-                        .lineLimit(1)
+                        .fontWeight(isRead ? .regular : .semibold)
+                        .lineLimit(2)
                     Spacer(minLength: 8)
                     if let date = task.displayDate {
                         Text(date, style: .relative)
@@ -335,9 +357,17 @@ struct PhoneDexTaskRow: View {
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
             }
+
+            if !isRead {
+                Circle()
+                    .fill(.blue)
+                    .frame(width: 8, height: 8)
+                    .accessibilityLabel("Unread")
+            }
         }
         .padding(.vertical, 6)
         .accessibilityElement(children: .combine)
+        .accessibilityValue(isRead ? "Read" : "Unread")
         .privacySensitive()
     }
 }

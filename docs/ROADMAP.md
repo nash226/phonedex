@@ -1177,6 +1177,17 @@ matches. `PhoneDexChatFilteringTests` covers machine, path, branch, task
 context, whitespace, and ordering behavior; no server-side history or private
 Codex API is introduced.
 
+Inbox presentation-state verification: the native Chats list now stores a
+per-task read timestamp in the encrypted local cache and exposes reversible
+swipe actions for marking a conversation read or unread. Read state is local
+presentation metadata: it never changes lifecycle state or sends a hub command,
+and a task whose latest update is newer than its read timestamp is shown as
+unread again. `PhoneDexLocalCacheTests` covers encrypted round-trip and legacy
+cache decoding, while `PhoneDexChatFilteringTests` covers the timestamp rule.
+This keeps Needs You focused on actionable lifecycle state while giving users
+the triage affordance required by TASK-05; cross-device read synchronization
+remains intentionally out of scope.
+
 Native model-boundary verification evidence: `PhoneDexNativeDecodeBounds` keeps
 synced task metadata, question choices, capture sources, lifecycle capabilities,
 evidence collections, patches, event payloads, and snapshot pages within the
