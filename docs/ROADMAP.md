@@ -958,6 +958,17 @@ existing encrypted outbox and idempotency-key retry path. The shared budget is
 asserted by `PhoneDexBridgeClientTests`; timeout classification and real-device
 poor-connectivity behavior remain part of the release-owner validation gate.
 
+Offline reply-outbox verification for the in-progress release-readiness slice:
+`PhoneDexPendingReplyPolicy` expires queued replies after seven days, keeps at
+most 20 commands, rejects prompts larger than 64 KiB, and caps retained prompt
+text at 256 KiB. The app applies the policy when adding, restoring, and flushing
+the encrypted outbox, and shows generic recovery guidance when older queued
+commands are removed. `PhoneDexLocalCacheTests` covers expiry, count, prompt
+size, and byte-budget pruning. This bounds sensitive local retention without
+changing command idempotency or claiming delivery after a pruned command;
+offline retry remains available for retained commands and the hub remains the
+source of truth for command receipt state.
+
 Crash recovery verification for the in-progress release-readiness slice:
 `PhoneDexEncryptedCache.quarantine()` moves an unreadable encrypted cache aside
 under a generated, non-sensitive filename while preserving the device-only
