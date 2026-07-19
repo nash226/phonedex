@@ -256,6 +256,20 @@ async function main() {
 
 function config() {
   const env = process.env;
+  const productionDeployment = parseBoolean(env.PHONEDEX_PRODUCTION, false) || env.NODE_ENV === "production";
+  const legacyQueryTokenCompatibility = parseBoolean(
+    env.PHONEDEX_ENABLE_LEGACY_QUERY_TOKENS,
+    false
+  );
+  const legacyBodyTokenCompatibility = parseBoolean(
+    env.PHONEDEX_ENABLE_LEGACY_BODY_TOKENS,
+    false
+  );
+  if (productionDeployment && (legacyQueryTokenCompatibility || legacyBodyTokenCompatibility)) {
+    throw new Error(
+      "Legacy query/form-body token compatibility cannot be enabled in a production deployment."
+    );
+  }
   const port = Number(env.WATCH_BRIDGE_PORT || "8765");
   const host = env.WATCH_BRIDGE_HOST || "127.0.0.1";
   const publicUrl = trimTrailingSlash(
@@ -294,14 +308,9 @@ function config() {
     publicUrl,
     replyUrl: `${publicUrl}/reply`,
     token: env.WATCH_BRIDGE_TOKEN || "",
-    legacyQueryTokenCompatibility: parseBoolean(
-      env.PHONEDEX_ENABLE_LEGACY_QUERY_TOKENS,
-      false
-    ),
-    legacyBodyTokenCompatibility: parseBoolean(
-      env.PHONEDEX_ENABLE_LEGACY_BODY_TOKENS,
-      false
-    ),
+    productionDeployment,
+    legacyQueryTokenCompatibility,
+    legacyBodyTokenCompatibility,
     hubUrl,
     hubToken: env.PHONEDEX_HUB_TOKEN || env.WATCH_BRIDGE_TOKEN || "",
     agentMode: parseBoolean(env.PHONEDEX_AGENT_MODE, false),

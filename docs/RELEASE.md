@@ -62,7 +62,10 @@ bootstrap URLs or support output. Set
 of older local tooling, and remove it before external beta. Legacy form-body
 authentication is also disabled by default; set
 `PHONEDEX_ENABLE_LEGACY_BODY_TOKENS=true` only for a time-bounded migration
-of older local tooling, and remove it before external beta.
+of older local tooling, and remove it before external beta. Setting either
+flag while `NODE_ENV=production` or `PHONEDEX_PRODUCTION=true` makes the hub
+fail closed at startup, preventing a production deployment from accidentally
+reintroducing credential-bearing URLs or request bodies.
 
 The 15 product acceptance scenarios have a separate, content-free evidence
 contract. Validate a release-owner evidence file with:

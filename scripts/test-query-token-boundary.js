@@ -68,6 +68,11 @@ async function stopHub(processHandle) {
   await new Promise((resolve) => processHandle.once("exit", resolve));
 }
 
+async function waitForExit(processHandle) {
+  if (processHandle.exitCode !== null) return processHandle.exitCode;
+  return new Promise((resolve) => processHandle.once("exit", resolve));
+}
+
 async function main() {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "phonedex-query-token-"));
   const port = await freePort();
@@ -129,6 +134,29 @@ async function main() {
     await stopHub(compatibility.processHandle);
     fs.rmSync(dataDir, { recursive: true, force: true });
   }
+
+  const productionPort = await freePort();
+  const production = spawn(process.execPath, [bridge, "server"], {
+    cwd: root,
+    stdio: ["ignore", "pipe", "pipe"],
+    env: {
+      ...process.env,
+      NODE_ENV: "production",
+      WATCH_BRIDGE_DATA_DIR: dataDir,
+      WATCH_BRIDGE_HOST: "127.0.0.1",
+      WATCH_BRIDGE_PORT: String(productionPort),
+      WATCH_BRIDGE_PUBLIC_URL: `http://127.0.0.1:${productionPort}`,
+      WATCH_BRIDGE_TOKEN: "hub-token",
+      PHONEDEX_ENABLE_LEGACY_QUERY_TOKENS: "true",
+      PHONEDEX_ENABLE_LEGACY_BODY_TOKENS: "false",
+      WATCH_BRIDGE_PROVIDER: "pushcut",
+      WATCH_BRIDGE_AUTO_RESUME: "false",
+      PHONEDEX_ADAPTER_MODE: "cli",
+      PUSHCUT_WEBHOOK_URL: ""
+    }
+  });
+  const productionExitCode = await waitForExit(production);
+  assert.notEqual(productionExitCode, 0);
 
   console.log("query-token boundary fixture passed");
 }
