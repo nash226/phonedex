@@ -183,6 +183,45 @@ final class PhoneDexLocalCacheTests: XCTestCase {
         XCTAssertEqual(indexed["artifact-duplicate"]?.data, Data("latest".utf8))
     }
 
+    func testPendingReplyPolicyExpiresAndBoundsSensitiveOutbox() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let old = pendingReply(id: "old", createdAt: now.addingTimeInterval(-PhoneDexPendingReplyPolicy.retention - 1))
+        let oversized = pendingReply(
+            id: "oversized",
+            prompt: String(repeating: "x", count: PhoneDexPendingReplyPolicy.promptBytesLimit + 1),
+            createdAt: now
+        )
+        let recent = (0..<PhoneDexPendingReplyPolicy.limit + 2).map { index in
+            pendingReply(id: "recent-\(index)", prompt: "Reply \(index)", createdAt: now.addingTimeInterval(-Double(index)))
+        }
+
+        let retained = PhoneDexPendingReplyPolicy.prune([old, oversized] + recent, now: now)
+
+        XCTAssertFalse(retained.contains(old))
+        XCTAssertFalse(retained.contains(oversized))
+        XCTAssertEqual(retained.count, PhoneDexPendingReplyPolicy.limit)
+        XCTAssertEqual(retained.first?.id, "recent-0")
+        XCTAssertLessThanOrEqual(
+            retained.reduce(0) { $0 + PhoneDexPendingReplyPolicy.promptByteCount($1) },
+            PhoneDexPendingReplyPolicy.bytesLimit
+        )
+    }
+
+    func testPendingReplyPolicyKeepsNewestEntriesWhenByteBudgetIsReached() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let replies = (0..<5).map { index in
+            pendingReply(
+                id: "reply-\(index)",
+                prompt: String(repeating: "x", count: PhoneDexPendingReplyPolicy.bytesLimit / 4),
+                createdAt: now.addingTimeInterval(-Double(index))
+            )
+        }
+
+        let retained = PhoneDexPendingReplyPolicy.prune(replies, now: now)
+
+        XCTAssertEqual(retained.map(\.id), ["reply-0", "reply-1", "reply-2", "reply-3"])
+    }
+
     func testNotificationStateReplacementPreservesLocalReviewAndSyncState() {
         let artifact = PhoneDexCachedArtifact(
             id: "artifact", name: "build.log", mediaType: "text/plain",
@@ -254,6 +293,20 @@ final class PhoneDexLocalCacheTests: XCTestCase {
             sequence: 1,
             type: "progress",
             data: ["summary": "Running checks"]
+        )
+    }
+
+    private func pendingReply(id: String, prompt: String = "Continue", createdAt: Date) -> PhoneDexPendingReply {
+        PhoneDexPendingReply(
+            commandId: "command-\(id)",
+            idempotencyKey: id,
+            taskId: "task",
+            choice: "custom",
+            prompt: prompt,
+            expectedTaskVersion: 1,
+            sessionId: "thread",
+            machineName: "Studio Mac",
+            createdAt: createdAt
         )
     }
 }

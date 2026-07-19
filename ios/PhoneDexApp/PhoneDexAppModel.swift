@@ -274,6 +274,10 @@ final class PhoneDexAppModel: ObservableObject {
             replyState = .failed("Write or dictate a reply first.")
             return false
         }
+        guard text.utf8.count <= PhoneDexPendingReplyPolicy.promptBytesLimit else {
+            replyState = .failed("This reply is too long to queue safely. Keep it under 64 KB.")
+            return false
+        }
         if case .revoked = connectionState {
             replyState = .failed("Hub access has been revoked. Re-pair before sending replies.")
             return false
@@ -296,6 +300,7 @@ final class PhoneDexAppModel: ObservableObject {
         )
         if !pendingReplies.contains(where: { $0.id == pending.id }) {
             pendingReplies.append(pending)
+            prunePendingReplies(now: Date())
             persistCachedState(lastSyncAt: lastSuccessfulSync)
         }
         return await attemptPendingReply(pending, client: client)
@@ -333,6 +338,11 @@ final class PhoneDexAppModel: ObservableObject {
             return false
         }
 
+        guard prompt.utf8.count <= PhoneDexPendingReplyPolicy.promptBytesLimit else {
+            replyState = .failed("This answer is too long to queue safely. Keep it under 64 KB.")
+            return false
+        }
+
         guard let client = bridgeClient else {
             replyState = .failed("The bridge URL is invalid.")
             return false
@@ -354,6 +364,7 @@ final class PhoneDexAppModel: ObservableObject {
         )
         if !pendingReplies.contains(where: { $0.id == pending.id }) {
             pendingReplies.append(pending)
+            prunePendingReplies(now: Date())
             persistCachedState(lastSyncAt: lastSuccessfulSync)
         }
         return await attemptPendingReply(pending, client: client)
@@ -570,6 +581,8 @@ final class PhoneDexAppModel: ObservableObject {
 
     private func flushPendingReplies() async {
         guard let client = bridgeClient else { return }
+        prunePendingReplies(now: Date())
+        persistCachedState(lastSyncAt: lastSuccessfulSync)
         for pending in pendingReplies {
             guard !Task.isCancelled else { return }
             _ = await attemptPendingReply(pending, client: client)
@@ -647,7 +660,8 @@ final class PhoneDexAppModel: ObservableObject {
             events = cached.events
             drafts = cached.drafts
             readingPositions = cached.readingPositions
-            pendingReplies = cached.pendingReplies
+            let persistedPendingReplies = PhoneDexPendingReplyPolicy.prune(cached.pendingReplies, now: Date())
+            pendingReplies = persistedPendingReplies
             replyReceipts = cached.replyReceipts
             let persistedArtifacts = PhoneDexCachedArtifactPolicy.index(cached.cachedArtifacts)
             cachedArtifacts = persistedArtifacts
@@ -660,7 +674,10 @@ final class PhoneDexAppModel: ObservableObject {
             // Retention is a privacy boundary, not just a view concern. Rewrite
             // the encrypted cache during restore so expired artifact bytes do
             // not remain on disk until an unrelated later mutation.
-            if cachedArtifacts != persistedArtifacts {
+            if cachedArtifacts != persistedArtifacts || cached.pendingReplies != persistedPendingReplies {
+                if cached.pendingReplies != persistedPendingReplies {
+                    cacheRecoveryMessage = "Older offline replies were removed from this iPhone. Fresh replies can be queued when needed."
+                }
                 persistCachedState(lastSyncAt: cached.lastSyncAt)
             }
         } catch {
@@ -695,5 +712,9 @@ final class PhoneDexAppModel: ObservableObject {
         cachedArtifacts = PhoneDexCachedArtifactPolicy.index(
             PhoneDexCachedArtifactPolicy.prune(Array(cachedArtifacts.values), now: now)
         )
+    }
+
+    private func prunePendingReplies(now: Date) {
+        pendingReplies = PhoneDexPendingReplyPolicy.prune(pendingReplies, now: now)
     }
 }

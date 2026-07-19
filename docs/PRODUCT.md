@@ -135,7 +135,8 @@ The repository already proves the core loop, but not the final product.
 - The iOS app restores an encrypted local cache, resumes foreground sync from a
   durable cursor, and distinguishes loading, stale, offline, revoked,
   incompatible, and partial refresh states; reply commands are now persisted
-  in the same encrypted cache for offline retry.
+  in the same encrypted cache for offline retry, with bounded count,
+  prompt-size, byte, and seven-day retention limits.
 - The iOS app has no complete live-progress model or full artifact viewer. Its
   artifact library is metadata-first, while verified downloads are retained in
   the encrypted local cache for up to 30 days within bounded count and size

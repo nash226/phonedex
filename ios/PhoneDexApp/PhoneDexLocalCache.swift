@@ -264,6 +264,36 @@ struct PhoneDexPendingReply: Codable, Equatable, Identifiable {
     var id: String { idempotencyKey }
 }
 
+enum PhoneDexPendingReplyPolicy {
+    static let retention: TimeInterval = 7 * 24 * 60 * 60
+    static let limit = 20
+    static let promptBytesLimit = 64 * 1024
+    static let bytesLimit = 256 * 1024
+
+    static func promptByteCount(_ pending: PhoneDexPendingReply) -> Int {
+        pending.prompt.utf8.count
+    }
+
+    static func isAcceptable(_ pending: PhoneDexPendingReply) -> Bool {
+        promptByteCount(pending) <= promptBytesLimit
+    }
+
+    static func prune(_ pendingReplies: [PhoneDexPendingReply], now: Date) -> [PhoneDexPendingReply] {
+        let recent = pendingReplies.filter {
+            now.timeIntervalSince($0.createdAt) < retention && isAcceptable($0)
+        }
+        var retained = [PhoneDexPendingReply]()
+        var totalBytes = 0
+        for pending in recent.sorted(by: { $0.createdAt > $1.createdAt }) where retained.count < limit {
+            let bytes = promptByteCount(pending)
+            guard totalBytes + bytes <= bytesLimit else { continue }
+            retained.append(pending)
+            totalBytes += bytes
+        }
+        return retained
+    }
+}
+
 protocol PhoneDexCacheStoring {
     func load() throws -> PhoneDexCachedState?
     func save(_ state: PhoneDexCachedState) throws
