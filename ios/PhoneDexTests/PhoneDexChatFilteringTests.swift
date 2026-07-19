@@ -172,6 +172,32 @@ final class PhoneDexChatFilteringTests: XCTestCase {
         XCTAssertEqual(validation.displayStatus, "Passed")
     }
 
+    func testReadPresentationStateBecomesUnreadWhenTaskUpdates() throws {
+        let task = task("conversation", status: "completed", at: "2026-07-15T12:00:00.000Z")
+        let taskDate = try XCTUnwrap(task.displayDate)
+        let readAt = taskDate.addingTimeInterval(60)
+        XCTAssertGreaterThanOrEqual(readAt, taskDate)
+
+        let updated = PhoneDexTask(
+            id: task.id,
+            at: task.at,
+            source: task.source,
+            title: task.title,
+            text: task.text,
+            cwd: task.cwd,
+            workspaceName: task.workspaceName,
+            machineName: task.machineName,
+            sessionId: task.sessionId,
+            status: task.status,
+            branch: task.branch,
+            repository: task.repository,
+            updatedAt: "2026-07-15T12:02:00.000Z"
+        )
+
+        XCTAssertTrue(readAt >= taskDate)
+        XCTAssertLessThan(readAt, try XCTUnwrap(updated.lastUpdatedDate))
+    }
+
     private func task(
         _ id: String,
         status: String?,

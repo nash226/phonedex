@@ -38,6 +38,7 @@ final class PhoneDexLocalCacheTests: XCTestCase {
             lastSyncAt: Date(timeIntervalSince1970: 1_750_000_000),
             drafts: ["task_123": "Keep the next reply focused"],
             readingPositions: ["task_123": "activity"],
+            readAt: ["task_123": Date(timeIntervalSince1970: 1_750_000_005)],
             pendingReplies: [pendingReply],
             replyReceipts: [PhoneDexReplyDeliveryRecord(
                 receipt: PhoneDexReplyReceipt(
@@ -77,6 +78,7 @@ final class PhoneDexLocalCacheTests: XCTestCase {
         XCTAssertEqual(try cache.load()?.replyReceipts.first?.displayState, "Delivered to agent")
         XCTAssertEqual(try cache.load()?.replyReceipts.first?.message, "Delivered to Studio Mac")
         XCTAssertEqual(try cache.load()?.events.first?.type, "progress")
+        XCTAssertEqual(try cache.load()?.readAt["task_123"], Date(timeIntervalSince1970: 1_750_000_005))
         XCTAssertEqual(try cache.load()?.handledNotificationResponses.count, 1)
         XCTAssertEqual(try cache.load()?.cachedArtifacts.first?.data, Data("private artifact".utf8))
         XCTAssertEqual(keyStore.key?.count, 32)
@@ -103,6 +105,7 @@ final class PhoneDexLocalCacheTests: XCTestCase {
 
         XCTAssertEqual(decoded.drafts["task_legacy"], "Draft")
         XCTAssertTrue(decoded.readingPositions.isEmpty)
+        XCTAssertTrue(decoded.readAt.isEmpty)
         XCTAssertTrue(decoded.replyReceipts.isEmpty)
         XCTAssertTrue(decoded.handledNotificationResponses.isEmpty)
         XCTAssertTrue(decoded.cachedArtifacts.isEmpty)

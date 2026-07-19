@@ -125,6 +125,9 @@ The repository already proves the core loop, but not the final product.
   handoff that preserves the exact task and Codex session identity without
   invoking private desktop UI or exposing local paths and credentials.
 - Configuration and preview actions can be invoked through a custom URL scheme.
+- Chats keeps read/unread presentation state per task in the encrypted local
+  cache. A newer task update becomes unread again; marking a task read never
+  changes its lifecycle or sends a hub command.
 - The project targets iOS 17 and includes unit and UI test targets for the
   native shell.
 

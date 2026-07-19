@@ -65,6 +65,7 @@ final class PhoneDexAppModel: ObservableObject {
     @Published private(set) var events: [PhoneDexEvent] = []
     @Published private(set) var drafts: [PhoneDexTask.ID: String] = [:]
     @Published private(set) var readingPositions: [PhoneDexTask.ID: String] = [:]
+    @Published private(set) var readAt: [PhoneDexTask.ID: Date] = [:]
     @Published private(set) var pendingReplies: [PhoneDexPendingReply] = []
     @Published private(set) var replyReceipts: [PhoneDexReplyDeliveryRecord] = []
     @Published private(set) var cachedArtifacts: [String: PhoneDexCachedArtifact] = [:]
@@ -619,6 +620,23 @@ final class PhoneDexAppModel: ObservableObject {
         readingPositions[taskID]
     }
 
+    func isRead(_ task: PhoneDexTask) -> Bool {
+        guard let markedReadAt = readAt[task.id] else { return false }
+        guard let taskUpdatedAt = task.lastUpdatedDate else { return true }
+        return markedReadAt >= taskUpdatedAt
+    }
+
+    func markRead(_ task: PhoneDexTask) {
+        guard !isRead(task) else { return }
+        readAt[task.id] = Date()
+        persistCachedState(lastSyncAt: lastSuccessfulSync)
+    }
+
+    func markUnread(_ task: PhoneDexTask) {
+        guard readAt.removeValue(forKey: task.id) != nil else { return }
+        persistCachedState(lastSyncAt: lastSuccessfulSync)
+    }
+
     func events(for taskID: PhoneDexTask.ID) -> [PhoneDexEvent] {
         events
             .filter { $0.taskId == taskID }
@@ -660,6 +678,7 @@ final class PhoneDexAppModel: ObservableObject {
             events = cached.events
             drafts = cached.drafts
             readingPositions = cached.readingPositions
+            readAt = cached.readAt
             let persistedPendingReplies = PhoneDexPendingReplyPolicy.prune(cached.pendingReplies, now: Date())
             pendingReplies = persistedPendingReplies
             replyReceipts = cached.replyReceipts
@@ -700,6 +719,7 @@ final class PhoneDexAppModel: ObservableObject {
                 lastSyncAt: lastSyncAt,
                 drafts: drafts,
                 readingPositions: readingPositions,
+                readAt: readAt,
                 pendingReplies: pendingReplies,
                 replyReceipts: replyReceipts,
                 handledNotificationResponses: (try? cache.load())?.handledNotificationResponses ?? [:],
