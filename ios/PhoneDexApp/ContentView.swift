@@ -712,6 +712,7 @@ struct PhoneDexTaskDetailView: View {
                     detailSection(.activity) { activity }
                     detailSection(.evidence) { evidence }
                     replyStatus
+                    queuedLifecycleStatus
                     lifecycleStatus
 
                     Color.clear
@@ -1497,6 +1498,25 @@ struct PhoneDexTaskDetailView: View {
             } else {
                 EmptyView()
             }
+        }
+    }
+
+    @ViewBuilder
+    private var queuedLifecycleStatus: some View {
+        if let pending = model.pendingLifecycleCommand(for: task) {
+            VStack(alignment: .leading, spacing: 6) {
+                Label(pending.queuedMessage, systemImage: "clock.arrow.circlepath")
+                    .foregroundStyle(.orange)
+                    .font(.subheadline.weight(.semibold))
+                Text("Created \(pending.createdAt, style: .relative). PhoneDex will retry this managed action after a successful sync. It remains local to this iPhone and does not change the task until the originating agent accepts it.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(pending.queuedMessage) Created \(pending.createdAt.formatted(.relative(presentation: .named))).")
         }
     }
 

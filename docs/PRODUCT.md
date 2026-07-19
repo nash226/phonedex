@@ -148,7 +148,9 @@ The repository already proves the core loop, but not the final product.
   limits; the hub remains the source of truth for re-download and retention.
   General lifecycle command queueing remains future work; task detail renders
   bounded approval review metadata when exported by the bridge, with the
-  managed-task controls described above.
+  managed-task controls described above. Supported offline cancel and retry
+  actions remain visible in task detail after relaunch and retry only after a
+  successful sync; they never change task state optimistically.
 - The shared token remains part of legacy setup and can be accepted in URLs by
   the current bridge; notification payloads no longer contain it. The iOS
   settings token is stored in device-only Keychain storage, with legacy
