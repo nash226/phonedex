@@ -156,10 +156,11 @@ The repository already proves the core loop, but not the final product.
   local development. Hub and agent TLS deployment is still release work.
 - Reply and managed lifecycle commands carry a client idempotency key and
   expected task version; the bridge persists command receipts and the iPhone
-  exposes accepted, duplicate, stale, and failed delivery states. Approval
-  requests now carry bounded operation, scope, origin, reason, risk, expiry,
-  and task-version metadata; response controls and agent execution remain
-  future work.
+  exposes accepted, duplicate, stale, and failed delivery states. Supported
+  cancel and retry actions also persist a bounded encrypted offline outbox and
+  retry after a successful sync; approval, handoff, and task creation remain
+  immediate-only. Approval requests carry bounded operation, scope, origin,
+  reason, risk, expiry, and task-version metadata.
 - Paired credentials can be rotated without changing task history, protected
   requests are rate-limited per principal, and reply idempotency keys reject
   mutated replays. Content-free security lifecycle outcomes are written to the
@@ -193,7 +194,7 @@ supported command path on the originating machine.
 | Review an approval | Show exact operation, scope, risk, and origin before approve/reject | **Current, bounded.** Expiring task-version-bound review metadata and capability-gated controls are native; configurable Face ID or device-passcode confirmation is enabled by default before an approval decision is sent. |
 | Review changes | Mobile diff summary, file list, patch detail, and validation results | **Current, partial.** Supported agents can export bounded patches for native mobile review alongside a native file-level summary, structured validation results, integrity-checked artifact metadata, and explicit download/share for bounded exports; verified downloads persist in the encrypted iOS cache with bounded local retention, while the hub remains the source of truth. |
 | Cancel, retry, or queue | Issue idempotent lifecycle commands with visible receipts | **Target.** Requires adapter capability negotiation. |
-| Cancel, retry, or queue | Issue idempotent lifecycle commands with visible receipts | **Current, bounded.** Cancel/retry apply to PhoneDex-owned runs when advertised; general queueing remains Target. |
+| Cancel, retry, or queue | Issue idempotent lifecycle commands with visible receipts | **Current, bounded.** Cancel/retry apply to PhoneDex-owned runs when advertised and queue safely offline; approval, handoff, and task creation remain immediate-only. |
 | Open on desktop | Deep-link or hand off to the exact supported task/session | **Current, bounded.** A ready Mac or Windows CLI/app-server adapter can prepare a redacted handoff manifest; private desktop UI automation is not promised. |
 | Reproduce all desktop tools | Exact private UI, terminal, extensions, and local integrations | **Not promised.** Use explicit mobile workflows or hand off to the computer. |
 

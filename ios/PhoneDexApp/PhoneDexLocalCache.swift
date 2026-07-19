@@ -17,12 +17,13 @@ struct PhoneDexCachedState: Codable, Equatable {
     let readingPositions: [String: String]
     let readAt: [String: Date]
     let pendingReplies: [PhoneDexPendingReply]
+    let pendingLifecycleCommands: [PhoneDexPendingLifecycleCommand]
     let replyReceipts: [PhoneDexReplyDeliveryRecord]
     let handledNotificationResponses: [String: Date]
     let cachedArtifacts: [PhoneDexCachedArtifact]
 
     private enum CodingKeys: String, CodingKey {
-        case schema, version, cursor, tasks, devices, events, lastSyncAt, drafts, readingPositions, readAt, pendingReplies, replyReceipts, handledNotificationResponses, cachedArtifacts
+        case schema, version, cursor, tasks, devices, events, lastSyncAt, drafts, readingPositions, readAt, pendingReplies, pendingLifecycleCommands, replyReceipts, handledNotificationResponses, cachedArtifacts
     }
 
     init(
@@ -35,6 +36,7 @@ struct PhoneDexCachedState: Codable, Equatable {
         readingPositions: [String: String] = [:],
         readAt: [String: Date] = [:],
         pendingReplies: [PhoneDexPendingReply] = [],
+        pendingLifecycleCommands: [PhoneDexPendingLifecycleCommand] = [],
         replyReceipts: [PhoneDexReplyDeliveryRecord] = [],
         handledNotificationResponses: [String: Date] = [:],
         cachedArtifacts: [PhoneDexCachedArtifact] = [],
@@ -52,6 +54,7 @@ struct PhoneDexCachedState: Codable, Equatable {
         self.readingPositions = readingPositions
         self.readAt = readAt
         self.pendingReplies = pendingReplies
+        self.pendingLifecycleCommands = pendingLifecycleCommands
         self.replyReceipts = replyReceipts
         self.handledNotificationResponses = handledNotificationResponses
         self.cachedArtifacts = cachedArtifacts
@@ -70,6 +73,7 @@ struct PhoneDexCachedState: Codable, Equatable {
         readingPositions = try container.decodeIfPresent([String: String].self, forKey: .readingPositions) ?? [:]
         readAt = try container.decodeIfPresent([String: Date].self, forKey: .readAt) ?? [:]
         pendingReplies = try container.decodeIfPresent([PhoneDexPendingReply].self, forKey: .pendingReplies) ?? []
+        pendingLifecycleCommands = try container.decodeIfPresent([PhoneDexPendingLifecycleCommand].self, forKey: .pendingLifecycleCommands) ?? []
         replyReceipts = try container.decodeIfPresent([PhoneDexReplyDeliveryRecord].self, forKey: .replyReceipts) ?? []
         handledNotificationResponses = try container.decodeIfPresent([String: Date].self, forKey: .handledNotificationResponses) ?? [:]
         cachedArtifacts = try container.decodeIfPresent([PhoneDexCachedArtifact].self, forKey: .cachedArtifacts) ?? []
@@ -88,6 +92,7 @@ struct PhoneDexCachedState: Codable, Equatable {
         try container.encode(readingPositions, forKey: .readingPositions)
         try container.encode(readAt, forKey: .readAt)
         try container.encode(pendingReplies, forKey: .pendingReplies)
+        try container.encode(pendingLifecycleCommands, forKey: .pendingLifecycleCommands)
         try container.encode(replyReceipts, forKey: .replyReceipts)
         try container.encode(handledNotificationResponses, forKey: .handledNotificationResponses)
         try container.encode(cachedArtifacts, forKey: .cachedArtifacts)
@@ -95,6 +100,7 @@ struct PhoneDexCachedState: Codable, Equatable {
 
     func replacingNotificationState(
         pendingReplies: [PhoneDexPendingReply]? = nil,
+        pendingLifecycleCommands: [PhoneDexPendingLifecycleCommand]? = nil,
         handledNotificationResponses: [String: Date]? = nil
     ) -> PhoneDexCachedState {
         PhoneDexCachedState(
@@ -107,12 +113,38 @@ struct PhoneDexCachedState: Codable, Equatable {
             readingPositions: readingPositions,
             readAt: readAt,
             pendingReplies: pendingReplies ?? self.pendingReplies,
+            pendingLifecycleCommands: pendingLifecycleCommands ?? self.pendingLifecycleCommands,
             replyReceipts: replyReceipts,
             handledNotificationResponses: handledNotificationResponses ?? self.handledNotificationResponses,
             cachedArtifacts: cachedArtifacts,
             schema: schema,
             version: version
         )
+    }
+}
+
+struct PhoneDexPendingLifecycleCommand: Codable, Equatable, Identifiable {
+    let commandId: String
+    let idempotencyKey: String
+    let kind: String
+    let taskId: String
+    let expectedTaskVersion: Int
+    let createdAt: Date
+
+    var id: String { idempotencyKey }
+}
+
+enum PhoneDexPendingLifecycleCommandPolicy {
+    static let retention: TimeInterval = 7 * 24 * 60 * 60
+    static let limit = 10
+    static let supportedKinds: Set<String> = ["cancel", "retry"]
+
+    static func prune(_ commands: [PhoneDexPendingLifecycleCommand], now: Date) -> [PhoneDexPendingLifecycleCommand] {
+        commands
+            .filter { supportedKinds.contains($0.kind) && now.timeIntervalSince($0.createdAt) < retention }
+            .sorted { $0.createdAt > $1.createdAt }
+            .prefix(limit)
+            .map { $0 }
     }
 }
 

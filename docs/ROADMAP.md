@@ -451,6 +451,8 @@ across Mac and Windows.
 - [x] Define the adapter boundary and capability test suite.
 - [x] Implement structured task reply and question-response commands.
 - [x] Implement task create, cancel, and retry where supported.
+- [x] Queue supported cancel and retry commands offline with encrypted,
+  bounded retention and task-version/idempotency replay protection.
 - [x] Export live lifecycle events without parsing desktop UI.
 - [x] Export changed files, source-linked patches, artifacts, and validation
   receipts.

@@ -1464,6 +1464,10 @@ struct PhoneDexTaskDetailView: View {
             Label(message, systemImage: "checkmark.circle.fill")
                 .foregroundStyle(.green)
                 .font(.subheadline)
+        case .queued(let message):
+            Label(message, systemImage: "clock.arrow.circlepath")
+                .foregroundStyle(.orange)
+                .font(.subheadline)
                 .accessibilityElement(children: .combine)
         case .failed(let message):
             Label(message, systemImage: "exclamationmark.triangle.fill")
