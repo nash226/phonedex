@@ -314,9 +314,12 @@ form-body clients are disabled by default. Setting
 `PHONEDEX_ENABLE_LEGACY_QUERY_TOKENS=true` explicitly restores the old URL
 compatibility path, while `PHONEDEX_ENABLE_LEGACY_BODY_TOKENS=true` explicitly
 restores form-body token authentication, each for a bounded local migration.
+When `NODE_ENV=production` or `PHONEDEX_PRODUCTION=true`, enabling either
+compatibility flag fails closed during startup, so a production deployment
+cannot accidentally restore credential-bearing URL or form-body authentication.
 `scripts/test-query-token-boundary.js` proves default fail-closed behavior,
-explicit compatibility, and retained header authentication without putting
-credentials in generated support URLs.
+explicit compatibility, production startup rejection, and retained header
+authentication without putting credentials in generated support URLs.
 
 Verification evidence for the completed Chats scope slice: the native SwiftUI
 Chats surface in `ios/PhoneDexApp/ContentView.swift` provides Needs You,
