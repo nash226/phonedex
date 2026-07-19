@@ -83,11 +83,11 @@ enum PhoneDexDeviceHealth: Equatable {
 
     var title: String {
         switch self {
-        case .online: return "Online"
-        case .stale: return "Stale"
-        case .missing: return "Unavailable"
-        case .revoked: return "Revoked"
-        case .unknown: return "Needs review"
+        case .online: return String(localized: "device.health.online", defaultValue: "Online", comment: "Device reachability state when a recent heartbeat is available.")
+        case .stale: return String(localized: "device.health.stale", defaultValue: "Stale", comment: "Device reachability state when the heartbeat is old.")
+        case .missing: return String(localized: "device.health.unavailable", defaultValue: "Unavailable", comment: "Device reachability state when no recent heartbeat is available.")
+        case .revoked: return String(localized: "device.health.revoked", defaultValue: "Revoked", comment: "Device reachability state when the device credential was revoked.")
+        case .unknown: return String(localized: "device.health.needsReview", defaultValue: "Needs review", comment: "Device reachability state when the bridge returned an unknown value.")
         }
     }
 
@@ -121,10 +121,10 @@ enum PhoneDexComponentHealth: Equatable {
 
     var title: String {
         switch self {
-        case .healthy: return "Healthy"
-        case .degraded: return "Degraded"
-        case .unhealthy: return "Unhealthy"
-        case .unknown: return "Unknown"
+        case .healthy: return String(localized: "device.component.healthy", defaultValue: "Healthy", comment: "Component health state when the component is operating normally.")
+        case .degraded: return String(localized: "device.component.degraded", defaultValue: "Degraded", comment: "Component health state when the component is impaired.")
+        case .unhealthy: return String(localized: "device.component.unhealthy", defaultValue: "Unhealthy", comment: "Component health state when the component is unavailable.")
+        case .unknown: return String(localized: "device.component.unknown", defaultValue: "Unknown", comment: "Component health state when no supported value was reported.")
         }
     }
 

@@ -877,6 +877,15 @@ semantics across views. `PhoneDexChatFilteringTests.testTaskAndReviewStatusCopyU
 covers the fallback contract. This is localization readiness only; translated
 catalogs and locale-specific real-device QA remain release gates.
 
+Native shell localization verification for the in-progress release-readiness
+slice: primary tab labels and device/component health states now use stable
+localization keys with English fallbacks. This keeps the most frequently
+announced navigation and connectivity states consistent across SwiftUI labels,
+VoiceOver values, and future translated catalogs. The
+`PhoneDexSmokeTests.testPrimaryNavigationAndHealthCopyHaveStableEnglishFallbacks`
+regression test covers every supported fallback; translated catalogs and
+locale-specific real-device QA remain release gates.
+
 Notification localization verification for the in-progress release-readiness
 slice: `PhoneDexNotificationCopy` gives the local preview, quick actions,
 custom-reply placeholder, and unsafe-bridge error stable localization keys with
