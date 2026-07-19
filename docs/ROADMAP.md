@@ -722,6 +722,14 @@ grouping metadata. `PhoneDexSettingsTests` covers sanitization and separation
 of identical workspaces on different machines. Per-workspace delivery policy,
 remote registration, and background delivery remain human-gated release work.
 
+Local notification privacy evidence: task alerts default to a Safe Summary that
+keeps prompts, task text, paths, and diffs off the lock screen. Settings offers
+an explicit Full Preview opt-in and persists only that non-secret preference;
+the Settings and deep-link scheduling paths use the same policy. Native tests
+cover the safe default, persistence, and content-free presentation. This is
+local notification privacy only; remote APNs payload policy and real-device
+lock-screen validation remain human-gated release work.
+
 ## M7: Mobile Review Experience
 
 Status: **Current**

@@ -3,6 +3,7 @@ import UserNotifications
 
 enum PhoneDexNotificationScheduler {
     static let categoryIdentifier = "PHONEDEX_TASK"
+    private static let maxPreviewBodyLength = 500
 
     static let previewBody = """
     Completed: PR #16 merged to main. README now shows PhoneDex as the iPhone-first notification bridge, with Watch support kept as a fallback. Next: start the native iOS app.
@@ -51,7 +52,11 @@ enum PhoneDexNotificationScheduler {
         try await center.add(request)
     }
 
-    static func scheduleTaskNotification(_ task: PhoneDexTask, bridgeURL: URL) async throws {
+    static func scheduleTaskNotification(
+        _ task: PhoneDexTask,
+        bridgeURL: URL,
+        privacy: PhoneDexNotificationPrivacy = .safeSummary
+    ) async throws {
         guard bridgeURL.user == nil,
               bridgeURL.password == nil,
               bridgeURL.query == nil,
@@ -66,10 +71,11 @@ enum PhoneDexNotificationScheduler {
         center.removePendingNotificationRequests(withIdentifiers: [identifier])
         center.removeDeliveredNotifications(withIdentifiers: [identifier])
 
+        let presentation = notificationPresentation(for: task, privacy: privacy)
         let content = UNMutableNotificationContent()
-        content.title = task.title
-        content.subtitle = task.machineName.map { "PhoneDex • \($0)" } ?? "PhoneDex"
-        content.body = task.text
+        content.title = presentation.title
+        content.subtitle = presentation.subtitle
+        content.body = presentation.body
         content.categoryIdentifier = categoryIdentifier
         content.threadIdentifier = taskNotificationThreadIdentifier(task)
         content.sound = .default
@@ -82,6 +88,33 @@ enum PhoneDexNotificationScheduler {
         )
 
         try await center.add(request)
+    }
+
+    static func notificationPresentation(
+        for task: PhoneDexTask,
+        privacy: PhoneDexNotificationPrivacy
+    ) -> PhoneDexNotificationPresentation {
+        let machine = task.machineName.map { "PhoneDex • \($0)" } ?? "PhoneDex"
+        switch privacy {
+        case .safeSummary:
+            return PhoneDexNotificationPresentation(
+                title: PhoneDexNotificationCopy.safeSummaryTitle,
+                subtitle: machine,
+                body: PhoneDexNotificationCopy.safeSummaryBody
+            )
+        case .fullPreview:
+            return PhoneDexNotificationPresentation(
+                title: boundedNotificationText(task.title, limit: 120),
+                subtitle: machine,
+                body: boundedNotificationText(task.text, limit: maxPreviewBodyLength)
+            )
+        }
+    }
+
+    private static func boundedNotificationText(_ value: String, limit: Int) -> String {
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalized.count > limit else { return normalized }
+        return String(normalized.prefix(limit - 1)) + "…"
     }
 
     static func taskNotificationUserInfo(_ task: PhoneDexTask) -> [AnyHashable: Any] {
@@ -139,7 +172,40 @@ enum PhoneDexNotificationScheduler {
     }
 }
 
+enum PhoneDexNotificationPrivacy: String, CaseIterable, Identifiable {
+    case safeSummary
+    case fullPreview
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .safeSummary:
+            return String(localized: "notification.privacy.safeSummary", defaultValue: "Safe Summary", comment: "Privacy-preserving notification setting.")
+        case .fullPreview:
+            return String(localized: "notification.privacy.fullPreview", defaultValue: "Full Preview", comment: "Opt-in notification setting that shows task text.")
+        }
+    }
+
+    var explanation: String {
+        switch self {
+        case .safeSummary:
+            return String(localized: "notification.privacy.safeSummary.explanation", defaultValue: "Hides task text, prompts, paths, and diffs from the lock screen.", comment: "Explanation for privacy-preserving notification delivery.")
+        case .fullPreview:
+            return String(localized: "notification.privacy.fullPreview.explanation", defaultValue: "Shows a concise task result on the lock screen and in Notification Center.", comment: "Explanation for opt-in notification previews.")
+        }
+    }
+}
+
+struct PhoneDexNotificationPresentation: Equatable {
+    let title: String
+    let subtitle: String
+    let body: String
+}
+
 enum PhoneDexNotificationCopy {
+    static let safeSummaryTitle = String(localized: "notification.safeSummary.title", defaultValue: "PhoneDex task update", comment: "Privacy-preserving notification title.")
+    static let safeSummaryBody = String(localized: "notification.safeSummary.body", defaultValue: "Open PhoneDex to review the latest task.", comment: "Privacy-preserving notification body.")
     static let previewTitle = String(localized: "notification.preview.title", defaultValue: "Codex done: PR update", comment: "Title for the local notification preview.")
     static let previewSubtitle = String(localized: "notification.preview.subtitle", defaultValue: "PhoneDex • MacBook Air", comment: "Subtitle for the local notification preview.")
     static let okayWhatsNext = String(localized: "notification.action.okayWhatsNext", defaultValue: "Okay, what's next", comment: "Quick reply action asking Codex for the next step.")
