@@ -21,6 +21,24 @@ final class PhoneDexSmokeTests: XCTestCase {
         XCTAssertEqual(PhoneDexPrimaryTab.allCases.count, 5)
     }
 
+    func testPrimaryNavigationAndHealthCopyHaveStableEnglishFallbacks() {
+        XCTAssertEqual(PhoneDexPrimaryTab.chats.localizedTitle, "Chats")
+        XCTAssertEqual(PhoneDexPrimaryTab.projects.localizedTitle, "Projects")
+        XCTAssertEqual(PhoneDexPrimaryTab.browser.localizedTitle, "Browser")
+        XCTAssertEqual(PhoneDexPrimaryTab.devices.localizedTitle, "Devices")
+        XCTAssertEqual(PhoneDexPrimaryTab.settings.localizedTitle, "Settings")
+
+        XCTAssertEqual(PhoneDexDeviceHealth.online.title, "Online")
+        XCTAssertEqual(PhoneDexDeviceHealth.stale.title, "Stale")
+        XCTAssertEqual(PhoneDexDeviceHealth.missing.title, "Unavailable")
+        XCTAssertEqual(PhoneDexDeviceHealth.revoked.title, "Revoked")
+        XCTAssertEqual(PhoneDexDeviceHealth.unknown.title, "Needs review")
+        XCTAssertEqual(PhoneDexComponentHealth.healthy.title, "Healthy")
+        XCTAssertEqual(PhoneDexComponentHealth.degraded.title, "Degraded")
+        XCTAssertEqual(PhoneDexComponentHealth.unhealthy.title, "Unhealthy")
+        XCTAssertEqual(PhoneDexComponentHealth.unknown.title, "Unknown")
+    }
+
     func testDeepLinkDiagnosticsExcludeCredentialsAndQueryValues() {
         let url = URL(string: "phonedex://configure?bridgeUrl=https%3A%2F%2Fbridge.test&token=secret")!
 

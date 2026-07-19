@@ -12,6 +12,21 @@ enum PhoneDexPrimaryTab: String, CaseIterable, Identifiable {
 
     var id: Self { self }
 
+    var localizedTitle: String {
+        switch self {
+        case .chats:
+            return String(localized: "navigation.chats", defaultValue: "Chats", comment: "Primary navigation destination for conversations.")
+        case .projects:
+            return String(localized: "navigation.projects", defaultValue: "Projects", comment: "Primary navigation destination for workspaces and projects.")
+        case .browser:
+            return String(localized: "navigation.browser", defaultValue: "Browser", comment: "Primary navigation destination for the embedded browser.")
+        case .devices:
+            return String(localized: "navigation.devices", defaultValue: "Devices", comment: "Primary navigation destination for connected computers.")
+        case .settings:
+            return String(localized: "navigation.settings", defaultValue: "Settings", comment: "Primary navigation destination for app settings.")
+        }
+    }
+
     static func restored(from rawValue: String?) -> Self {
         guard let rawValue, let tab = Self(rawValue: rawValue) else {
             return .chats
@@ -34,23 +49,23 @@ struct ContentView: View {
     var body: some View {
         TabView(selection: selectedTabBinding) {
             PhoneDexChatsView(model: model)
-                .tabItem { Label("Chats", systemImage: "bubble.left.and.bubble.right") }
+                .tabItem { Label(PhoneDexPrimaryTab.chats.localizedTitle, systemImage: "bubble.left.and.bubble.right") }
                 .tag(PhoneDexPrimaryTab.chats)
 
             PhoneDexProjectsView(model: model)
-                .tabItem { Label("Projects", systemImage: "folder") }
+                .tabItem { Label(PhoneDexPrimaryTab.projects.localizedTitle, systemImage: "folder") }
                 .tag(PhoneDexPrimaryTab.projects)
 
             PhoneDexBrowserView()
-                .tabItem { Label("Browser", systemImage: "safari") }
+                .tabItem { Label(PhoneDexPrimaryTab.browser.localizedTitle, systemImage: "safari") }
                 .tag(PhoneDexPrimaryTab.browser)
 
             PhoneDexDevicesView(model: model)
-                .tabItem { Label("Devices", systemImage: "desktopcomputer") }
+                .tabItem { Label(PhoneDexPrimaryTab.devices.localizedTitle, systemImage: "desktopcomputer") }
                 .tag(PhoneDexPrimaryTab.devices)
 
             PhoneDexSettingsView(model: model)
-                .tabItem { Label("Settings", systemImage: "gearshape") }
+                .tabItem { Label(PhoneDexPrimaryTab.settings.localizedTitle, systemImage: "gearshape") }
                 .tag(PhoneDexPrimaryTab.settings)
         }
         .tint(.blue)
