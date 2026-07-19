@@ -268,6 +268,22 @@ final class PhoneDexLocalCacheTests: XCTestCase {
         XCTAssertEqual(retained.first?.id, "key-0")
     }
 
+    func testPendingLifecycleCommandProvidesSafeUserFacingQueueCopy() {
+        let cancel = PhoneDexPendingLifecycleCommand(
+            commandId: "cancel-command", idempotencyKey: "cancel-key", kind: "cancel",
+            taskId: "task", expectedTaskVersion: 3, createdAt: Date(timeIntervalSince1970: 1)
+        )
+        let retry = PhoneDexPendingLifecycleCommand(
+            commandId: "retry-command", idempotencyKey: "retry-key", kind: "retry",
+            taskId: "task", expectedTaskVersion: 4, createdAt: Date(timeIntervalSince1970: 2)
+        )
+
+        XCTAssertEqual(cancel.actionLabel, "Cancellation")
+        XCTAssertEqual(cancel.queuedMessage, "Cancellation is queued until the hub reconnects.")
+        XCTAssertEqual(retry.actionLabel, "Retry")
+        XCTAssertEqual(retry.queuedMessage, "Retry is queued until the hub reconnects.")
+    }
+
     func testNotificationStateReplacementPreservesLocalReviewAndSyncState() {
         let artifact = PhoneDexCachedArtifact(
             id: "artifact", name: "build.log", mediaType: "text/plain",

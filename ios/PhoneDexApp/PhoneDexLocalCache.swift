@@ -144,6 +144,18 @@ struct PhoneDexPendingLifecycleCommand: Codable, Equatable, Identifiable {
     let createdAt: Date
 
     var id: String { idempotencyKey }
+
+    var actionLabel: String {
+        switch kind {
+        case "cancel": return "Cancellation"
+        case "retry": return "Retry"
+        default: return "Offline action"
+        }
+    }
+
+    var queuedMessage: String {
+        "\(actionLabel) is queued until the hub reconnects."
+    }
 }
 
 enum PhoneDexPendingLifecycleCommandPolicy {

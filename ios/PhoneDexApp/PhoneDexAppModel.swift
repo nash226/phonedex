@@ -108,6 +108,12 @@ final class PhoneDexAppModel: ObservableObject {
         tasks.first { $0.id == selectedTaskID }
     }
 
+    func pendingLifecycleCommand(for task: PhoneDexTask) -> PhoneDexPendingLifecycleCommand? {
+        pendingLifecycleCommands
+            .filter { $0.taskId == task.id }
+            .max { $0.createdAt < $1.createdAt }
+    }
+
     /// Removes commands authenticated by the credential being forgotten.
     /// Cached task history and review artifacts remain available, but an old
     /// reply must never be retried after pairing changes.

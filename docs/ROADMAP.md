@@ -987,6 +987,15 @@ changing command idempotency or claiming delivery after a pruned command;
 offline retry remains available for retained commands and the hub remains the
 source of truth for command receipt state.
 
+Offline lifecycle queue visibility verification for the in-progress
+release-readiness slice: task detail now reads the encrypted pending cancel or
+retry projection and shows the action, creation age, retry condition, and
+non-optimistic state after relaunch. This keeps a durable offline action
+discoverable while it waits for a successful sync; approval, handoff, and task
+creation remain immediate-only and no unsupported lifecycle command is added.
+`PhoneDexLocalCacheTests` covers the bounded, content-free queue copy used by
+the native surface.
+
 Crash recovery verification for the in-progress release-readiness slice:
 `PhoneDexEncryptedCache.quarantine()` moves an unreadable encrypted cache aside
 under a generated, non-sensitive filename while preserving the device-only
