@@ -30,6 +30,14 @@ final class PhoneDexLocalCacheTests: XCTestCase {
             questionId: "next-step",
             questionResponse: .choice("tests")
         )
+        let pendingLifecycle = PhoneDexPendingLifecycleCommand(
+            commandId: "lifecycle_123",
+            idempotencyKey: "lifecycle_key",
+            kind: "cancel",
+            taskId: "task_123",
+            expectedTaskVersion: 3,
+            createdAt: Date(timeIntervalSince1970: 1_750_000_001)
+        )
         let state = PhoneDexCachedState(
             cursor: "cursor.v1",
             tasks: [task(id: "task_123")],
@@ -40,6 +48,7 @@ final class PhoneDexLocalCacheTests: XCTestCase {
             readingPositions: ["task_123": "activity"],
             readAt: ["task_123": Date(timeIntervalSince1970: 1_750_000_005)],
             pendingReplies: [pendingReply],
+            pendingLifecycleCommands: [pendingLifecycle],
             replyReceipts: [PhoneDexReplyDeliveryRecord(
                 receipt: PhoneDexReplyReceipt(
                     schema: "phonedex.command-receipt.v1",
@@ -75,6 +84,7 @@ final class PhoneDexLocalCacheTests: XCTestCase {
         XCTAssertEqual(try cache.load(), state)
         XCTAssertEqual(try cache.load()?.pendingReplies.first?.questionId, "next-step")
         XCTAssertEqual(try cache.load()?.pendingReplies.first?.questionResponse, .choice("tests"))
+        XCTAssertEqual(try cache.load()?.pendingLifecycleCommands, [pendingLifecycle])
         XCTAssertEqual(try cache.load()?.replyReceipts.first?.displayState, "Delivered to agent")
         XCTAssertEqual(try cache.load()?.replyReceipts.first?.message, "Delivered to Studio Mac")
         XCTAssertEqual(try cache.load()?.events.first?.type, "progress")
@@ -223,6 +233,33 @@ final class PhoneDexLocalCacheTests: XCTestCase {
         let retained = PhoneDexPendingReplyPolicy.prune(replies, now: now)
 
         XCTAssertEqual(retained.map(\.id), ["reply-0", "reply-1", "reply-2", "reply-3"])
+    }
+
+    func testPendingLifecycleCommandPolicyKeepsOnlySupportedRecentActions() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let old = PhoneDexPendingLifecycleCommand(
+            commandId: "old-command", idempotencyKey: "old-key", kind: "cancel",
+            taskId: "old-task", expectedTaskVersion: 1,
+            createdAt: now.addingTimeInterval(-PhoneDexPendingLifecycleCommandPolicy.retention - 1)
+        )
+        let unsupported = PhoneDexPendingLifecycleCommand(
+            commandId: "approval-command", idempotencyKey: "approval-key", kind: "approve",
+            taskId: "approval-task", expectedTaskVersion: 2, createdAt: now
+        )
+        let recent = (0..<PhoneDexPendingLifecycleCommandPolicy.limit + 2).map { index in
+            PhoneDexPendingLifecycleCommand(
+                commandId: "command-\(index)", idempotencyKey: "key-\(index)", kind: index.isMultiple(of: 2) ? "cancel" : "retry",
+                taskId: "task-\(index)", expectedTaskVersion: index,
+                createdAt: now.addingTimeInterval(-Double(index))
+            )
+        }
+
+        let retained = PhoneDexPendingLifecycleCommandPolicy.prune([old, unsupported] + recent, now: now)
+
+        XCTAssertFalse(retained.contains(old))
+        XCTAssertFalse(retained.contains(unsupported))
+        XCTAssertEqual(retained.count, PhoneDexPendingLifecycleCommandPolicy.limit)
+        XCTAssertEqual(retained.first?.id, "key-0")
     }
 
     func testNotificationStateReplacementPreservesLocalReviewAndSyncState() {

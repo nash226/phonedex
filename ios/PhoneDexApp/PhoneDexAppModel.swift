@@ -56,6 +56,7 @@ final class PhoneDexAppModel: ObservableObject {
     enum LifecycleState: Equatable {
         case idle
         case sending
+        case queued(String)
         case accepted(String)
         case failed(String)
     }
@@ -67,6 +68,7 @@ final class PhoneDexAppModel: ObservableObject {
     @Published private(set) var readingPositions: [PhoneDexTask.ID: String] = [:]
     @Published private(set) var readAt: [PhoneDexTask.ID: Date] = [:]
     @Published private(set) var pendingReplies: [PhoneDexPendingReply] = []
+    @Published private(set) var pendingLifecycleCommands: [PhoneDexPendingLifecycleCommand] = []
     @Published private(set) var replyReceipts: [PhoneDexReplyDeliveryRecord] = []
     @Published private(set) var cachedArtifacts: [String: PhoneDexCachedArtifact] = [:]
     @Published var selectedTaskID: PhoneDexTask.ID?
@@ -112,6 +114,7 @@ final class PhoneDexAppModel: ObservableObject {
         guard settings.forgetCredential() else { return false }
 
         pendingReplies.removeAll()
+        pendingLifecycleCommands.removeAll()
         replyState = .idle
         persistCachedState(lastSyncAt: lastSuccessfulSync)
         return true
@@ -185,6 +188,7 @@ final class PhoneDexAppModel: ObservableObject {
                 lastSuccessfulSync = now
                 syncCursor = result.usedCompatibilityFallback ? nil : result.cursor
                 await flushPendingReplies()
+                await flushPendingLifecycleCommands()
                 persistCachedState(lastSyncAt: now)
                 if result.usedCompatibilityFallback {
                     connectionState = .incompatible(
@@ -486,6 +490,46 @@ final class PhoneDexAppModel: ObservableObject {
         approvalId: String? = nil,
         approvalTaskVersion: Int? = nil
     ) async -> Bool {
+        guard bridgeClient != nil else {
+            lifecycleState = .failed("The bridge URL is invalid.")
+            return false
+        }
+        let queuesWhenOffline = PhoneDexPendingLifecycleCommandPolicy.supportedKinds.contains(kind)
+        let pending = queuesWhenOffline ? (pendingLifecycleCommands.first {
+            $0.kind == kind && $0.taskId == task.id && $0.expectedTaskVersion == (task.version ?? 1)
+        } ?? PhoneDexPendingLifecycleCommand(
+            commandId: UUID().uuidString,
+            idempotencyKey: "ios-\(UUID().uuidString)",
+            kind: kind,
+            taskId: task.id,
+            expectedTaskVersion: task.version ?? 1,
+            createdAt: Date()
+        )) : nil
+        if let pending, !pendingLifecycleCommands.contains(where: { $0.id == pending.id }) {
+            pendingLifecycleCommands.append(pending)
+            prunePendingLifecycleCommands(now: Date())
+            persistCachedState(lastSyncAt: lastSuccessfulSync)
+        }
+        return await attemptLifecycleCommand(
+            kind: kind,
+            task: task,
+            approvalId: approvalId,
+            approvalTaskVersion: approvalTaskVersion,
+            commandId: pending?.commandId,
+            idempotencyKey: pending?.idempotencyKey,
+            queuesWhenOffline: queuesWhenOffline
+        )
+    }
+
+    private func attemptLifecycleCommand(
+        kind: String,
+        task: PhoneDexTask,
+        approvalId: String? = nil,
+        approvalTaskVersion: Int? = nil,
+        commandId: String? = nil,
+        idempotencyKey: String? = nil,
+        queuesWhenOffline: Bool = false
+    ) async -> Bool {
         guard let client = bridgeClient else {
             lifecycleState = .failed("The bridge URL is invalid.")
             return false
@@ -497,12 +541,35 @@ final class PhoneDexAppModel: ObservableObject {
                 taskId: task.id,
                 approvalId: approvalId,
                 approvalTaskVersion: approvalTaskVersion,
+                commandId: commandId ?? UUID().uuidString,
+                idempotencyKey: idempotencyKey ?? "ios-\(UUID().uuidString)",
                 expectedTaskVersion: task.version ?? 1
             )
             if let updatedTask = result.task { upsertLifecycleTask(updatedTask) }
+            if let commandId, result.receipt.isSuccessful {
+                pendingLifecycleCommands.removeAll { $0.commandId == commandId }
+                persistCachedState(lastSyncAt: lastSuccessfulSync)
+            }
             lifecycleState = .accepted(result.receipt.message ?? "Command accepted.")
             return result.receipt.isSuccessful
         } catch {
+            if queuesWhenOffline, error.isOffline {
+                let description = kind == "cancel" ? "Cancellation queued until the hub reconnects." : "Retry queued until the hub reconnects."
+                lifecycleState = .queued(description)
+                return false
+            }
+            if error.isStaleTask {
+                if let commandId {
+                    pendingLifecycleCommands.removeAll { $0.commandId == commandId }
+                    persistCachedState(lastSyncAt: lastSuccessfulSync)
+                }
+                lifecycleState = .failed("This task changed before the action arrived. Refresh and review the latest context.")
+                return false
+            }
+            if let commandId {
+                pendingLifecycleCommands.removeAll { $0.commandId == commandId }
+                persistCachedState(lastSyncAt: lastSuccessfulSync)
+            }
             lifecycleState = .failed(error.phoneDexSafeMessage)
             return false
         }
@@ -587,6 +654,23 @@ final class PhoneDexAppModel: ObservableObject {
         for pending in pendingReplies {
             guard !Task.isCancelled else { return }
             _ = await attemptPendingReply(pending, client: client)
+        }
+    }
+
+    private func flushPendingLifecycleCommands() async {
+        guard bridgeClient != nil else { return }
+        pendingLifecycleCommands = PhoneDexPendingLifecycleCommandPolicy.prune(pendingLifecycleCommands, now: Date())
+        persistCachedState(lastSyncAt: lastSuccessfulSync)
+        for pending in pendingLifecycleCommands {
+            guard !Task.isCancelled else { return }
+            guard let task = tasks.first(where: { $0.id == pending.taskId }) else { continue }
+            _ = await attemptLifecycleCommand(
+                kind: pending.kind,
+                task: task,
+                commandId: pending.commandId,
+                idempotencyKey: pending.idempotencyKey,
+                queuesWhenOffline: true
+            )
         }
     }
 
@@ -681,6 +765,8 @@ final class PhoneDexAppModel: ObservableObject {
             readAt = cached.readAt
             let persistedPendingReplies = PhoneDexPendingReplyPolicy.prune(cached.pendingReplies, now: Date())
             pendingReplies = persistedPendingReplies
+            let persistedLifecycleCommands = PhoneDexPendingLifecycleCommandPolicy.prune(cached.pendingLifecycleCommands, now: Date())
+            pendingLifecycleCommands = persistedLifecycleCommands
             replyReceipts = cached.replyReceipts
             let persistedArtifacts = PhoneDexCachedArtifactPolicy.index(cached.cachedArtifacts)
             cachedArtifacts = persistedArtifacts
@@ -693,9 +779,12 @@ final class PhoneDexAppModel: ObservableObject {
             // Retention is a privacy boundary, not just a view concern. Rewrite
             // the encrypted cache during restore so expired artifact bytes do
             // not remain on disk until an unrelated later mutation.
-            if cachedArtifacts != persistedArtifacts || cached.pendingReplies != persistedPendingReplies {
+            if cachedArtifacts != persistedArtifacts || cached.pendingReplies != persistedPendingReplies || cached.pendingLifecycleCommands != persistedLifecycleCommands {
                 if cached.pendingReplies != persistedPendingReplies {
                     cacheRecoveryMessage = "Older offline replies were removed from this iPhone. Fresh replies can be queued when needed."
+                }
+                if cached.pendingLifecycleCommands != persistedLifecycleCommands {
+                    cacheRecoveryMessage = "Older offline actions were removed from this iPhone. Try the action again when needed."
                 }
                 persistCachedState(lastSyncAt: cached.lastSyncAt)
             }
@@ -721,6 +810,7 @@ final class PhoneDexAppModel: ObservableObject {
                 readingPositions: readingPositions,
                 readAt: readAt,
                 pendingReplies: pendingReplies,
+                pendingLifecycleCommands: pendingLifecycleCommands,
                 replyReceipts: replyReceipts,
                 handledNotificationResponses: (try? cache.load())?.handledNotificationResponses ?? [:],
                 cachedArtifacts: cachedArtifacts.values.sorted { $0.downloadedAt > $1.downloadedAt }
@@ -736,5 +826,9 @@ final class PhoneDexAppModel: ObservableObject {
 
     private func prunePendingReplies(now: Date) {
         pendingReplies = PhoneDexPendingReplyPolicy.prune(pendingReplies, now: now)
+    }
+
+    private func prunePendingLifecycleCommands(now: Date) {
+        pendingLifecycleCommands = PhoneDexPendingLifecycleCommandPolicy.prune(pendingLifecycleCommands, now: now)
     }
 }
