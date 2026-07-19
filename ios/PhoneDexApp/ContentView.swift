@@ -2012,6 +2012,17 @@ private struct PhoneDexSettingsView: View {
                 }
 
                 Section("Notifications") {
+                    Picker("Lock-screen privacy", selection: $settings.notificationPrivacy) {
+                        ForEach(PhoneDexNotificationPrivacy.allCases) { privacy in
+                            Text(privacy.title).tag(privacy)
+                        }
+                    }
+                    .accessibilityIdentifier("Notification privacy")
+
+                    Text(settings.notificationPrivacy.explanation)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
                     Button("Allow Notifications", systemImage: "bell.badge") {
                         Task {
                             do {
@@ -2123,7 +2134,8 @@ private struct PhoneDexSettingsView: View {
             }
             try await PhoneDexNotificationScheduler.scheduleTaskNotification(
                 task,
-                bridgeURL: bridgeURL
+                bridgeURL: bridgeURL,
+                privacy: settings.notificationPrivacy
             )
             notificationStatus = "Notification scheduled."
         } catch {

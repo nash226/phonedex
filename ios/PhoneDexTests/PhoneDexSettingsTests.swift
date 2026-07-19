@@ -312,6 +312,72 @@ final class PhoneDexSettingsTests: XCTestCase {
         )
     }
 
+    func testNotificationPrivacyDefaultsToSafeSummaryAndPersistsOptIn() throws {
+        let defaults = try makeDefaults()
+        let settings = PhoneDexSettings(defaults: defaults, tokenStore: InMemoryTokenStore())
+
+        XCTAssertEqual(settings.notificationPrivacy, .safeSummary)
+        settings.notificationPrivacy = .fullPreview
+
+        let restored = PhoneDexSettings(defaults: defaults, tokenStore: InMemoryTokenStore())
+        XCTAssertEqual(restored.notificationPrivacy, .fullPreview)
+        XCTAssertEqual(defaults.string(forKey: "phonedex.notificationPrivacy"), "fullPreview")
+    }
+
+    func testSafeNotificationSummaryExcludesTaskContent() {
+        let task = PhoneDexTask(
+            id: "task-privacy", at: nil, source: "stop-hook", title: "Private prompt",
+            text: "Secret source path and prompt", cwd: "/private/repo",
+            workspaceName: "PhoneDex", machineName: "Mac", sessionId: nil,
+            status: "completed", branch: nil, repository: nil
+        )
+
+        let presentation = PhoneDexNotificationScheduler.notificationPresentation(
+            for: task,
+            privacy: .safeSummary
+        )
+
+        XCTAssertFalse(presentation.title.contains("Private"))
+        XCTAssertFalse(presentation.body.contains("Secret"))
+        XCTAssertFalse(presentation.body.contains("/private/repo"))
+        XCTAssertEqual(presentation.body, PhoneDexNotificationCopy.safeSummaryBody)
+    }
+
+    func testFullNotificationPreviewIsExplicitlyOptIn() {
+        let task = PhoneDexTask(
+            id: "task-preview", at: nil, source: "stop-hook", title: "Private prompt",
+            text: "Secret result", cwd: nil, workspaceName: "PhoneDex",
+            machineName: "Mac", sessionId: nil, status: "completed", branch: nil,
+            repository: nil
+        )
+
+        let presentation = PhoneDexNotificationScheduler.notificationPresentation(
+            for: task,
+            privacy: .fullPreview
+        )
+
+        XCTAssertEqual(presentation.title, "Private prompt")
+        XCTAssertEqual(presentation.body, "Secret result")
+    }
+
+    func testFullNotificationPreviewIsBounded() {
+        let task = PhoneDexTask(
+            id: "task-long-preview", at: nil, source: "stop-hook", title: String(repeating: "T", count: 200),
+            text: String(repeating: "R", count: 600), cwd: nil, workspaceName: "PhoneDex",
+            machineName: "Mac", sessionId: nil, status: "completed", branch: nil, repository: nil
+        )
+
+        let presentation = PhoneDexNotificationScheduler.notificationPresentation(
+            for: task,
+            privacy: .fullPreview
+        )
+
+        XCTAssertEqual(presentation.title.count, 120)
+        XCTAssertEqual(presentation.body.count, 500)
+        XCTAssertTrue(presentation.title.hasSuffix("…"))
+        XCTAssertTrue(presentation.body.hasSuffix("…"))
+    }
+
     func testBridgePolicyRequiresHTTPSOutsideLoopback() throws {
         let defaults = try makeDefaults()
         let settings = PhoneDexSettings(defaults: defaults, tokenStore: InMemoryTokenStore())
