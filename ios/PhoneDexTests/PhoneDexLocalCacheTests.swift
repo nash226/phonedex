@@ -47,6 +47,8 @@ final class PhoneDexLocalCacheTests: XCTestCase {
             drafts: ["task_123": "Keep the next reply focused"],
             readingPositions: ["task_123": "activity"],
             readAt: ["task_123": Date(timeIntervalSince1970: 1_750_000_005)],
+            archivedAt: ["archived_task": Date(timeIntervalSince1970: 1_750_000_006)],
+            mutedAt: ["muted_task": Date(timeIntervalSince1970: 1_750_000_007)],
             pendingReplies: [pendingReply],
             pendingLifecycleCommands: [pendingLifecycle],
             replyReceipts: [PhoneDexReplyDeliveryRecord(
@@ -89,6 +91,8 @@ final class PhoneDexLocalCacheTests: XCTestCase {
         XCTAssertEqual(try cache.load()?.replyReceipts.first?.message, "Delivered to Studio Mac")
         XCTAssertEqual(try cache.load()?.events.first?.type, "progress")
         XCTAssertEqual(try cache.load()?.readAt["task_123"], Date(timeIntervalSince1970: 1_750_000_005))
+        XCTAssertEqual(try cache.load()?.archivedAt["archived_task"], Date(timeIntervalSince1970: 1_750_000_006))
+        XCTAssertEqual(try cache.load()?.mutedAt["muted_task"], Date(timeIntervalSince1970: 1_750_000_007))
         XCTAssertEqual(try cache.load()?.handledNotificationResponses.count, 1)
         XCTAssertEqual(try cache.load()?.cachedArtifacts.first?.data, Data("private artifact".utf8))
         XCTAssertEqual(keyStore.key?.count, 32)
@@ -116,6 +120,8 @@ final class PhoneDexLocalCacheTests: XCTestCase {
         XCTAssertEqual(decoded.drafts["task_legacy"], "Draft")
         XCTAssertTrue(decoded.readingPositions.isEmpty)
         XCTAssertTrue(decoded.readAt.isEmpty)
+        XCTAssertTrue(decoded.archivedAt.isEmpty)
+        XCTAssertTrue(decoded.mutedAt.isEmpty)
         XCTAssertTrue(decoded.replyReceipts.isEmpty)
         XCTAssertTrue(decoded.handledNotificationResponses.isEmpty)
         XCTAssertTrue(decoded.cachedArtifacts.isEmpty)
@@ -303,6 +309,8 @@ final class PhoneDexLocalCacheTests: XCTestCase {
         XCTAssertEqual(withHandledResponse.events, state.events)
         XCTAssertEqual(withHandledResponse.drafts, state.drafts)
         XCTAssertEqual(withHandledResponse.readingPositions, state.readingPositions)
+        XCTAssertEqual(withHandledResponse.archivedAt, state.archivedAt)
+        XCTAssertEqual(withHandledResponse.mutedAt, state.mutedAt)
         XCTAssertEqual(withHandledResponse.cachedArtifacts, state.cachedArtifacts)
         XCTAssertEqual(withHandledResponse.pendingReplies.count, 1)
         XCTAssertEqual(withHandledResponse.handledNotificationResponses.count, 1)

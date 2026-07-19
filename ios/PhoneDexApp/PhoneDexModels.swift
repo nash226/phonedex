@@ -842,23 +842,49 @@ enum PhoneDexChatScope: String, CaseIterable, Identifiable {
     }
 }
 
+enum PhoneDexPresentationFilter: String, CaseIterable, Identifiable {
+    case active
+    case archived
+    case muted
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .active: return "Active"
+        case .archived: return "Archived"
+        case .muted: return "Muted"
+        }
+    }
+}
+
 struct PhoneDexTaskFilter: Equatable {
     var scope: PhoneDexChatScope = .needsYou
     var searchText = ""
     var machineName: String?
     var workspaceName: String?
+    var presentation: PhoneDexPresentationFilter = .active
 
     var hasFilters: Bool {
         !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-            machineName != nil || workspaceName != nil
+            machineName != nil || workspaceName != nil || presentation != .active
     }
 
-    func filteredTasks(_ tasks: [PhoneDexTask]) -> [PhoneDexTask] {
+    func filteredTasks(_ tasks: [PhoneDexTask], archivedTaskIDs: Set<String> = [], mutedTaskIDs: Set<String> = []) -> [PhoneDexTask] {
         tasks.filter { task in
             scopeMatches(task) &&
+                presentationMatches(task, archivedTaskIDs: archivedTaskIDs, mutedTaskIDs: mutedTaskIDs) &&
                 (machineName == nil || task.displayMachine == machineName) &&
                 (workspaceName == nil || task.displayWorkspace == workspaceName) &&
                 searchMatches(task)
+        }
+    }
+
+    private func presentationMatches(_ task: PhoneDexTask, archivedTaskIDs: Set<String>, mutedTaskIDs: Set<String>) -> Bool {
+        switch presentation {
+        case .active: return !archivedTaskIDs.contains(task.id) && !mutedTaskIDs.contains(task.id)
+        case .archived: return archivedTaskIDs.contains(task.id)
+        case .muted: return !archivedTaskIDs.contains(task.id) && mutedTaskIDs.contains(task.id)
         }
     }
 

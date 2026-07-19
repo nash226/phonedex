@@ -71,6 +71,8 @@ final class PhoneDexAppModel: ObservableObject {
     @Published private(set) var pendingLifecycleCommands: [PhoneDexPendingLifecycleCommand] = []
     @Published private(set) var replyReceipts: [PhoneDexReplyDeliveryRecord] = []
     @Published private(set) var cachedArtifacts: [String: PhoneDexCachedArtifact] = [:]
+    @Published private(set) var archivedAt: [String: Date] = [:]
+    @Published private(set) var mutedAt: [String: Date] = [:]
     @Published var selectedTaskID: PhoneDexTask.ID?
     @Published var connectionState: ConnectionState = .idle
     @Published var replyState: ReplyState = .idle
@@ -721,6 +723,32 @@ final class PhoneDexAppModel: ObservableObject {
         persistCachedState(lastSyncAt: lastSuccessfulSync)
     }
 
+    func isArchived(_ task: PhoneDexTask) -> Bool {
+        archivedAt[task.id] != nil
+    }
+
+    func setArchived(_ archived: Bool, for task: PhoneDexTask) {
+        if archived {
+            archivedAt[task.id] = Date()
+        } else {
+            archivedAt.removeValue(forKey: task.id)
+        }
+        persistCachedState(lastSyncAt: lastSuccessfulSync)
+    }
+
+    func isMuted(_ task: PhoneDexTask) -> Bool {
+        mutedAt[task.id] != nil
+    }
+
+    func setMuted(_ muted: Bool, for task: PhoneDexTask) {
+        if muted {
+            mutedAt[task.id] = Date()
+        } else {
+            mutedAt.removeValue(forKey: task.id)
+        }
+        persistCachedState(lastSyncAt: lastSuccessfulSync)
+    }
+
     func events(for taskID: PhoneDexTask.ID) -> [PhoneDexEvent] {
         events
             .filter { $0.taskId == taskID }
@@ -763,6 +791,8 @@ final class PhoneDexAppModel: ObservableObject {
             drafts = cached.drafts
             readingPositions = cached.readingPositions
             readAt = cached.readAt
+            archivedAt = cached.archivedAt
+            mutedAt = cached.mutedAt
             let persistedPendingReplies = PhoneDexPendingReplyPolicy.prune(cached.pendingReplies, now: Date())
             pendingReplies = persistedPendingReplies
             let persistedLifecycleCommands = PhoneDexPendingLifecycleCommandPolicy.prune(cached.pendingLifecycleCommands, now: Date())
@@ -809,6 +839,8 @@ final class PhoneDexAppModel: ObservableObject {
                 drafts: drafts,
                 readingPositions: readingPositions,
                 readAt: readAt,
+                archivedAt: archivedAt,
+                mutedAt: mutedAt,
                 pendingReplies: pendingReplies,
                 pendingLifecycleCommands: pendingLifecycleCommands,
                 replyReceipts: replyReceipts,

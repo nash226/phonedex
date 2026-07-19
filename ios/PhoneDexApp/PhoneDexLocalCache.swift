@@ -16,6 +16,8 @@ struct PhoneDexCachedState: Codable, Equatable {
     let drafts: [String: String]
     let readingPositions: [String: String]
     let readAt: [String: Date]
+    let archivedAt: [String: Date]
+    let mutedAt: [String: Date]
     let pendingReplies: [PhoneDexPendingReply]
     let pendingLifecycleCommands: [PhoneDexPendingLifecycleCommand]
     let replyReceipts: [PhoneDexReplyDeliveryRecord]
@@ -23,7 +25,7 @@ struct PhoneDexCachedState: Codable, Equatable {
     let cachedArtifacts: [PhoneDexCachedArtifact]
 
     private enum CodingKeys: String, CodingKey {
-        case schema, version, cursor, tasks, devices, events, lastSyncAt, drafts, readingPositions, readAt, pendingReplies, pendingLifecycleCommands, replyReceipts, handledNotificationResponses, cachedArtifacts
+        case schema, version, cursor, tasks, devices, events, lastSyncAt, drafts, readingPositions, readAt, archivedAt, mutedAt, pendingReplies, pendingLifecycleCommands, replyReceipts, handledNotificationResponses, cachedArtifacts
     }
 
     init(
@@ -35,6 +37,8 @@ struct PhoneDexCachedState: Codable, Equatable {
         drafts: [String: String] = [:],
         readingPositions: [String: String] = [:],
         readAt: [String: Date] = [:],
+        archivedAt: [String: Date] = [:],
+        mutedAt: [String: Date] = [:],
         pendingReplies: [PhoneDexPendingReply] = [],
         pendingLifecycleCommands: [PhoneDexPendingLifecycleCommand] = [],
         replyReceipts: [PhoneDexReplyDeliveryRecord] = [],
@@ -53,6 +57,8 @@ struct PhoneDexCachedState: Codable, Equatable {
         self.drafts = drafts
         self.readingPositions = readingPositions
         self.readAt = readAt
+        self.archivedAt = archivedAt
+        self.mutedAt = mutedAt
         self.pendingReplies = pendingReplies
         self.pendingLifecycleCommands = pendingLifecycleCommands
         self.replyReceipts = replyReceipts
@@ -72,6 +78,8 @@ struct PhoneDexCachedState: Codable, Equatable {
         drafts = try container.decodeIfPresent([String: String].self, forKey: .drafts) ?? [:]
         readingPositions = try container.decodeIfPresent([String: String].self, forKey: .readingPositions) ?? [:]
         readAt = try container.decodeIfPresent([String: Date].self, forKey: .readAt) ?? [:]
+        archivedAt = try container.decodeIfPresent([String: Date].self, forKey: .archivedAt) ?? [:]
+        mutedAt = try container.decodeIfPresent([String: Date].self, forKey: .mutedAt) ?? [:]
         pendingReplies = try container.decodeIfPresent([PhoneDexPendingReply].self, forKey: .pendingReplies) ?? []
         pendingLifecycleCommands = try container.decodeIfPresent([PhoneDexPendingLifecycleCommand].self, forKey: .pendingLifecycleCommands) ?? []
         replyReceipts = try container.decodeIfPresent([PhoneDexReplyDeliveryRecord].self, forKey: .replyReceipts) ?? []
@@ -91,6 +99,8 @@ struct PhoneDexCachedState: Codable, Equatable {
         try container.encode(drafts, forKey: .drafts)
         try container.encode(readingPositions, forKey: .readingPositions)
         try container.encode(readAt, forKey: .readAt)
+        try container.encode(archivedAt, forKey: .archivedAt)
+        try container.encode(mutedAt, forKey: .mutedAt)
         try container.encode(pendingReplies, forKey: .pendingReplies)
         try container.encode(pendingLifecycleCommands, forKey: .pendingLifecycleCommands)
         try container.encode(replyReceipts, forKey: .replyReceipts)
@@ -112,6 +122,8 @@ struct PhoneDexCachedState: Codable, Equatable {
             drafts: drafts,
             readingPositions: readingPositions,
             readAt: readAt,
+            archivedAt: archivedAt,
+            mutedAt: mutedAt,
             pendingReplies: pendingReplies ?? self.pendingReplies,
             pendingLifecycleCommands: pendingLifecycleCommands ?? self.pendingLifecycleCommands,
             replyReceipts: replyReceipts,

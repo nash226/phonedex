@@ -106,7 +106,11 @@ private struct PhoneDexChatsView: View {
     @State private var showingCreateTask = false
 
     private var filteredTasks: [PhoneDexTask] {
-        filter.filteredTasks(model.tasks)
+        filter.filteredTasks(
+            model.tasks,
+            archivedTaskIDs: Set(model.archivedAt.keys),
+            mutedTaskIDs: Set(model.mutedAt.keys)
+        )
     }
 
     var body: some View {
@@ -144,7 +148,9 @@ private struct PhoneDexChatsView: View {
                                 PhoneDexTaskRow(
                                     task: task,
                                     latestEvent: model.latestEvent(for: task.id),
-                                    isRead: model.isRead(task)
+                                    isRead: model.isRead(task),
+                                    isMuted: model.isMuted(task),
+                                    isArchived: model.isArchived(task)
                                 )
                             }
                             .swipeActions(edge: .leading, allowsFullSwipe: true) {
@@ -161,6 +167,33 @@ private struct PhoneDexChatsView: View {
                                     )
                                 }
                                 .tint(.blue)
+                            }
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button {
+                                    if filter.presentation == .archived {
+                                        model.setArchived(false, for: task)
+                                    } else {
+                                        model.setArchived(true, for: task)
+                                    }
+                                } label: {
+                                    Label(
+                                        filter.presentation == .archived ? "Unarchive" : "Archive",
+                                        systemImage: filter.presentation == .archived ? "archivebox" : "archivebox.fill"
+                                    )
+                                }
+                                .tint(.indigo)
+
+                                if filter.presentation != .archived {
+                                    Button {
+                                        model.setMuted(!model.isMuted(task), for: task)
+                                    } label: {
+                                        Label(
+                                            model.isMuted(task) ? "Unmute" : "Mute",
+                                            systemImage: model.isMuted(task) ? "bell" : "bell.slash"
+                                        )
+                                    }
+                                    .tint(.orange)
+                                }
                             }
                         }
                     } header: {
@@ -233,7 +266,7 @@ private struct PhoneDexChatsView: View {
                 }
             } else {
                 ContentUnavailableView {
-                    Label(filter.scope.emptyTitle, systemImage: "bubble.left.and.bubble.right")
+                    Label(filter.presentation == .archived ? "No archived conversations" : filter.presentation == .muted ? "No muted conversations" : filter.scope.emptyTitle, systemImage: "bubble.left.and.bubble.right")
                 } description: {
                     Text(filter.hasFilters ? "Try a different search or filter." : filter.scope.emptyDescription)
                 } actions: {
@@ -247,6 +280,14 @@ private struct PhoneDexChatsView: View {
 
     private var filterMenu: some View {
         Menu {
+            Section("Presentation") {
+                Picker("Presentation", selection: $filter.presentation) {
+                    ForEach(PhoneDexPresentationFilter.allCases) { presentation in
+                        Text(presentation.title).tag(presentation)
+                    }
+                }
+            }
+
             Section("Machine") {
                 Picker("Machine", selection: $filter.machineName) {
                     Text("All machines").tag(nil as String?)
@@ -281,6 +322,7 @@ private struct PhoneDexChatsView: View {
         filter.searchText = ""
         filter.machineName = nil
         filter.workspaceName = nil
+        filter.presentation = .active
     }
 
     private func keepSelectionVisible() {
@@ -297,11 +339,15 @@ struct PhoneDexTaskRow: View {
     let task: PhoneDexTask
     let latestEvent: PhoneDexEvent?
     let isRead: Bool
+    let isMuted: Bool
+    let isArchived: Bool
 
-    init(task: PhoneDexTask, latestEvent: PhoneDexEvent? = nil, isRead: Bool = false) {
+    init(task: PhoneDexTask, latestEvent: PhoneDexEvent? = nil, isRead: Bool = false, isMuted: Bool = false, isArchived: Bool = false) {
         self.task = task
         self.latestEvent = latestEvent
         self.isRead = isRead
+        self.isMuted = isMuted
+        self.isArchived = isArchived
     }
 
     private var activityText: String {
@@ -340,6 +386,11 @@ struct PhoneDexTaskRow: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+                    if isMuted {
+                        Image(systemName: "bell.slash.fill")
+                            .foregroundStyle(.orange)
+                            .accessibilityLabel("Muted")
+                    }
                 }
 
                 Text(activityText)
@@ -367,7 +418,7 @@ struct PhoneDexTaskRow: View {
         }
         .padding(.vertical, 6)
         .accessibilityElement(children: .combine)
-        .accessibilityValue(isRead ? "Read" : "Unread")
+        .accessibilityValue([isRead ? "Read" : "Unread", isMuted ? "Muted" : nil, isArchived ? "Archived" : nil].compactMap { $0 }.joined(separator: ", "))
         .privacySensitive()
     }
 }
