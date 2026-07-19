@@ -125,9 +125,11 @@ The repository already proves the core loop, but not the final product.
   handoff that preserves the exact task and Codex session identity without
   invoking private desktop UI or exposing local paths and credentials.
 - Configuration and preview actions can be invoked through a custom URL scheme.
-- Chats keeps read/unread presentation state per task in the encrypted local
-  cache. A newer task update becomes unread again; marking a task read never
-  changes its lifecycle or sends a hub command.
+- Chats keeps read/unread, archived, and muted presentation state per task in
+  the encrypted local cache. A newer task update becomes unread again;
+  archiving or muting is a local triage choice and never changes lifecycle or
+  sends a hub command. Active, archived, and muted views remain explicit so a
+  user can recover locally hidden work.
 - The project targets iOS 17 and includes unit and UI test targets for the
   native shell.
 
@@ -557,7 +559,9 @@ device unavailable, and security event.
 - **TASK-04:** Duplicate hook and watcher captures must converge on one logical
   task event.
 - **TASK-05:** Read, unread, archived, and muted are user presentation state and
-  must not overwrite agent execution state.
+  must not overwrite agent execution state. The native client must persist
+  these choices locally and provide explicit recovery views for archived and
+  muted conversations.
 - **TASK-06:** Search and filters must return stable results across refreshes.
 - **TASK-07:** The hub must expose tombstones or equivalent semantics for data
   deleted on another client.

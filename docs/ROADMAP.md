@@ -1190,6 +1190,17 @@ This keeps Needs You focused on actionable lifecycle state while giving users
 the triage affordance required by TASK-05; cross-device read synchronization
 remains intentionally out of scope.
 
+Local archive and mute verification: Chats now persists per-task archive and
+mute timestamps in the encrypted local cache, excludes both states from the
+default Active presentation, and offers explicit Archived and Muted recovery
+views with reversible swipe actions. These choices are presentation metadata
+only: they never alter task lifecycle, command history, sync cursors, or hub
+state. `PhoneDexLocalCacheTests` covers encrypted round-trip and legacy decoding,
+while `PhoneDexChatFilteringTests` covers stable active, archived, and muted
+partitions. Notification delivery policy remains separate and APNs-gated;
+muting is currently a local triage affordance rather than a claim about remote
+push suppression.
+
 Native model-boundary verification evidence: `PhoneDexNativeDecodeBounds` keeps
 synced task metadata, question choices, capture sources, lifecycle capabilities,
 evidence collections, patches, event payloads, and snapshot pages within the

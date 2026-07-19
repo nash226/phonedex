@@ -198,6 +198,26 @@ final class PhoneDexChatFilteringTests: XCTestCase {
         XCTAssertLessThan(readAt, try XCTUnwrap(updated.lastUpdatedDate))
     }
 
+    func testPresentationFiltersKeepArchivedAndMutedOutOfActiveTriage() {
+        let tasks = [
+            task("active", status: "completed"),
+            task("archived", status: "completed"),
+            task("muted", status: "completed")
+        ]
+        let archived = Set(["archived"])
+        let muted = Set(["muted"])
+
+        XCTAssertEqual(PhoneDexTaskFilter(scope: .recent).filteredTasks(tasks, archivedTaskIDs: archived, mutedTaskIDs: muted).map(\.id), ["active"])
+
+        var filter = PhoneDexTaskFilter(scope: .recent)
+        filter.presentation = .archived
+        XCTAssertEqual(filter.filteredTasks(tasks, archivedTaskIDs: archived, mutedTaskIDs: muted).map(\.id), ["archived"])
+
+        filter.presentation = .muted
+        XCTAssertEqual(filter.filteredTasks(tasks, archivedTaskIDs: archived, mutedTaskIDs: muted).map(\.id), ["muted"])
+        XCTAssertTrue(filter.hasFilters)
+    }
+
     private func task(
         _ id: String,
         status: String?,
