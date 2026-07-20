@@ -2011,6 +2011,7 @@ private struct PhoneDexSettingsView: View {
     @State private var isLoadingDiagnostics = false
     @State private var showingClearArtifactConfirmation = false
     @State private var showingForgetCredentialConfirmation = false
+    @State private var showLegacyCredential = false
     @State private var credentialStatus = ""
 
     init(model: PhoneDexAppModel) {
@@ -2075,7 +2076,7 @@ private struct PhoneDexSettingsView: View {
                             .accessibilityElement(children: .combine)
                     }
 
-                    DisclosureGroup(PhoneDexCredentialCopy.legacyHeader) {
+                    DisclosureGroup(isExpanded: $showLegacyCredential) {
                         Text(PhoneDexCredentialCopy.legacyWarning)
                             .font(.footnote)
                             .foregroundStyle(.secondary)
