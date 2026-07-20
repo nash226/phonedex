@@ -1259,7 +1259,10 @@ lifecycle event for a task, and the native Chats row presents its bounded
 summary for queued and running work while retaining the last task response for
 completed or legacy records. Empty event summaries fall back to the localized
 event title, and `PhoneDexChatFilteringTests` covers sequence ordering and the
-fallback. This is foreground, durable-sync presentation only; it does not
+fallback. Same-sequence events now use their parsed timestamp and then bounded
+event id as deterministic tie-breakers, so page arrival order cannot change the
+visible latest event. `PhoneDexChatFilteringTests` covers both tie-breakers.
+This is foreground, durable-sync presentation only; it does not
 claim continuous background delivery or infer progress from desktop UI.
 
 Verification evidence for the primary-tab restoration slice:

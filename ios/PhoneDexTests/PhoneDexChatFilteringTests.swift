@@ -29,6 +29,49 @@ final class PhoneDexChatFilteringTests: XCTestCase {
         XCTAssertEqual(events[1].displaySummary, "Running focused tests")
     }
 
+    func testLatestEventUsesTimestampAndIDToBreakSequenceTies() {
+        let events = [
+            PhoneDexEvent(
+                id: "progress-a",
+                taskId: "running",
+                createdAt: "2026-07-15T12:02:00.000Z",
+                sequence: 4,
+                type: "progress",
+                data: ["summary": "First page copy"]
+            ),
+            PhoneDexEvent(
+                id: "progress-b",
+                taskId: "running",
+                createdAt: "2026-07-15T12:03:00.000Z",
+                sequence: 4,
+                type: "progress",
+                data: ["summary": "Latest progress"]
+            )
+        ]
+
+        XCTAssertEqual(events.sorted { $0.isEarlier(than: $1) }.last?.id, "progress-b")
+    }
+
+    func testLatestEventUsesIDWhenSequenceAndTimestampTie() {
+        let first = PhoneDexEvent(
+            id: "progress-a",
+            taskId: "running",
+            createdAt: "not-a-date",
+            sequence: 4,
+            type: "progress"
+        )
+        let second = PhoneDexEvent(
+            id: "progress-b",
+            taskId: "running",
+            createdAt: "not-a-date",
+            sequence: 4,
+            type: "progress"
+        )
+
+        XCTAssertTrue(first.isLater(than: second) == false)
+        XCTAssertTrue(second.isLater(than: first))
+    }
+
     func testScopesSeparateActionableRunningAndRecentWork() {
         let tasks = [
             task("question", status: "needs_input"),

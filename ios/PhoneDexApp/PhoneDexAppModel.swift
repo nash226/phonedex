@@ -758,7 +758,7 @@ final class PhoneDexAppModel: ObservableObject {
     func events(for taskID: PhoneDexTask.ID) -> [PhoneDexEvent] {
         events
             .filter { $0.taskId == taskID }
-            .sorted { $0.sequence < $1.sequence }
+            .sorted { $0.isEarlier(than: $1) }
     }
 
     func latestEvent(for taskID: PhoneDexTask.ID) -> PhoneDexEvent? {
