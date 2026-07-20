@@ -1303,8 +1303,12 @@ and accepts only the newest response. When an automatic refresh overlaps a
 manual retry or another lifecycle-triggered refresh, an older network response
 can no longer overwrite newer tasks, devices, events, cursor, or connection
 state. The guard preserves the last trusted local projection when an obsolete
-request completes and is covered by `PhoneDexRefreshPolicyTests`; it does not
-claim background push delivery or real-device network timing evidence.
+request completes and is covered by `PhoneDexRefreshPolicyTests`. The native
+model now cancels the previous refresh task before starting a newer one and
+checks cancellation before applying sync state or flushing offline commands,
+so superseded multi-page sync work cannot continue needlessly or mutate local
+state after cancellation. This remains foreground, durable-sync behavior and
+does not claim background push delivery or real-device network timing evidence.
 
 Verification evidence for the bounded live-progress presentation slice:
 `PhoneDexAppModel.latestEvent(for:)` selects the highest-sequence structured

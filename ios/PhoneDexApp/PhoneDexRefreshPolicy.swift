@@ -69,4 +69,10 @@ struct PhoneDexRefreshCoordinator: Equatable {
     func accepts(_ requestID: Int) -> Bool {
         requestID == latestRequestID
     }
+
+    /// A superseded refresh should be cancelled so its network work and
+    /// pagination can stop, not merely ignored after producing a response.
+    func shouldCancel(_ requestID: Int) -> Bool {
+        !accepts(requestID)
+    }
 }

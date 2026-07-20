@@ -91,6 +91,7 @@ final class PhoneDexAppModel: ObservableObject {
     private var syncTasks: [PhoneDexTask] = []
     private var syncCursor: String?
     private var refreshCoordinator = PhoneDexRefreshCoordinator()
+    private var activeRefreshTask: Task<Void, Never>?
 
     init(
         settings: PhoneDexSettings,
@@ -158,7 +159,17 @@ final class PhoneDexAppModel: ObservableObject {
     }
 
     func refresh() async {
+        activeRefreshTask?.cancel()
         let requestID = refreshCoordinator.begin()
+        let refreshTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.performRefresh(requestID: requestID)
+        }
+        activeRefreshTask = refreshTask
+        await refreshTask.value
+    }
+
+    private func performRefresh(requestID: Int) async {
         guard let client = bridgeClient else {
             connectionState = .failed(settings.bridgeURLValidationMessage, lastSync: lastSuccessfulSync)
             return
@@ -172,7 +183,8 @@ final class PhoneDexAppModel: ObservableObject {
                 devices: devices,
                 events: events
             )
-            guard refreshCoordinator.accepts(requestID) else { return }
+            try Task.checkCancellation()
+            guard !refreshCoordinator.shouldCancel(requestID) else { return }
             if let fetchedTasks = result.tasks {
                 syncTasks = fetchedTasks
                 tasks = PhoneDexTask.latestPerConversation(syncTasks).sorted { lhs, rhs in
@@ -199,9 +211,12 @@ final class PhoneDexAppModel: ObservableObject {
             if result.isComplete {
                 lastSuccessfulSync = now
                 syncCursor = result.usedCompatibilityFallback ? nil : result.cursor
+                try Task.checkCancellation()
+                guard !refreshCoordinator.shouldCancel(requestID) else { return }
                 await flushPendingReplies()
                 await flushPendingLifecycleCommands()
-                guard refreshCoordinator.accepts(requestID) else { return }
+                try Task.checkCancellation()
+                guard !refreshCoordinator.shouldCancel(requestID) else { return }
                 persistCachedState(lastSyncAt: now)
                 if result.usedCompatibilityFallback {
                     connectionState = .incompatible(
@@ -220,8 +235,11 @@ final class PhoneDexAppModel: ObservableObject {
                     lastSync: lastSuccessfulSync
                 )
             }
+        } catch is CancellationError {
+            return
         } catch let error {
-            guard refreshCoordinator.accepts(requestID) else { return }
+            guard !Task.isCancelled else { return }
+            guard !refreshCoordinator.shouldCancel(requestID) else { return }
             if error.isRevoked {
                 connectionState = .revoked
             } else if error.isProtocolIncompatible {
