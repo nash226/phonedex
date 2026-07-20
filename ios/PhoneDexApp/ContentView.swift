@@ -757,6 +757,7 @@ struct PhoneDexTaskDetailView: View {
             .coordinateSpace(name: "task-detail-scroll")
             .background(Color(uiColor: .systemBackground))
             .privacySensitive()
+            .accessibilityIdentifier("task-detail-content")
             .overlay(alignment: .bottom) {
                 if showNewActivity {
                     Button {
@@ -919,6 +920,8 @@ struct PhoneDexTaskDetailView: View {
             HStack(spacing: 8) {
                 Label(task.displayStatus, systemImage: task.statusSymbol)
                     .foregroundStyle(statusColor)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer()
                 if let date = task.lastUpdatedDate {
                     VStack(alignment: .trailing, spacing: 2) {
@@ -940,18 +943,24 @@ struct PhoneDexTaskDetailView: View {
 
             Text(task.title)
                 .font(.title2.weight(.bold))
+                .accessibilityIdentifier("task-detail-title")
 
-            HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
                 Label(task.displayMachine, systemImage: "desktopcomputer")
+                    .lineLimit(2)
                 Label(task.displayWorkspace, systemImage: "folder")
+                    .lineLimit(2)
             }
             .font(.caption)
             .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
 
             if let branch = task.branch, !branch.isEmpty {
                 Label(branch, systemImage: "arrow.triangle.branch")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
