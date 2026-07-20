@@ -1999,6 +1999,32 @@ private struct PhoneDexDevicesView: View {
     }
 }
 
+private struct PhoneDexLegacyCredentialDisclosure: View {
+    @Binding var token: String
+    @State private var isExpanded = false
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            Text(PhoneDexCredentialCopy.legacyWarning)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+
+            SecureField("Legacy bridge token", text: $token)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .privacySensitive()
+                .accessibilityHint("Stores a legacy local-hub credential in the device-only Keychain.")
+
+            Text(PhoneDexCredentialCopy.legacyFooter)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        } label: {
+            Label(PhoneDexCredentialCopy.legacyHeader, systemImage: "rectangle.and.pencil.and.ellipsis")
+        }
+        .accessibilityHint("Reveals an older local-hub token field. Secure pairing is recommended for new connections.")
+    }
+}
+
 private struct PhoneDexSettingsView: View {
     @ObservedObject var model: PhoneDexAppModel
     @ObservedObject private var settings: PhoneDexSettings
@@ -2011,7 +2037,6 @@ private struct PhoneDexSettingsView: View {
     @State private var isLoadingDiagnostics = false
     @State private var showingClearArtifactConfirmation = false
     @State private var showingForgetCredentialConfirmation = false
-    @State private var showLegacyCredential = false
     @State private var credentialStatus = ""
 
     init(model: PhoneDexAppModel) {
@@ -2076,24 +2101,7 @@ private struct PhoneDexSettingsView: View {
                             .accessibilityElement(children: .combine)
                     }
 
-                    DisclosureGroup(isExpanded: $showLegacyCredential) {
-                        Text(PhoneDexCredentialCopy.legacyWarning)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-
-                        SecureField("Legacy bridge token", text: $settings.token)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .privacySensitive()
-                            .accessibilityHint("Stores a legacy local-hub credential in the device-only Keychain.")
-
-                        Text(PhoneDexCredentialCopy.legacyFooter)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    } label: {
-                        Label(PhoneDexCredentialCopy.legacyHeader, systemImage: "rectangle.and.pencil.and.ellipsis")
-                    }
-                    .accessibilityHint("Reveals an older local-hub token field. Secure pairing is recommended for new connections.")
+                    PhoneDexLegacyCredentialDisclosure(token: $settings.token)
 
                     if !credentialStatus.isEmpty {
                         Label(
