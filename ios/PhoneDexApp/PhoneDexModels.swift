@@ -714,6 +714,27 @@ struct PhoneDexEvent: Codable, Equatable, Identifiable {
         return normalizedSummary.isEmpty ? displayTitle : normalizedSummary
     }
 
+    /// Provides a stable order when a hub page contains events with the same sequence.
+    /// Sequence is authoritative; timestamp and id only break ties so projection order
+    /// cannot change the visible latest-progress event.
+    func isLater(than other: PhoneDexEvent) -> Bool {
+        if sequence != other.sequence { return sequence > other.sequence }
+
+        let date = displayDate ?? .distantPast
+        let otherDate = other.displayDate ?? .distantPast
+        if date != otherDate { return date > otherDate }
+        return id > other.id
+    }
+
+    func isEarlier(than other: PhoneDexEvent) -> Bool {
+        if sequence != other.sequence { return sequence < other.sequence }
+
+        let date = displayDate ?? .distantPast
+        let otherDate = other.displayDate ?? .distantPast
+        if date != otherDate { return date < otherDate }
+        return id < other.id
+    }
+
     init(
         id: String,
         taskId: String,
