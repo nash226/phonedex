@@ -978,6 +978,15 @@ body updates do not repeat the bounded parse on context toggles, Dynamic Type,
 or accessibility state changes; the view identity is reset per selected file
 so that cache cannot be reused for the wrong patch.
 
+Chat-list performance verification for the in-progress release-readiness
+slice: `PhoneDexEvent.latestByTaskID` builds a deterministic latest-event index
+in one pass, and `PhoneDexAppModel` reuses it for conversation-row activity
+instead of filtering and sorting the full event stream once per visible row.
+`PhoneDexSmokeTests.testLatestEventProjectionKeepsTheNewestEventPerTask`
+covers sequence ordering and stable timestamp/id tie breaks. This keeps the
+native Mac/Windows conversation projection responsive as event history grows;
+it does not claim oldest-device p95 or real-device battery evidence.
+
 Crash-gate verification for the in-progress release-readiness slice:
 `scripts/test-ios-crash-recovery.js` guards the native cold-start recovery
 contract: cache restore is isolated from app launch, corrupt encrypted state is

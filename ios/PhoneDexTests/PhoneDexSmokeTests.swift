@@ -133,6 +133,21 @@ final class PhoneDexSmokeTests: XCTestCase {
         XCTAssertEqual(task.sessionId, "session_smoke")
     }
 
+    func testLatestEventProjectionKeepsTheNewestEventPerTask() {
+        let events = [
+            PhoneDexEvent(id: "task-a-1", taskId: "task-a", createdAt: "2026-07-15T00:00:00.000Z", sequence: 1, type: "task_started"),
+            PhoneDexEvent(id: "task-b-2", taskId: "task-b", createdAt: "2026-07-15T00:00:02.000Z", sequence: 2, type: "progress"),
+            PhoneDexEvent(id: "task-a-3", taskId: "task-a", createdAt: "2026-07-15T00:00:03.000Z", sequence: 3, type: "task_completed"),
+            PhoneDexEvent(id: "task-a-2", taskId: "task-a", createdAt: "2026-07-15T00:00:02.000Z", sequence: 2, type: "progress")
+        ]
+
+        let latest = PhoneDexEvent.latestByTaskID(events)
+
+        XCTAssertEqual(latest.count, 2)
+        XCTAssertEqual(latest["task-a"]?.id, "task-a-3")
+        XCTAssertEqual(latest["task-b"]?.id, "task-b-2")
+    }
+
     func testTaskDecoderRejectsOverlongDisplayText() {
         let data = Data("""
         {"id":"task_large","text":"\(String(repeating: "x", count: PhoneDexNativeDecodeBounds.taskText + 1))"}

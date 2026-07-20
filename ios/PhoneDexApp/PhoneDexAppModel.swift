@@ -94,6 +94,7 @@ final class PhoneDexAppModel: ObservableObject {
     private let approvalAuthenticator: any PhoneDexApprovalAuthenticating
     private let injectedBridgeClient: PhoneDexBridgeClient?
     private var syncTasks: [PhoneDexTask] = []
+    private var latestEventsByTaskID: [PhoneDexTask.ID: PhoneDexEvent] = [:]
     private var syncCursor: String?
     private var refreshCoordinator = PhoneDexRefreshCoordinator()
     private var activeRefreshTask: Task<Void, Never>?
@@ -203,10 +204,12 @@ final class PhoneDexAppModel: ObservableObject {
                 }
             }
             if let fetchedEvents = result.events {
-                events = fetchedEvents.sorted { lhs, rhs in
+                let orderedEvents = fetchedEvents.sorted { lhs, rhs in
                     if lhs.taskId != rhs.taskId { return lhs.taskId < rhs.taskId }
                     return lhs.sequence < rhs.sequence
                 }
+                events = orderedEvents
+                latestEventsByTaskID = PhoneDexEvent.latestByTaskID(orderedEvents)
             }
             if selectedTaskID == nil || !tasks.contains(where: { $0.id == selectedTaskID }) {
                 selectedTaskID = tasks.first?.id
@@ -795,7 +798,7 @@ final class PhoneDexAppModel: ObservableObject {
     }
 
     func latestEvent(for taskID: PhoneDexTask.ID) -> PhoneDexEvent? {
-        events(for: taskID).last
+        latestEventsByTaskID[taskID]
     }
 
     func updateReadingPosition(_ position: String?, for taskID: PhoneDexTask.ID) {
@@ -827,6 +830,7 @@ final class PhoneDexAppModel: ObservableObject {
             }
             devices = cached.devices
             events = cached.events
+            latestEventsByTaskID = PhoneDexEvent.latestByTaskID(cached.events)
             drafts = cached.drafts
             readingPositions = cached.readingPositions
             readAt = cached.readAt
