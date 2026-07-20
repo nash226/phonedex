@@ -36,7 +36,7 @@ struct PhoneDexReleaseIdentity: Equatable {
 @MainActor
 final class PhoneDexSettings: ObservableObject {
     @Published var bridgeURL: String {
-        didSet { defaults.set(bridgeURL, forKey: Keys.bridgeURL) }
+        didSet { persistBridgeURL() }
     }
 
     @Published var token: String {
@@ -67,7 +67,15 @@ final class PhoneDexSettings: ObservableObject {
         self.defaults = defaults
         self.tokenStore = tokenStore
 
-        let storedBridgeURL = defaults.string(forKey: Keys.bridgeURL) ?? "http://127.0.0.1:8765"
+        let storedBridgeURL: String
+        if let persistedBridgeURL = defaults.string(forKey: Keys.bridgeURL),
+           let normalized = Self.normalizedSupportedBridgeURL(from: persistedBridgeURL) {
+            storedBridgeURL = normalized.absoluteString
+            defaults.set(storedBridgeURL, forKey: Keys.bridgeURL)
+        } else {
+            storedBridgeURL = "http://127.0.0.1:8765"
+            defaults.removeObject(forKey: Keys.bridgeURL)
+        }
         var storedToken = ""
         var storageError: String?
 
@@ -103,20 +111,7 @@ final class PhoneDexSettings: ObservableObject {
     }
 
     var normalizedBridgeURL: URL? {
-        var raw = bridgeURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        if raw.hasSuffix("/") {
-            raw.removeLast()
-        }
-        guard let url = URL(string: raw),
-              Self.isSupportedBridgeURL(url),
-              url.user == nil,
-              url.password == nil,
-              url.query == nil,
-              url.fragment == nil
-        else {
-            return nil
-        }
-        return url
+        Self.normalizedSupportedBridgeURL(from: bridgeURL)
     }
 
     var bridgeURLValidationMessage: String {
@@ -197,6 +192,34 @@ final class PhoneDexSettings: ObservableObject {
         } catch {
             credentialStorageError = Self.credentialStorageErrorMessage
         }
+    }
+
+    /// Never persist an unvalidated bridge string. A pasted legacy URL may
+    /// contain a token or credentials; keep it visible only long enough to
+    /// explain the validation error, not in UserDefaults.
+    private func persistBridgeURL() {
+        guard let url = normalizedBridgeURL else {
+            defaults.removeObject(forKey: Keys.bridgeURL)
+            return
+        }
+        defaults.set(url.absoluteString, forKey: Keys.bridgeURL)
+    }
+
+    private static func normalizedSupportedBridgeURL(from value: String) -> URL? {
+        var raw = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if raw.hasSuffix("/") {
+            raw.removeLast()
+        }
+        guard let url = URL(string: raw),
+              Self.isSupportedBridgeURL(url),
+              url.user == nil,
+              url.password == nil,
+              url.query == nil,
+              url.fragment == nil
+        else {
+            return nil
+        }
+        return url
     }
 }
 

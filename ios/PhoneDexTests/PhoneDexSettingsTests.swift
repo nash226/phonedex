@@ -224,6 +224,37 @@ final class PhoneDexSettingsTests: XCTestCase {
         XCTAssertNil(settings.normalizedBridgeURL)
     }
 
+    func testInvalidBridgeURLDoesNotPersistCredentialsOrQueryValues() throws {
+        let defaults = try makeDefaults()
+        let settings = PhoneDexSettings(defaults: defaults, tokenStore: InMemoryTokenStore())
+
+        settings.bridgeURL = "https://user:password@bridge.test/?token=secret"
+
+        XCTAssertNil(defaults.string(forKey: "phonedex.bridgeURL"))
+        XCTAssertEqual(settings.bridgeURL, "https://user:password@bridge.test/?token=secret")
+        XCTAssertNil(settings.normalizedBridgeURL)
+    }
+
+    func testValidBridgeURLPersistsOnlyItsNormalizedValue() throws {
+        let defaults = try makeDefaults()
+        let settings = PhoneDexSettings(defaults: defaults, tokenStore: InMemoryTokenStore())
+
+        settings.bridgeURL = "  https://bridge.test/  "
+
+        XCTAssertEqual(defaults.string(forKey: "phonedex.bridgeURL"), "https://bridge.test")
+        XCTAssertEqual(settings.normalizedBridgeURL?.absoluteString, "https://bridge.test")
+    }
+
+    func testExistingInvalidBridgeURLIsRemovedDuringSettingsRestore() throws {
+        let defaults = try makeDefaults()
+        defaults.set("https://user:password@bridge.test/?token=secret", forKey: "phonedex.bridgeURL")
+
+        let settings = PhoneDexSettings(defaults: defaults, tokenStore: InMemoryTokenStore())
+
+        XCTAssertEqual(settings.bridgeURL, "http://127.0.0.1:8765")
+        XCTAssertNil(defaults.string(forKey: "phonedex.bridgeURL"))
+    }
+
     func testConfigurationURLDoesNotImportTokenFromURL() throws {
         let defaults = try makeDefaults()
         let store = InMemoryTokenStore()
