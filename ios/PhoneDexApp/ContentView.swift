@@ -2059,10 +2059,11 @@ private struct PhoneDexSettingsView: View {
                         .autocorrectionDisabled()
                         .privacySensitive()
 
-                    TextField("6-digit verification code", text: $pairingCode)
+                    TextField("Code", text: $pairingCode)
                         .keyboardType(.numberPad)
                         .textContentType(.oneTimeCode)
                         .privacySensitive()
+                        .accessibilityLabel("6-digit verification code")
 
                     Button {
                         Task { await redeemPairing() }
