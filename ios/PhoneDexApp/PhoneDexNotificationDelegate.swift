@@ -161,19 +161,26 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
 }
 
 enum NotificationReplyResult: Equatable {
+    static let maxAge: TimeInterval = 24 * 60 * 60
+
     case sent(String)
     case failed(String)
     case duplicate(String)
 
     static let didChange = Notification.Name("PhoneDexNotificationReplyResultDidChange")
 
-    static var latest: NotificationReplyResult? {
+    static func latest(now: Date = Date(), maxAge: TimeInterval = Self.maxAge) -> NotificationReplyResult? {
+        guard maxAge >= 0 else { return nil }
         let defaults = UserDefaults.standard
         guard let state = defaults.string(forKey: Keys.state),
-              let message = defaults.string(forKey: Keys.message)
+              let message = defaults.string(forKey: Keys.message),
+              let updatedAt = defaults.object(forKey: Keys.updatedAt) as? TimeInterval,
+              updatedAt.isFinite
         else {
             return nil
         }
+        let age = now.timeIntervalSince1970 - updatedAt
+        guard age >= 0, age <= maxAge else { return nil }
         switch state {
         case "sent": return .sent(message)
         case "duplicate": return .duplicate(message)

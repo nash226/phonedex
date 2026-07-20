@@ -893,6 +893,13 @@ relaunch instead of mislabeling it as a failed reply. `PhoneDexSmokeTests` cover
 the persisted state mapping. This keeps local duplicate suppression honest
 without claiming APNs delivery or background execution support.
 
+Notification result freshness verification: the native model ignores persisted
+notification-action status older than 24 hours, future-dated, malformed, or
+otherwise invalid timestamps. A relaunch therefore cannot present an old sent,
+failed, or duplicate message as the result of current task context. The status
+remains local presentation state and is not treated as durable command truth;
+`PhoneDexSmokeTests` covers expiry and fail-closed timestamp handling.
+
 Credential presentation verification for the in-progress release-readiness
 slice: native Settings leads with the one-time secure pairing grant flow and
 places the older token entry behind an explicitly labeled compatibility
