@@ -332,6 +332,22 @@ final class PhoneDexSettingsTests: XCTestCase {
         XCTAssertEqual(defaults.string(forKey: "phonedex.notificationPrivacy"), "fullPreview")
     }
 
+    func testNotificationAuthorizationCopyExplainsDeniedRecovery() {
+        let denied = PhoneDexNotificationAuthorization.denied
+
+        XCTAssertEqual(denied.title, "Notifications are disabled")
+        XCTAssertTrue(denied.explanation.contains("Open iPhone Settings"))
+        XCTAssertTrue(denied.canOpenSettings)
+        XCTAssertFalse(denied.isEnabled)
+    }
+
+    func testNotificationAuthorizationCopyDistinguishesQuietAndFullDelivery() {
+        XCTAssertTrue(PhoneDexNotificationAuthorization.authorized.isEnabled)
+        XCTAssertTrue(PhoneDexNotificationAuthorization.provisional.isEnabled)
+        XCTAssertFalse(PhoneDexNotificationAuthorization.notDetermined.canOpenSettings)
+        XCTAssertTrue(PhoneDexNotificationAuthorization.restricted.canOpenSettings)
+    }
+
     func testSafeNotificationSummaryExcludesTaskContent() {
         let task = PhoneDexTask(
             id: "task-privacy", at: nil, source: "stop-hook", title: "Private prompt",

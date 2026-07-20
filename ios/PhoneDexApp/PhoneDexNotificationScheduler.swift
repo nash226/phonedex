@@ -1,6 +1,55 @@
 import Foundation
 import UserNotifications
 
+enum PhoneDexNotificationAuthorization: Equatable {
+    case notDetermined
+    case authorized
+    case provisional
+    case denied
+    case restricted
+    case unknown
+
+    init(_ status: UNAuthorizationStatus) {
+        switch status {
+        case .notDetermined: self = .notDetermined
+        case .authorized: self = .authorized
+        case .provisional: self = .provisional
+        case .denied: self = .denied
+        case .ephemeral: self = .authorized
+        @unknown default: self = .unknown
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .notDetermined: return "Notifications not set up"
+        case .authorized: return "Notifications are enabled"
+        case .provisional: return "Notifications are quietly enabled"
+        case .denied: return "Notifications are disabled"
+        case .restricted: return "Notifications are restricted"
+        case .unknown: return "Notification status unavailable"
+        }
+    }
+
+    var explanation: String {
+        switch self {
+        case .notDetermined:
+            return "Allow alerts when a local hub reports a task update."
+        case .authorized, .provisional:
+            return "PhoneDex can alert you about local task updates."
+        case .denied:
+            return "Open iPhone Settings to allow alerts. PhoneDex still refreshes when you open it."
+        case .restricted:
+            return "This iPhone currently prevents notification changes. PhoneDex still refreshes when you open it."
+        case .unknown:
+            return "PhoneDex could not determine notification permission."
+        }
+    }
+
+    var isEnabled: Bool { self == .authorized || self == .provisional }
+    var canOpenSettings: Bool { self == .denied || self == .restricted }
+}
+
 enum PhoneDexNotificationScheduler {
     static let categoryIdentifier = "PHONEDEX_TASK"
     private static let maxPreviewBodyLength = 500
@@ -22,6 +71,11 @@ enum PhoneDexNotificationScheduler {
         return try await UNUserNotificationCenter.current().requestAuthorization(
             options: [.alert, .badge, .sound]
         )
+    }
+
+    static func authorizationStatus() async -> PhoneDexNotificationAuthorization {
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        return PhoneDexNotificationAuthorization(settings.authorizationStatus)
     }
 
     static func schedulePreviewNotification() async throws {
