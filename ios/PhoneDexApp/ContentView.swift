@@ -22,13 +22,16 @@ enum PhoneDexPrimaryTab: String, CaseIterable, Identifiable {
 
 struct ContentView: View {
     @StateObject private var model: PhoneDexAppModel
+    @ObservedObject private var deepLinkRouter: PhoneDexDeepLinkRouter
     @AppStorage(PhoneDexPrimaryTab.storageKey) private var selectedTabRawValue = PhoneDexPrimaryTab.chats.rawValue
     @State private var lastAutomaticRefreshAt: Date?
     @State private var consecutiveAutomaticRefreshFailures = 0
+    @State private var showingUnavailableDeepLink = false
     @Environment(\.scenePhase) private var scenePhase
 
-    init(settings: PhoneDexSettings) {
+    init(settings: PhoneDexSettings, deepLinkRouter: PhoneDexDeepLinkRouter) {
         _model = StateObject(wrappedValue: PhoneDexAppModel(settings: settings))
+        _deepLinkRouter = ObservedObject(wrappedValue: deepLinkRouter)
     }
 
     var body: some View {
@@ -64,6 +67,22 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: NotificationReplyResult.didChange)) { _ in
             model.loadNotificationReplyResult()
         }
+        .onChange(of: deepLinkRouter.pendingTaskID) { _, _ in
+            openPendingTaskIfAvailable()
+        }
+        .onChange(of: model.tasks) { _, _ in
+            openPendingTaskIfAvailable()
+        }
+        .alert("Conversation unavailable", isPresented: $showingUnavailableDeepLink) {
+            Button("Refresh") {
+                Task { await model.refresh() }
+            }
+            Button("Cancel", role: .cancel) {
+                deepLinkRouter.clearPendingTask()
+            }
+        } message: {
+            Text("This conversation is not in the current local cache. Refresh the configured hub and try again.")
+        }
     }
 
     private var selectedTabBinding: Binding<PhoneDexPrimaryTab> {
@@ -77,6 +96,17 @@ struct ContentView: View {
         let restoredTab = PhoneDexPrimaryTab.restored(from: selectedTabRawValue)
         if restoredTab.rawValue != selectedTabRawValue {
             selectedTabRawValue = restoredTab.rawValue
+        }
+    }
+
+    private func openPendingTaskIfAvailable() {
+        guard let taskID = deepLinkRouter.pendingTaskID else { return }
+        selectedTabRawValue = PhoneDexPrimaryTab.chats.rawValue
+        if model.tasks.contains(where: { $0.id == taskID }) {
+            model.selectedTaskID = taskID
+            deepLinkRouter.clearPendingTask()
+        } else if !model.connectionState.isInitialLoading {
+            showingUnavailableDeepLink = true
         }
     }
 

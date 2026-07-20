@@ -125,6 +125,9 @@ The repository already proves the core loop, but not the final product.
   handoff that preserves the exact task and Codex session identity without
   invoking private desktop UI or exposing local paths and credentials.
 - Configuration and preview actions can be invoked through a custom URL scheme.
+- Supported `phonedex://task/<task-id>` links open the matching locally cached
+  conversation in Chats; unknown tasks stay in the native shell and offer a
+  refresh path rather than exposing remote identifiers or claiming delivery.
 - Chats keeps read/unread, archived, and muted presentation state per task in
   the encrypted local cache. A newer task update becomes unread again;
   archiving or muting is a local triage choice and never changes lifecycle or

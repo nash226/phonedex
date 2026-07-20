@@ -2,6 +2,29 @@ import XCTest
 @testable import PhoneDex
 
 final class PhoneDexSmokeTests: XCTestCase {
+    func testTaskDeepLinkAcceptsBoundedOpaqueTaskIDWithoutQueryData() throws {
+        let url = try XCTUnwrap(URL(string: "phonedex://task/task_123-abc"))
+
+        XCTAssertEqual(PhoneDexDeepLinkRoute(url: url), .task("task_123-abc"))
+    }
+
+    func testTaskDeepLinkRejectsQueryDataAndUnsafeOrUnboundedIDs() throws {
+        let queryURL = try XCTUnwrap(URL(string: "phonedex://task/task_123?token=secret"))
+        let unsafeURL = try XCTUnwrap(URL(string: "phonedex://task/task%2F123"))
+        let oversizedID = String(repeating: "a", count: 129)
+        let oversizedURL = try XCTUnwrap(URL(string: "phonedex://task/\(oversizedID)"))
+
+        XCTAssertNil(PhoneDexDeepLinkRoute(url: queryURL))
+        XCTAssertNil(PhoneDexDeepLinkRoute(url: unsafeURL))
+        XCTAssertNil(PhoneDexDeepLinkRoute(url: oversizedURL))
+    }
+
+    func testTaskDeepLinkPreservesSupportedUtilityRoutes() throws {
+        XCTAssertEqual(PhoneDexDeepLinkRoute(url: URL(string: "phonedex://preview")!), .preview)
+        XCTAssertEqual(PhoneDexDeepLinkRoute(url: URL(string: "phonedex://notify-latest")!), .notifyLatest)
+        XCTAssertEqual(PhoneDexDeepLinkRoute(url: URL(string: "phonedex://status")!), .status)
+    }
+
     func testPrivacyShieldCoversInactiveAndBackgroundSnapshots() {
         XCTAssertFalse(PhoneDexPrivacyShieldPolicy.shouldShield(.active))
         XCTAssertTrue(PhoneDexPrivacyShieldPolicy.shouldShield(.inactive))
