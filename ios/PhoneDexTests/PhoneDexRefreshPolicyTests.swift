@@ -78,6 +78,8 @@ final class PhoneDexRefreshPolicyTests: XCTestCase {
 
         XCTAssertFalse(coordinator.accepts(olderRequest))
         XCTAssertTrue(coordinator.accepts(newerRequest))
+        XCTAssertTrue(coordinator.shouldCancel(olderRequest))
+        XCTAssertFalse(coordinator.shouldCancel(newerRequest))
     }
 
     func testRefreshCoordinatorRejectsUnknownRequestIDs() {
