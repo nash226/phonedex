@@ -684,7 +684,7 @@ final class PhoneDexAppModel: ObservableObject {
     }
 
     func loadNotificationReplyResult() {
-        guard let result = NotificationReplyResult.latest else { return }
+        guard let result = NotificationReplyResult.latest() else { return }
         switch result {
         case .sent(let prompt):
             replyState = .sent(prompt)

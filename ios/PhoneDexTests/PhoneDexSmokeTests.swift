@@ -33,9 +33,44 @@ final class PhoneDexSmokeTests: XCTestCase {
         NotificationReplyResult.record(.duplicate("This notification action was already handled."))
 
         XCTAssertEqual(
-            NotificationReplyResult.latest,
+            NotificationReplyResult.latest(now: Date()),
             .duplicate("This notification action was already handled.")
         )
+    }
+
+    func testNotificationReplyResultExpiresAfterBoundedFreshnessWindow() {
+        let defaults = UserDefaults.standard
+        let keys = [
+            "phonedex.notificationReply.state",
+            "phonedex.notificationReply.message",
+            "phonedex.notificationReply.updatedAt"
+        ]
+        defer { keys.forEach(defaults.removeObject(forKey:)) }
+
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        defaults.set("sent", forKey: "phonedex.notificationReply.state")
+        defaults.set("Reply sent", forKey: "phonedex.notificationReply.message")
+        defaults.set(now.timeIntervalSince1970 - NotificationReplyResult.maxAge - 1, forKey: "phonedex.notificationReply.updatedAt")
+
+        XCTAssertNil(NotificationReplyResult.latest(now: now))
+    }
+
+    func testNotificationReplyResultRejectsFutureOrMalformedTimestamps() {
+        let defaults = UserDefaults.standard
+        let keys = [
+            "phonedex.notificationReply.state",
+            "phonedex.notificationReply.message",
+            "phonedex.notificationReply.updatedAt"
+        ]
+        defer { keys.forEach(defaults.removeObject(forKey:)) }
+
+        defaults.set("failed", forKey: "phonedex.notificationReply.state")
+        defaults.set("Try again", forKey: "phonedex.notificationReply.message")
+        defaults.set(Date().addingTimeInterval(60).timeIntervalSince1970, forKey: "phonedex.notificationReply.updatedAt")
+        XCTAssertNil(NotificationReplyResult.latest())
+
+        defaults.set("not-a-timestamp", forKey: "phonedex.notificationReply.updatedAt")
+        XCTAssertNil(NotificationReplyResult.latest())
     }
 
     func testDeepLinkDiagnosticsExcludeCredentialsAndQueryValues() {
