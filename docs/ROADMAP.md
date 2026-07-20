@@ -1119,6 +1119,16 @@ remote task content. `PhoneDexSmokeTests` covers valid, utility-route, query,
 unsafe-identifier, and oversized-identifier cases. Universal-link association,
 remote task discovery, and real-device routing remain release-owner work.
 
+Task freshness verification for the native detail surface: `PhoneDexTask`
+falls back from a malformed capture timestamp to a valid creation timestamp,
+uses a valid task update timestamp when available, and otherwise exposes an
+explicit unavailable state. The detail header labels the timestamp as
+Recorded or Last updated and combines the same context into one VoiceOver
+value, so a relative date cannot be mistaken for a live sync guarantee.
+`PhoneDexChatFilteringTests` covers valid fallback, updated-time precedence,
+and the all-malformed fail-closed path. The hub remains the source of truth;
+this is local presentation and accessibility context only.
+
 Credential-forget verification for the in-progress security and privacy
 slice: `PhoneDexAppModel.forgetCredential()` clears encrypted pending reply
 commands only after Keychain removal succeeds, then persists the remaining

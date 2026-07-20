@@ -226,11 +226,26 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
     }
 
     var displayDate: Date? {
-        date(from: at ?? createdAt)
+        date(from: at) ?? date(from: createdAt)
     }
 
     var lastUpdatedDate: Date? {
         date(from: updatedAt) ?? displayDate
+    }
+
+    var freshnessLabel: String {
+        if date(from: updatedAt) != nil {
+            return Self.localized("task.timestamp.updated", "Last updated", "The task's latest known update time.")
+        }
+        if displayDate != nil {
+            return Self.localized("task.timestamp.recorded", "Recorded", "The time PhoneDex recorded the task.")
+        }
+        return Self.localized("task.timestamp.unknown", "Update time unavailable", "The task has no valid timestamp.")
+    }
+
+    var freshnessAccessibilityValue: String {
+        guard let date = lastUpdatedDate else { return freshnessLabel }
+        return "\(freshnessLabel), \(date.formatted(date: .abbreviated, time: .shortened))"
     }
 
     var activity: [PhoneDexTaskActivity] {

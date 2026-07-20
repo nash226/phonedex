@@ -241,6 +241,42 @@ final class PhoneDexChatFilteringTests: XCTestCase {
         XCTAssertLessThan(readAt, try XCTUnwrap(updated.lastUpdatedDate))
     }
 
+    func testTaskFreshnessFallsBackFromMalformedCaptureTimeToCreationTime() throws {
+        let task = task(
+            "freshness",
+            status: "completed",
+            at: "not-a-date",
+            createdAt: "2026-07-15T12:00:00.000Z"
+        )
+
+        let expectedDateFormatter = ISO8601DateFormatter()
+        expectedDateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        XCTAssertEqual(task.displayDate, expectedDateFormatter.date(from: "2026-07-15T12:00:00.000Z"))
+        XCTAssertEqual(task.freshnessLabel, "Recorded")
+        XCTAssertTrue(task.freshnessAccessibilityValue.hasPrefix("Recorded,"))
+    }
+
+    func testTaskFreshnessUsesLastUpdatedWhenItIsValid() {
+        let task = task(
+            "freshness",
+            status: "running",
+            createdAt: "2026-07-15T12:00:00.000Z",
+            updatedAt: "2026-07-15T12:05:00.000Z"
+        )
+
+        XCTAssertEqual(task.freshnessLabel, "Last updated")
+        XCTAssertTrue(task.freshnessAccessibilityValue.contains("Last updated"))
+    }
+
+    func testTaskFreshnessFailsClosedWhenAllTimestampsAreMalformed() {
+        let task = task("freshness", status: "completed", at: "bad", createdAt: "also-bad", updatedAt: "still-bad")
+
+        XCTAssertNil(task.displayDate)
+        XCTAssertNil(task.lastUpdatedDate)
+        XCTAssertEqual(task.freshnessLabel, "Update time unavailable")
+        XCTAssertEqual(task.freshnessAccessibilityValue, "Update time unavailable")
+    }
+
     func testPresentationFiltersKeepArchivedAndMutedOutOfActiveTriage() {
         let tasks = [
             task("active", status: "completed"),
@@ -272,7 +308,9 @@ final class PhoneDexChatFilteringTests: XCTestCase {
         branch: String? = nil,
         repository: String? = nil,
         sessionId: String? = nil,
-        at: String = "2026-07-15T12:00:00.000Z"
+        at: String? = "2026-07-15T12:00:00.000Z",
+        createdAt: String? = nil,
+        updatedAt: String? = nil
     ) -> PhoneDexTask {
         PhoneDexTask(
             id: id,
@@ -286,7 +324,9 @@ final class PhoneDexChatFilteringTests: XCTestCase {
             sessionId: sessionId,
             status: status,
             branch: branch,
-            repository: repository
+            repository: repository,
+            createdAt: createdAt,
+            updatedAt: updatedAt
         )
     }
 }

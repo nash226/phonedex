@@ -918,8 +918,19 @@ struct PhoneDexTaskDetailView: View {
                     .foregroundStyle(statusColor)
                 Spacer()
                 if let date = task.lastUpdatedDate {
-                    Text(date, style: .relative)
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(task.freshnessLabel)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(date, style: .relative)
+                            .foregroundStyle(.secondary)
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(task.freshnessAccessibilityValue)
+                } else {
+                    Text(task.freshnessLabel)
                         .foregroundStyle(.secondary)
+                        .accessibilityLabel(task.freshnessAccessibilityValue)
                 }
             }
             .font(.subheadline.weight(.semibold))
