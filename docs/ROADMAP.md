@@ -362,6 +362,15 @@ from the encrypted cache and offers a "Show new activity" affordance instead
 of moving the reader when refreshed task metadata changes. Changed-file, diff,
 and validation exports remain gated on later agent contracts.
 
+Structured progress evidence: `phonedex.event.v1` now normalizes optional
+`progressPercent` (0–100) and bounded `progressPhase` metadata at the shared
+Mac/Windows-compatible hub boundary. Malformed values fail closed, while the
+native `PhoneDexEvent` exposes an indeterminate fallback instead of implying
+false completion. `scripts/test-protocol.js` covers normalization and
+validation; `ios/PhoneDexTests/PhoneDexBridgeClientTests.swift` covers bounded
+native presentation. This remains honest agent-reported progress, not private
+Codex Desktop UI or arbitrary live-stream parity.
+
 Verification evidence for the completed reading-position slice:
 `ios/PhoneDexApp/PhoneDexLocalCache.swift` stores the selected task-detail
 section in the existing encrypted cache, and `ContentView.swift` restores that

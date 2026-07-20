@@ -757,6 +757,50 @@ final class PhoneDexBridgeClientTests: XCTestCase {
     func testArtifactResponseLimitMatchesEncryptedCacheBudget() {
         XCTAssertEqual(PhoneDexBridgeClient.artifactResponseLimit, 25 * 1024 * 1024)
     }
+
+    func testProgressEventExposesBoundedPercentAndPhase() {
+        let event = PhoneDexEvent(
+            id: "event-1",
+            taskId: "task-1",
+            createdAt: "2026-07-20T12:00:00Z",
+            sequence: 2,
+            type: "progress",
+            data: [
+                "summary": "Running checks",
+                "progressPercent": "42",
+                "progressPhase": "Validation"
+            ]
+        )
+
+        XCTAssertEqual(event.progressPercent, 42)
+        XCTAssertEqual(event.progressPhase, "Validation")
+        XCTAssertEqual(event.progressAccessibilityValue, "42 percent complete")
+    }
+
+    func testMalformedOrNonProgressMetadataFailsClosed() {
+        let malformed = PhoneDexEvent(
+            id: "event-2",
+            taskId: "task-1",
+            createdAt: "2026-07-20T12:00:00Z",
+            sequence: 3,
+            type: "progress",
+            data: ["progressPercent": "101", "progressPhase": " "]
+        )
+        let other = PhoneDexEvent(
+            id: "event-3",
+            taskId: "task-1",
+            createdAt: "2026-07-20T12:00:00Z",
+            sequence: 4,
+            type: "task_started",
+            data: ["progressPercent": "50", "progressPhase": "Starting"]
+        )
+
+        XCTAssertNil(malformed.progressPercent)
+        XCTAssertNil(malformed.progressPhase)
+        XCTAssertEqual(malformed.progressAccessibilityValue, "Progress is continuing")
+        XCTAssertNil(other.progressPercent)
+        XCTAssertNil(other.progressPhase)
+    }
 }
 
 private extension InputStream {
