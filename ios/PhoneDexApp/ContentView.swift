@@ -2055,7 +2055,7 @@ private struct PhoneDexSettingsView: View {
                     Text(PhoneDexCredentialCopy.pairingFooter)
                 }
 
-                Section("Connection") {
+                Section {
                     TextField("Bridge URL", text: $settings.bridgeURL)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
@@ -2126,6 +2126,8 @@ private struct PhoneDexSettingsView: View {
                     }
 
                     PhoneDexConnectionHeader(state: model.connectionState)
+                } header: {
+                    Text("Connection")
                 }
 
                 Section {
