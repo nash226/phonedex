@@ -84,7 +84,7 @@ final class PhoneDexChatFilteringTests: XCTestCase {
 
         XCTAssertEqual(
             PhoneDexTaskFilter(scope: .needsYou).filteredTasks(tasks).map(\.id),
-            ["question", "approval"]
+            ["approval", "question"]
         )
         XCTAssertEqual(
             PhoneDexTaskFilter(scope: .running).filteredTasks(tasks).map(\.id),
