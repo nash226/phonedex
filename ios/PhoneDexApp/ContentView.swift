@@ -2064,8 +2064,12 @@ private struct PhoneDexSettingsView: View {
                         .textContentType(.oneTimeCode)
                         .privacySensitive()
 
-                    Button("Pair this iPhone", systemImage: "checkmark.shield") {
+                    Button {
                         Task { await redeemPairing() }
+                    } label: {
+                        Label("Pair this iPhone", systemImage: "checkmark.shield")
+                            .fixedSize(horizontal: false, vertical: true)
+                            .multilineTextAlignment(.leading)
                     }
                     .disabled(isPairing || pairingGrant.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || pairingCode.count != 6)
 
