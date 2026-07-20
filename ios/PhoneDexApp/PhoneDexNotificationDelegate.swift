@@ -174,7 +174,11 @@ enum NotificationReplyResult: Equatable {
         else {
             return nil
         }
-        return state == "sent" ? .sent(message) : .failed(message)
+        switch state {
+        case "sent": return .sent(message)
+        case "duplicate": return .duplicate(message)
+        default: return .failed(message)
+        }
     }
 
     static func record(_ result: NotificationReplyResult) {

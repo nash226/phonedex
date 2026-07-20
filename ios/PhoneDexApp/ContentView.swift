@@ -1442,6 +1442,10 @@ struct PhoneDexTaskDetailView: View {
                     .foregroundStyle(.green)
                     .font(.subheadline)
             }
+        case .duplicate(let message):
+            Label(message, systemImage: "checkmark.circle")
+                .foregroundStyle(.secondary)
+                .font(.subheadline)
         case .queued(let prompt):
             HStack(spacing: 10) {
                 Label("Queued offline: \(prompt)", systemImage: "clock.arrow.circlepath")
