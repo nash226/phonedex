@@ -90,6 +90,7 @@ final class PhoneDexAppModel: ObservableObject {
     private let injectedBridgeClient: PhoneDexBridgeClient?
     private var syncTasks: [PhoneDexTask] = []
     private var syncCursor: String?
+    private var refreshCoordinator = PhoneDexRefreshCoordinator()
 
     init(
         settings: PhoneDexSettings,
@@ -157,6 +158,7 @@ final class PhoneDexAppModel: ObservableObject {
     }
 
     func refresh() async {
+        let requestID = refreshCoordinator.begin()
         guard let client = bridgeClient else {
             connectionState = .failed(settings.bridgeURLValidationMessage, lastSync: lastSuccessfulSync)
             return
@@ -170,6 +172,7 @@ final class PhoneDexAppModel: ObservableObject {
                 devices: devices,
                 events: events
             )
+            guard refreshCoordinator.accepts(requestID) else { return }
             if let fetchedTasks = result.tasks {
                 syncTasks = fetchedTasks
                 tasks = PhoneDexTask.latestPerConversation(syncTasks).sorted { lhs, rhs in
@@ -198,6 +201,7 @@ final class PhoneDexAppModel: ObservableObject {
                 syncCursor = result.usedCompatibilityFallback ? nil : result.cursor
                 await flushPendingReplies()
                 await flushPendingLifecycleCommands()
+                guard refreshCoordinator.accepts(requestID) else { return }
                 persistCachedState(lastSyncAt: now)
                 if result.usedCompatibilityFallback {
                     connectionState = .incompatible(
@@ -217,6 +221,7 @@ final class PhoneDexAppModel: ObservableObject {
                 )
             }
         } catch let error {
+            guard refreshCoordinator.accepts(requestID) else { return }
             if error.isRevoked {
                 connectionState = .revoked
             } else if error.isProtocolIncompatible {

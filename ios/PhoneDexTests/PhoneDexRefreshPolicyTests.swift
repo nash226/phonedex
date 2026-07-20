@@ -69,4 +69,22 @@ final class PhoneDexRefreshPolicyTests: XCTestCase {
             lastAutomaticRefreshAt: nil
         ))
     }
+
+    func testOverlappingRefreshesOnlyAcceptTheNewestResponse() {
+        var coordinator = PhoneDexRefreshCoordinator()
+
+        let olderRequest = coordinator.begin()
+        let newerRequest = coordinator.begin()
+
+        XCTAssertFalse(coordinator.accepts(olderRequest))
+        XCTAssertTrue(coordinator.accepts(newerRequest))
+    }
+
+    func testRefreshCoordinatorRejectsUnknownRequestIDs() {
+        var coordinator = PhoneDexRefreshCoordinator()
+        _ = coordinator.begin()
+
+        XCTAssertFalse(coordinator.accepts(0))
+        XCTAssertFalse(coordinator.accepts(99))
+    }
 }
