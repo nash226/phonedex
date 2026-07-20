@@ -892,12 +892,35 @@ struct PhoneDexTaskFilter: Equatable {
     }
 
     func filteredTasks(_ tasks: [PhoneDexTask], archivedTaskIDs: Set<String> = [], mutedTaskIDs: Set<String> = []) -> [PhoneDexTask] {
-        tasks.filter { task in
+        let matchingTasks = tasks.filter { task in
             scopeMatches(task) &&
                 presentationMatches(task, archivedTaskIDs: archivedTaskIDs, mutedTaskIDs: mutedTaskIDs) &&
                 (machineName == nil || task.displayMachine == machineName) &&
                 (workspaceName == nil || task.displayWorkspace == workspaceName) &&
                 searchMatches(task)
+        }
+        guard scope == .needsYou else { return matchingTasks }
+        return matchingTasks.sorted(by: needsYouOrder)
+    }
+
+    private func needsYouOrder(_ lhs: PhoneDexTask, _ rhs: PhoneDexTask) -> Bool {
+        let lhsPriority = needsYouPriority(for: lhs.status)
+        let rhsPriority = needsYouPriority(for: rhs.status)
+        if lhsPriority != rhsPriority { return lhsPriority < rhsPriority }
+
+        let lhsDate = lhs.lastUpdatedDate ?? lhs.displayDate ?? .distantPast
+        let rhsDate = rhs.lastUpdatedDate ?? rhs.displayDate ?? .distantPast
+        if lhsDate != rhsDate { return lhsDate > rhsDate }
+        return lhs.id < rhs.id
+    }
+
+    private func needsYouPriority(for status: String?) -> Int {
+        switch status {
+        case "awaiting_approval": return 0
+        case "needs_input": return 1
+        case "needs_review": return 2
+        case "failed": return 3
+        default: return 4
         }
     }
 
