@@ -50,6 +50,7 @@ final class PhoneDexAppModel: ObservableObject {
         case sending
         case queued(String)
         case sent(String)
+        case duplicate(String)
         case failed(String)
     }
 
@@ -690,7 +691,7 @@ final class PhoneDexAppModel: ObservableObject {
         case .failed(let error):
             replyState = .failed(error)
         case .duplicate(let message):
-            replyState = .failed(message)
+            replyState = .duplicate(message)
         }
     }
 

@@ -886,6 +886,13 @@ its reply contract. `PhoneDexSettingsTests.testNotificationCopyHasStableEnglishF
 covers the fallback contract. This is localization readiness only; translated
 catalogs and locale-specific notification QA remain release gates.
 
+Duplicate notification-action verification: `NotificationReplyResult` preserves
+the explicit duplicate outcome when the notification extension or app records
+it, and the native model presents it as a neutral already-handled status after
+relaunch instead of mislabeling it as a failed reply. `PhoneDexSmokeTests` covers
+the persisted state mapping. This keeps local duplicate suppression honest
+without claiming APNs delivery or background execution support.
+
 Credential presentation verification for the in-progress release-readiness
 slice: native Settings leads with the one-time secure pairing grant flow and
 places the older token entry behind an explicitly labeled compatibility

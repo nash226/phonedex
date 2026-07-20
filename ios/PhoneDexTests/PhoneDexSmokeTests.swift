@@ -21,6 +21,23 @@ final class PhoneDexSmokeTests: XCTestCase {
         XCTAssertEqual(PhoneDexPrimaryTab.allCases.count, 5)
     }
 
+    func testDuplicateNotificationResultSurvivesPersistenceAsNeutralOutcome() {
+        let defaults = UserDefaults.standard
+        let keys = [
+            "phonedex.notificationReply.state",
+            "phonedex.notificationReply.message",
+            "phonedex.notificationReply.updatedAt"
+        ]
+        defer { keys.forEach(defaults.removeObject(forKey:)) }
+
+        NotificationReplyResult.record(.duplicate("This notification action was already handled."))
+
+        XCTAssertEqual(
+            NotificationReplyResult.latest,
+            .duplicate("This notification action was already handled.")
+        )
+    }
+
     func testDeepLinkDiagnosticsExcludeCredentialsAndQueryValues() {
         let url = URL(string: "phonedex://configure?bridgeUrl=https%3A%2F%2Fbridge.test&token=secret")!
 
