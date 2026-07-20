@@ -2008,6 +2008,7 @@ private struct PhoneDexLegacyCredentialDisclosure: View {
             Text(PhoneDexCredentialCopy.legacyWarning)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             SecureField("Legacy bridge token", text: $token)
                 .textInputAutocapitalization(.never)
@@ -2018,6 +2019,7 @@ private struct PhoneDexLegacyCredentialDisclosure: View {
             Text(PhoneDexCredentialCopy.legacyFooter)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         } label: {
             Label(PhoneDexCredentialCopy.legacyHeader, systemImage: "rectangle.and.pencil.and.ellipsis")
         }
