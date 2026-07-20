@@ -996,6 +996,18 @@ task text, paths, and request headers are never persisted in the projection.
 `scripts/test-observability.js` covers correlation-id validation, diagnostics
 redaction, request metrics, component states, and authorization.
 
+Native support-diagnostics verification for the in-progress release-readiness
+slice: Settings now summarizes the bounded component-health projection with a
+single overall state, caps rendered component rows, and shows only generic HTTP
+status plus a query-free endpoint path for recent failures. Unknown or
+malformed endpoint values fall back to `Unknown endpoint`, so a compromised or
+future hub cannot turn support UI into a credential or content display surface.
+`PhoneDexDiagnosticsTests` covers degraded/unhealthy aggregation, row bounds,
+and query/whitespace redaction. This improves support recovery on Mac and
+Windows hub outages without claiming that task content, source paths, or
+credentials are included in diagnostics; the existing real-device outage and
+privacy matrix remains the release-owner gate.
+
 Battery verification for the in-progress release-readiness slice:
 `PhoneDexRefreshPolicy` limits automatic refreshes triggered by app launch and
 returning to the foreground to one request per 30 seconds after a healthy sync,

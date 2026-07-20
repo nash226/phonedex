@@ -2253,8 +2253,35 @@ private struct PhoneDexSettingsView: View {
 
                     if let diagnostics = model.diagnostics {
                         LabeledContent("Generated", value: diagnostics.generatedAt)
-                        LabeledContent("Components", value: diagnostics.components.values.sorted().joined(separator: ", "))
+                        Label(diagnostics.overallHealth.title, systemImage: diagnostics.overallHealth.symbol)
+                            .foregroundStyle(diagnostics.overallHealth.isActionable ? .orange : .green)
+                            .accessibilityElement(children: .combine)
+
+                        ForEach(diagnostics.componentRows) { component in
+                            LabeledContent {
+                                Label(component.health.title, systemImage: component.health.symbol)
+                                    .foregroundStyle(component.health.isActionable ? .orange : .green)
+                            } label: {
+                                Text(component.title)
+                            }
+                            .accessibilityElement(children: .combine)
+                        }
+
                         LabeledContent("Requests", value: "\(diagnostics.metrics.requests) (\(diagnostics.metrics.failures) failures)")
+
+                        if !diagnostics.recentFailures.isEmpty {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Recent failures")
+                                    .font(.subheadline.weight(.semibold))
+                                ForEach(diagnostics.recentFailures) { request in
+                                    Label("HTTP \(request.status) · \(request.routeLabel)", systemImage: "exclamationmark.triangle")
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                        .accessibilityElement(children: .combine)
+                                }
+                            }
+                        }
+
                         ShareLink(item: diagnostics.shareText, preview: SharePreview("PhoneDex diagnostics")) {
                             Label("Share safe diagnostics", systemImage: "square.and.arrow.up")
                         }
