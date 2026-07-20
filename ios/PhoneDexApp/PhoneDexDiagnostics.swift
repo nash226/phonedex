@@ -16,6 +16,14 @@ struct PhoneDexDiagnosticsSnapshot: Codable, Equatable {
         let errorClass: String?
 
         var id: String { "\(at)-\(correlationId)" }
+
+        var routeLabel: String {
+            let path = route.split(separator: "?", maxSplits: 1, omittingEmptySubsequences: true).first.map(String.init) ?? ""
+            guard !path.isEmpty, path.utf8.count <= 64, !path.contains(where: { $0.isWhitespace }) else {
+                return "Unknown endpoint"
+            }
+            return path
+        }
     }
 
     struct Capability: Codable, Equatable, Identifiable {
@@ -41,6 +49,37 @@ struct PhoneDexDiagnosticsSnapshot: Codable, Equatable {
     let metrics: Metrics
     let recentRequests: [Request]
     let capabilities: [Capability]
+
+    struct Component: Identifiable, Equatable {
+        let id: String
+        let health: PhoneDexComponentHealth
+
+        var title: String {
+            id.replacingOccurrences(of: "originTask", with: "Origin task")
+                .replacingOccurrences(of: "push", with: "Push")
+                .replacingOccurrences(of: "hub", with: "Hub")
+                .replacingOccurrences(of: "agent", with: "Agent")
+                .replacingOccurrences(of: "adapter", with: "Adapter")
+        }
+    }
+
+    var componentRows: [Component] {
+        components.keys.sorted().prefix(8).map { key in
+            Component(id: key, health: PhoneDexComponentHealth(status: components[key]))
+        }
+    }
+
+    var overallHealth: PhoneDexComponentHealth {
+        let health = components.values.map { PhoneDexComponentHealth(status: $0) }
+        if health.contains(.unhealthy) { return .unhealthy }
+        if health.contains(.degraded) { return .degraded }
+        if health.isEmpty || health.contains(.unknown) { return .unknown }
+        return .healthy
+    }
+
+    var recentFailures: [Request] {
+        recentRequests.filter { $0.status >= 400 }.suffix(5)
+    }
 
     var shareText: String {
         let componentSummary = components.keys.sorted().map { key in
