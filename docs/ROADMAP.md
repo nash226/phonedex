@@ -979,6 +979,15 @@ existing encrypted outbox and idempotency-key retry path. The shared budget is
 asserted by `PhoneDexBridgeClientTests`; timeout classification and real-device
 poor-connectivity behavior remain part of the release-owner validation gate.
 
+Browser recovery verification for the in-progress release-readiness slice:
+`PhoneDexBrowserModel` now exposes a generic, retryable error state when a
+WebKit navigation fails or an address cannot be opened. The native surface keeps
+the recovery action in the accessibility hierarchy and avoids presenting raw
+navigation errors or an unexplained blank page; `PhoneDexBrowserTests` covers
+safe failure copy, loading-state reset, and clearing the failure on a new valid
+address. This is local UI resilience evidence only; real-device network and
+offline behavior remain part of the release-owner matrix.
+
 Offline reply-outbox verification for the in-progress release-readiness slice:
 `PhoneDexPendingReplyPolicy` expires queued replies after seven days, keeps at
 most 20 commands, rejects prompts larger than 64 KiB, and caps retained prompt

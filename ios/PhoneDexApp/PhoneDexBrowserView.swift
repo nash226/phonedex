@@ -6,6 +6,7 @@ final class PhoneDexBrowserModel: NSObject, ObservableObject, WKNavigationDelega
     @Published var address = "https://github.com/nash226/phonedex"
     @Published private(set) var title = "Browser"
     @Published private(set) var isLoading = false
+    @Published private(set) var loadErrorMessage: String?
     @Published private(set) var canGoBack = false
     @Published private(set) var canGoForward = false
 
@@ -27,7 +28,11 @@ final class PhoneDexBrowserModel: NSObject, ObservableObject, WKNavigationDelega
     func loadAddress() {
         let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
         let candidate = trimmed.contains("://") ? trimmed : "https://\(trimmed)"
-        guard let url = URL(string: candidate) else { return }
+        guard let url = URL(string: candidate), url.host != nil else {
+            loadErrorMessage = "The address could not be opened. Check it and try again."
+            return
+        }
+        loadErrorMessage = nil
         address = url.absoluteString
         webView.load(URLRequest(url: url))
     }
@@ -36,15 +41,23 @@ final class PhoneDexBrowserModel: NSObject, ObservableObject, WKNavigationDelega
     func goForward() { webView.goForward() }
     func reload() { webView.reload() }
 
+    func recordLoadFailure() {
+        loadErrorMessage = "The page could not be loaded. Check your connection and try again."
+        isLoading = false
+    }
+
     func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+        loadErrorMessage = nil
         updateState(from: webView)
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        loadErrorMessage = nil
         updateState(from: webView)
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        recordLoadFailure()
         updateState(from: webView)
     }
 
@@ -53,6 +66,7 @@ final class PhoneDexBrowserModel: NSObject, ObservableObject, WKNavigationDelega
         didFailProvisionalNavigation navigation: WKNavigation!,
         withError error: Error
     ) {
+        recordLoadFailure()
         updateState(from: webView)
     }
 
@@ -100,7 +114,31 @@ struct PhoneDexBrowserView: View {
                 .background(.bar)
 
                 Divider()
-                EmbeddedWebView(webView: model.webView)
+                ZStack {
+                    EmbeddedWebView(webView: model.webView)
+
+                    if let message = model.loadErrorMessage {
+                        VStack(spacing: 12) {
+                            Image(systemName: "wifi.exclamationmark")
+                                .font(.largeTitle)
+                                .foregroundStyle(.secondary)
+                                .accessibilityHidden(true)
+                            Text("Page unavailable")
+                                .font(.headline)
+                            Text(message)
+                                .font(.body)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                            Button("Try again", action: model.reload)
+                                .buttonStyle(.borderedProminent)
+                        }
+                        .padding(24)
+                        .frame(maxWidth: 360)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
+                        .accessibilityElement(children: .contain)
+                        .accessibilityIdentifier("browser-error-state")
+                    }
+                }
             }
             .navigationTitle(model.title)
             .navigationBarTitleDisplayMode(.inline)
