@@ -719,6 +719,16 @@ the user should reopen PhoneDex for current task context. This is local
 notification correctness only; APNs provider choice, remote registration, and
 real-device background validation remain human-gated release work.
 
+Local notification permission recovery evidence: Settings now reads the current
+authorization state, distinguishes full, quiet, denied, restricted, and
+not-yet-requested delivery, and sends denied or restricted users to the system
+notification settings instead of repeatedly presenting an ineffective prompt.
+The surface keeps the foreground-refresh fallback explicit, uses generic
+permission copy, and is covered by `PhoneDexSettingsTests` for enabled and
+denied-state semantics. This improves local permission recovery only; APNs,
+background execution, and real-device Focus/permission validation remain
+release-owner gates.
+
 Local notification grouping evidence: task alerts now use a bounded,
 deterministic thread identifier derived only from the display workspace and
 machine identity. Related alerts stay together in Notification Center while

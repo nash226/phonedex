@@ -2075,7 +2075,9 @@ private struct PhoneDexLegacyCredentialDisclosure: View {
 private struct PhoneDexSettingsView: View {
     @ObservedObject var model: PhoneDexAppModel
     @ObservedObject private var settings: PhoneDexSettings
+    @Environment(\.openURL) private var openURL
     @State private var notificationStatus = ""
+    @State private var notificationAuthorization = PhoneDexNotificationAuthorization.unknown
     @State private var pairingGrant = ""
     @State private var pairingCode = ""
     @State private var pairingStatus = ""
@@ -2214,16 +2216,18 @@ private struct PhoneDexSettingsView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
 
-                    Button("Allow Notifications", systemImage: "bell.badge") {
-                        Task {
-                            do {
-                                let allowed = try await PhoneDexNotificationScheduler.requestAuthorization()
-                                notificationStatus = allowed ? "Notifications are enabled." : "Notifications are disabled."
-                            } catch {
-                                notificationStatus = error.phoneDexSafeMessage
-                            }
-                        }
+                    Label(notificationAuthorization.title, systemImage: notificationAuthorization.isEnabled ? "bell.fill" : "bell.slash")
+                        .accessibilityElement(children: .combine)
+
+                    Text(notificationAuthorization.explanation)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Button(notificationAuthorization.canOpenSettings ? "Open Notification Settings" : "Allow Notifications", systemImage: notificationAuthorization.canOpenSettings ? "gear" : "bell.badge") {
+                        Task { await handleNotificationPermissionAction() }
                     }
+                    .accessibilityHint(notificationAuthorization.canOpenSettings ? "Opens iPhone Settings so notification permission can be changed." : "Requests permission for PhoneDex alerts.")
 
                     Button("Notify Latest Task", systemImage: "paperplane") {
                         Task { await notifyLatest() }
@@ -2235,6 +2239,7 @@ private struct PhoneDexSettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                .task { await refreshNotificationAuthorization() }
 
                 Section {
                     Button("Refresh Diagnostics", systemImage: "stethoscope") {
@@ -2329,6 +2334,29 @@ private struct PhoneDexSettingsView: View {
                 privacy: settings.notificationPrivacy
             )
             notificationStatus = "Notification scheduled."
+        } catch {
+            notificationStatus = error.phoneDexSafeMessage
+        }
+    }
+
+    private func refreshNotificationAuthorization() async {
+        notificationAuthorization = await PhoneDexNotificationScheduler.authorizationStatus()
+    }
+
+    private func handleNotificationPermissionAction() async {
+        if notificationAuthorization.canOpenSettings {
+            guard let url = URL(string: UIApplication.openSettingsURLString) else {
+                notificationStatus = "Open iPhone Settings to change notification permission."
+                return
+            }
+            openURL(url)
+            return
+        }
+
+        do {
+            _ = try await PhoneDexNotificationScheduler.requestAuthorization()
+            await refreshNotificationAuthorization()
+            notificationStatus = notificationAuthorization.explanation
         } catch {
             notificationStatus = error.phoneDexSafeMessage
         }

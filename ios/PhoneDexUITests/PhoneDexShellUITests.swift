@@ -44,8 +44,8 @@ final class PhoneDexShellUITests: XCTestCase {
         app.buttons["Legacy token compatibility"].tap()
         XCTAssertTrue(app.secureTextFields["Legacy bridge token"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Forget stored credential"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["Test Connection"].waitForExistence(timeout: 5))
         app.swipeUp()
+        XCTAssertTrue(app.buttons["Test Connection"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.switches["Require Face ID or passcode"].waitForExistence(timeout: 5))
     }
 
