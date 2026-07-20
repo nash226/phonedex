@@ -24,8 +24,8 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
         configureHierarchy()
         render(
             app: "PhoneDex",
-            title: "Codex update",
-            body: "Open the expanded PhoneDex notification to read the full Codex result."
+            title: Copy.fallbackTitle,
+            body: Copy.fallbackBody
         )
     }
 
@@ -60,19 +60,28 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
 
         appNameLabel.translatesAutoresizingMaskIntoConstraints = false
         appNameLabel.textColor = .white
-        appNameLabel.font = .systemFont(ofSize: 20, weight: .semibold)
+        appNameLabel.font = UIFontMetrics(forTextStyle: .headline).scaledFont(
+            for: .systemFont(ofSize: 20, weight: .semibold)
+        )
+        appNameLabel.adjustsFontForContentSizeCategory = true
         appNameLabel.numberOfLines = 1
 
         timeLabel.translatesAutoresizingMaskIntoConstraints = false
         timeLabel.textColor = UIColor(white: 0.72, alpha: 1)
-        timeLabel.font = .systemFont(ofSize: 16, weight: .regular)
+        timeLabel.font = UIFontMetrics(forTextStyle: .subheadline).scaledFont(
+            for: .systemFont(ofSize: 16, weight: .regular)
+        )
+        timeLabel.adjustsFontForContentSizeCategory = true
         timeLabel.textAlignment = .right
-        timeLabel.text = "now"
+        timeLabel.text = Copy.now
         timeLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
 
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         titleLabel.textColor = .white
-        titleLabel.font = .systemFont(ofSize: 23, weight: .bold)
+        titleLabel.font = UIFontMetrics(forTextStyle: .title2).scaledFont(
+            for: .systemFont(ofSize: 23, weight: .bold)
+        )
+        titleLabel.adjustsFontForContentSizeCategory = true
         titleLabel.numberOfLines = 2
 
         scrollView.translatesAutoresizingMaskIntoConstraints = false
@@ -84,7 +93,10 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
 
         bodyLabel.translatesAutoresizingMaskIntoConstraints = false
         bodyLabel.textColor = .white
-        bodyLabel.font = .systemFont(ofSize: 19, weight: .regular)
+        bodyLabel.font = UIFontMetrics(forTextStyle: .body).scaledFont(
+            for: .systemFont(ofSize: 19, weight: .regular)
+        )
+        bodyLabel.adjustsFontForContentSizeCategory = true
         bodyLabel.numberOfLines = 0
         bodyLabel.lineBreakMode = .byWordWrapping
 
@@ -150,10 +162,19 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
 
     private func render(app: String, title: String, body: String) {
         appNameLabel.text = app
-        titleLabel.text = title.isEmpty ? "Codex update" : title
-        bodyLabel.text = body.isEmpty ? "No notification body was provided." : body
+        titleLabel.text = title.isEmpty ? Copy.fallbackTitle : title
+        bodyLabel.text = body.isEmpty ? Copy.emptyBody : body
+        titleLabel.accessibilityLabel = titleLabel.text
+        bodyLabel.accessibilityLabel = bodyLabel.text
         preferredContentSize = CGSize(width: UIScreen.main.bounds.width, height: 500)
         view.setNeedsLayout()
         view.layoutIfNeeded()
+    }
+
+    private enum Copy {
+        static let fallbackTitle = String(localized: "notification.extension.fallbackTitle", defaultValue: "Codex update", comment: "Fallback title shown when a notification has no title.")
+        static let fallbackBody = String(localized: "notification.extension.fallbackBody", defaultValue: "Open the expanded PhoneDex notification to read the full Codex result.", comment: "Fallback body shown when the notification extension has no content.")
+        static let emptyBody = String(localized: "notification.extension.emptyBody", defaultValue: "No notification body was provided.", comment: "Fallback body shown when a notification body is empty.")
+        static let now = String(localized: "notification.extension.now", defaultValue: "now", comment: "Relative time shown in the notification extension header.")
     }
 }
