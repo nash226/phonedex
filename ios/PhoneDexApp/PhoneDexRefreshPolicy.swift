@@ -55,3 +55,18 @@ struct PhoneDexRefreshPolicy: Equatable {
         return boundedDelay * (1 + boundedJitter)
     }
 }
+
+/// Identifies the most recent refresh so an older response cannot replace a
+/// newer trusted projection when foreground refreshes overlap.
+struct PhoneDexRefreshCoordinator: Equatable {
+    private(set) var latestRequestID = 0
+
+    mutating func begin() -> Int {
+        latestRequestID += 1
+        return latestRequestID
+    }
+
+    func accepts(_ requestID: Int) -> Bool {
+        requestID == latestRequestID
+    }
+}

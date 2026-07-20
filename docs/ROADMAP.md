@@ -1297,6 +1297,15 @@ future record kind and verifies the fail-closed boundary. Additive unknown JSON
 fields remain compatible; unsupported required record kinds surface through the
 existing refresh error path and preserve the last trusted local projection.
 
+Foreground refresh ordering verification for the in-progress release-readiness
+slice: `PhoneDexRefreshCoordinator` assigns each refresh a monotonic request id
+and accepts only the newest response. When an automatic refresh overlaps a
+manual retry or another lifecycle-triggered refresh, an older network response
+can no longer overwrite newer tasks, devices, events, cursor, or connection
+state. The guard preserves the last trusted local projection when an obsolete
+request completes and is covered by `PhoneDexRefreshPolicyTests`; it does not
+claim background push delivery or real-device network timing evidence.
+
 Verification evidence for the bounded live-progress presentation slice:
 `PhoneDexAppModel.latestEvent(for:)` selects the highest-sequence structured
 lifecycle event for a task, and the native Chats row presents its bounded
