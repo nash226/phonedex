@@ -67,6 +67,14 @@ flag while `NODE_ENV=production` or `PHONEDEX_PRODUCTION=true` makes the hub
 fail closed at startup, preventing a production deployment from accidentally
 reintroducing credential-bearing URLs or request bodies.
 
+The native Settings surface presents one-time secure pairing as the primary
+credential path. A migrated legacy token can still be entered for a local
+compatibility transition, but only through the explicitly labeled legacy
+disclosure; it remains in the device-only Keychain and is not copied into URLs,
+notifications, or support diagnostics. Production hub deployments still reject
+legacy query and form-body token compatibility unless the fail-closed rules
+documented above are changed by an approved release owner.
+
 The 15 product acceptance scenarios have a separate, content-free evidence
 contract. Validate a release-owner evidence file with:
 

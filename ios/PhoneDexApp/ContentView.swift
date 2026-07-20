@@ -2022,7 +2022,7 @@ private struct PhoneDexSettingsView: View {
         NavigationStack {
             Form {
                 Section {
-                    Text("On the hub, run `npm run pair:create`, then enter both values here. The grant expires and can be used once.")
+                    Text(PhoneDexCredentialCopy.pairingInstruction)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
 
@@ -2050,9 +2050,9 @@ private struct PhoneDexSettingsView: View {
                             .foregroundStyle(pairingStatus.hasPrefix("Paired") ? .green : .red)
                     }
                 } header: {
-                    Text("Secure pairing")
+                    Text(PhoneDexCredentialCopy.pairingHeader)
                 } footer: {
-                    Text("The PhoneDex app stores the resulting device credential in Keychain. It is not included in the pairing request.")
+                    Text(PhoneDexCredentialCopy.pairingFooter)
                 }
 
                 Section("Connection") {
@@ -2061,16 +2061,38 @@ private struct PhoneDexSettingsView: View {
                         .autocorrectionDisabled()
                         .keyboardType(.URL)
 
-                    SecureField("Token", text: $settings.token)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-
                     Button("Forget stored credential", systemImage: "key.slash", role: .destructive) {
                         showingForgetCredentialConfirmation = true
                     }
                     .disabled(settings.token.isEmpty)
                     .accessibilityIdentifier("Forget stored credential")
                     .accessibilityHint("Removes this iPhone's local bridge credential. The hub credential is not revoked.")
+
+                    if !settings.token.isEmpty {
+                        Label(PhoneDexCredentialCopy.storedCredential, systemImage: "checkmark.shield.fill")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .accessibilityElement(children: .combine)
+                    }
+
+                    DisclosureGroup(PhoneDexCredentialCopy.legacyHeader) {
+                        Text(PhoneDexCredentialCopy.legacyWarning)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+
+                        SecureField("Legacy bridge token", text: $settings.token)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .privacySensitive()
+                            .accessibilityHint("Stores a legacy local-hub credential in the device-only Keychain.")
+
+                        Text(PhoneDexCredentialCopy.legacyFooter)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    } label: {
+                        Label(PhoneDexCredentialCopy.legacyHeader, systemImage: "rectangle.and.pencil.and.ellipsis")
+                    }
+                    .accessibilityHint("Reveals an older local-hub token field. Secure pairing is recommended for new connections.")
 
                     if !credentialStatus.isEmpty {
                         Label(

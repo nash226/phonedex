@@ -38,7 +38,11 @@ final class PhoneDexShellUITests: XCTestCase {
 
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.textFields["Bridge URL"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.secureTextFields["Token"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Pair this iPhone"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.secureTextFields["Legacy bridge token"].exists)
+        XCTAssertTrue(app.buttons["Legacy token compatibility"].waitForExistence(timeout: 5))
+        app.buttons["Legacy token compatibility"].tap()
+        XCTAssertTrue(app.secureTextFields["Legacy bridge token"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Forget stored credential"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Test Connection"].waitForExistence(timeout: 5))
         app.swipeUp()
