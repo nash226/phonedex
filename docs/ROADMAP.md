@@ -1158,6 +1158,13 @@ artifact guidance. `PhoneDexBridgeClientTests.testUserFacingErrorMessagesNeverEx
 covers server, HTTP, and URL error inputs. This protects local privacy and support
 output; hub logs and real-device release validation remain separate gates.
 
+The in-progress battery/reliability portion also coalesces overlapping
+foreground refreshes in `PhoneDexAppModel`. This prevents the launch `.task`
+and the active-scene callback from issuing duplicate sync requests when they
+arrive together, while preserving the existing durable-cache and foreground
+reconciliation behavior. A real-device battery profile and crash-free session
+measurement remain release-owner validation gates.
+
 Verification evidence for the completed migration and recovery slice:
 `scripts/test-recovery.js` exercises legacy JSONL import, current-schema
 upgrade, transactional-backup rollback after a failed migration, rejection of
