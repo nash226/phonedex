@@ -1109,6 +1109,16 @@ covers the redaction boundary. This is implementation evidence only; final
 privacy disclosures and real-device release validation remain release-owner
 gates.
 
+Task deep-link routing verification for the in-progress native-shell slice:
+`phonedex://task/<task-id>` accepts only a bounded opaque path identifier with
+no query or fragment data, selects the matching locally cached conversation,
+and returns to Chats without changing lifecycle state or contacting a private
+Codex API. A task absent from the trusted local projection stays pending across
+refresh and shows generic recovery guidance rather than guessing or displaying
+remote task content. `PhoneDexSmokeTests` covers valid, utility-route, query,
+unsafe-identifier, and oversized-identifier cases. Universal-link association,
+remote task discovery, and real-device routing remain release-owner work.
+
 Credential-forget verification for the in-progress security and privacy
 slice: `PhoneDexAppModel.forgetCredential()` clears encrypted pending reply
 commands only after Keychain removal succeeds, then persists the remaining
