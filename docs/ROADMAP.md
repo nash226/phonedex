@@ -1386,3 +1386,10 @@ A roadmap slice is done only when:
    reviewed in proportion to the change.
 5. The pull request includes validation evidence and no unrelated churn.
 6. Required CI is green and the PR is safely merged under `AGENTS.md`.
+
+Native crash-recovery runtime evidence: `PhoneDexAppModelRecoveryTests` injects
+a failing encrypted-cache load and verifies that the model quarantines the
+corrupt cache, starts with no untrusted tasks, devices, or events, and remains
+ready for a fresh foreground sync. This complements the source-level
+`scripts/test-ios-crash-recovery.js` contract check; real-device disk failure
+and crash validation remain release-owner work.
