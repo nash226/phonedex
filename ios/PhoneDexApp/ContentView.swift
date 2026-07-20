@@ -2067,7 +2067,7 @@ private struct PhoneDexSettingsView: View {
                     Button {
                         Task { await redeemPairing() }
                     } label: {
-                        Label("Pair this iPhone", systemImage: "checkmark.shield")
+                        Label("Pair iPhone", systemImage: "checkmark.shield")
                             .fixedSize(horizontal: false, vertical: true)
                             .multilineTextAlignment(.leading)
                     }
