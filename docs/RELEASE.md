@@ -110,3 +110,10 @@ write the same content-free JSON to that path with restrictive local file
 permissions. A failed validation still writes its report before returning a
 non-zero exit code, so CI can preserve actionable evidence without treating a
 failed gate as a release approval.
+
+The crash gate also has a native runtime regression: the
+`PhoneDexAppModelRecoveryTests` unit test injects a failing encrypted-cache
+load and verifies that startup quarantines the cache, exposes no untrusted
+tasks, devices, or events, and remains ready for a fresh foreground sync. This
+complements the source-level `npm run test:ios-crash-recovery` contract check;
+neither check claims to replace real-device crash and disk-failure validation.
