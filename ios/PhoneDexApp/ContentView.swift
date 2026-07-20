@@ -2070,6 +2070,8 @@ private struct PhoneDexSettingsView: View {
                         Label("Pair iPhone", systemImage: "checkmark.shield")
                             .fixedSize(horizontal: false, vertical: true)
                             .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .layoutPriority(1)
                     }
                     .disabled(isPairing || pairingGrant.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || pairingCode.count != 6)
 
