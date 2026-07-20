@@ -1,5 +1,15 @@
 import Foundation
 
+enum PhoneDexCredentialCopy {
+    static let pairingHeader = "Secure pairing"
+    static let pairingInstruction = "On the hub, run `npm run pair:create`, then enter both values here. The grant expires and can be used once."
+    static let pairingFooter = "The PhoneDex app stores the resulting device credential in Keychain. It is not included in the pairing request."
+    static let legacyHeader = "Legacy token compatibility"
+    static let legacyWarning = "Use this only while migrating an older local hub. New installations should use secure pairing."
+    static let legacyFooter = "The token is stored in this iPhone's device-only Keychain. It is not placed in URLs, notifications, or support diagnostics."
+    static let storedCredential = "A bridge credential is stored securely in Keychain."
+}
+
 struct PhoneDexReleaseIdentity: Equatable {
     let version: String
     let build: String

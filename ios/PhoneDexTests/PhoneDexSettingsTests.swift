@@ -4,6 +4,14 @@ import Security
 
 @MainActor
 final class PhoneDexSettingsTests: XCTestCase {
+    func testCredentialSettingsLeadWithPairingAndBoundLegacyCompatibilityCopy() {
+        XCTAssertEqual(PhoneDexCredentialCopy.pairingHeader, "Secure pairing")
+        XCTAssertEqual(PhoneDexCredentialCopy.legacyHeader, "Legacy token compatibility")
+        XCTAssertTrue(PhoneDexCredentialCopy.legacyWarning.contains("older local hub"))
+        XCTAssertTrue(PhoneDexCredentialCopy.legacyFooter.contains("Keychain"))
+        XCTAssertFalse(PhoneDexCredentialCopy.legacyFooter.contains("token is stored in URLs"))
+    }
+
     func testReleaseIdentityDisplaysVersionAndBuild() {
         let identity = PhoneDexReleaseIdentity(version: "1.2.3", build: "42")
 

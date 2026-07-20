@@ -886,6 +886,19 @@ its reply contract. `PhoneDexSettingsTests.testNotificationCopyHasStableEnglishF
 covers the fallback contract. This is localization readiness only; translated
 catalogs and locale-specific notification QA remain release gates.
 
+Credential presentation verification for the in-progress release-readiness
+slice: native Settings leads with the one-time secure pairing grant flow and
+places the older token entry behind an explicitly labeled compatibility
+disclosure. Existing migrated credentials remain in the device-only Keychain,
+while the disclosure explains that legacy tokens are for local migration only
+and are never placed in URLs, notifications, or support diagnostics.
+`PhoneDexShellUITests.testSettingsControlsRemainReachableInDarkAppearance`
+covers the pairing-first surface and verifies the legacy field is hidden until
+requested; `PhoneDexSettingsTests` covers the bounded copy contract. This is a
+native presentation boundary only: hub-side legacy compatibility remains
+disabled by default in production and secure pairing remains the supported
+release path.
+
 Privacy snapshot verification for the in-progress release-readiness slice:
 `PhoneDexApp` places a root-level privacy shield over the native shell whenever
 the scene is inactive or backgrounded. The shield uses generic copy, blocks

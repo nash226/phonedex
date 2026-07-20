@@ -1999,6 +1999,34 @@ private struct PhoneDexDevicesView: View {
     }
 }
 
+private struct PhoneDexLegacyCredentialDisclosure: View {
+    @Binding var token: String
+    @State private var isExpanded = false
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            Text(PhoneDexCredentialCopy.legacyWarning)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            SecureField("Legacy bridge token", text: $token)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .privacySensitive()
+                .accessibilityHint("Stores a legacy local-hub credential in the device-only Keychain.")
+
+            Text(PhoneDexCredentialCopy.legacyFooter)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        } label: {
+            Label(PhoneDexCredentialCopy.legacyHeader, systemImage: "rectangle.and.pencil.and.ellipsis")
+        }
+        .accessibilityHint("Reveals an older local-hub token field. Secure pairing is recommended for new connections.")
+    }
+}
+
 private struct PhoneDexSettingsView: View {
     @ObservedObject var model: PhoneDexAppModel
     @ObservedObject private var settings: PhoneDexSettings
@@ -2022,7 +2050,7 @@ private struct PhoneDexSettingsView: View {
         NavigationStack {
             Form {
                 Section {
-                    Text("On the hub, run `npm run pair:create`, then enter both values here. The grant expires and can be used once.")
+                    Text(PhoneDexCredentialCopy.pairingInstruction)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
 
@@ -2031,13 +2059,21 @@ private struct PhoneDexSettingsView: View {
                         .autocorrectionDisabled()
                         .privacySensitive()
 
-                    TextField("6-digit verification code", text: $pairingCode)
+                    TextField("Code", text: $pairingCode)
                         .keyboardType(.numberPad)
                         .textContentType(.oneTimeCode)
                         .privacySensitive()
+                        .accessibilityLabel("6-digit verification code")
 
-                    Button("Pair this iPhone", systemImage: "checkmark.shield") {
+                    Button {
                         Task { await redeemPairing() }
+                    } label: {
+                        Label("Pair", systemImage: "checkmark.shield")
+                            .fixedSize(horizontal: false, vertical: true)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .layoutPriority(1)
+                            .accessibilityLabel("Pair iPhone")
                     }
                     .disabled(isPairing || pairingGrant.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || pairingCode.count != 6)
 
@@ -2050,20 +2086,16 @@ private struct PhoneDexSettingsView: View {
                             .foregroundStyle(pairingStatus.hasPrefix("Paired") ? .green : .red)
                     }
                 } header: {
-                    Text("Secure pairing")
+                    Text(PhoneDexCredentialCopy.pairingHeader)
                 } footer: {
-                    Text("The PhoneDex app stores the resulting device credential in Keychain. It is not included in the pairing request.")
+                    Text(PhoneDexCredentialCopy.pairingFooter)
                 }
 
-                Section("Connection") {
+                Section(header: Text("Connection")) {
                     TextField("Bridge URL", text: $settings.bridgeURL)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .keyboardType(.URL)
-
-                    SecureField("Token", text: $settings.token)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
 
                     Button("Forget stored credential", systemImage: "key.slash", role: .destructive) {
                         showingForgetCredentialConfirmation = true
@@ -2071,6 +2103,15 @@ private struct PhoneDexSettingsView: View {
                     .disabled(settings.token.isEmpty)
                     .accessibilityIdentifier("Forget stored credential")
                     .accessibilityHint("Removes this iPhone's local bridge credential. The hub credential is not revoked.")
+
+                    if !settings.token.isEmpty {
+                        Label(PhoneDexCredentialCopy.storedCredential, systemImage: "checkmark.shield.fill")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .accessibilityElement(children: .combine)
+                    }
+
+                    PhoneDexLegacyCredentialDisclosure(token: $settings.token)
 
                     if !credentialStatus.isEmpty {
                         Label(
