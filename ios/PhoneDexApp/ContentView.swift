@@ -825,12 +825,14 @@ struct PhoneDexTaskDetailView: View {
                         Button("Cancel task", systemImage: "xmark.circle") {
                             showCancelConfirmation = true
                         }
+                        .disabled(model.lifecycleState.isInFlight)
                     }
                     if task.supportsLifecycle("task.retry.v1") && ["failed", "cancelled"].contains(task.status ?? "") {
                         Divider()
                         Button("Retry task", systemImage: "arrow.clockwise") {
                             Task { _ = await model.retry(task: task) }
                         }
+                        .disabled(model.lifecycleState.isInFlight)
                     }
                     if model.supportsDesktopHandoff(for: task) {
                         Divider()
@@ -840,6 +842,7 @@ struct PhoneDexTaskDetailView: View {
                                 showDesktopHandoff = desktopHandoff != nil
                             }
                         }
+                        .disabled(model.lifecycleState.isInFlight)
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")
@@ -1099,6 +1102,7 @@ struct PhoneDexTaskDetailView: View {
                             }
                             .buttonStyle(.borderedProminent)
                             .tint(.orange)
+                            .disabled(model.lifecycleState.isInFlight)
                             .accessibilityHint("Opens a confirmation before sending this approval.")
 
                             Button(role: .destructive) {
@@ -1109,6 +1113,7 @@ struct PhoneDexTaskDetailView: View {
                                     .frame(maxWidth: .infinity)
                             }
                             .buttonStyle(.bordered)
+                            .disabled(model.lifecycleState.isInFlight)
                             .accessibilityHint("Opens a confirmation before rejecting this approval.")
                         }
                     } else {

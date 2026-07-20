@@ -1322,6 +1322,17 @@ so superseded multi-page sync work cannot continue needlessly or mutate local
 state after cancellation. This remains foreground, durable-sync behavior and
 does not claim background push delivery or real-device network timing evidence.
 
+Managed lifecycle action guard verification for the in-progress
+release-readiness slice: `PhoneDexAppModel` rejects a second cancel, retry,
+approval, handoff, or workspace task-create request while a managed action is
+already sending. The native task-detail menu and approval confirmation controls
+disable during that interval, keeping one user intent and one idempotency
+identity in flight across the Mac or Windows adapter boundary. Queued, accepted,
+failed, and idle states remain actionable; this is a client-side interaction
+guard and does not replace server-side idempotency, task-version checks, or
+real-device adapter validation. `PhoneDexLifecycleStateTests` covers the
+fail-closed sending state.
+
 Verification evidence for the bounded live-progress presentation slice:
 `PhoneDexAppModel.latestEvent(for:)` selects the highest-sequence structured
 lifecycle event for a task, and the native Chats row presents its bounded

@@ -60,6 +60,11 @@ final class PhoneDexAppModel: ObservableObject {
         case queued(String)
         case accepted(String)
         case failed(String)
+
+        var isInFlight: Bool {
+            if case .sending = self { return true }
+            return false
+        }
     }
 
     @Published private(set) var tasks: [PhoneDexTask] = []
@@ -425,6 +430,7 @@ final class PhoneDexAppModel: ObservableObject {
     }
 
     func respondToApproval(_ decision: PhoneDexApprovalDecision, for task: PhoneDexTask) async -> Bool {
+        guard !lifecycleState.isInFlight else { return false }
         guard let request = task.approvalRequest,
               request.state == "pending",
               !request.isExpired,
@@ -451,6 +457,7 @@ final class PhoneDexAppModel: ObservableObject {
     }
 
     func prepareDesktopHandoff(task: PhoneDexTask) async -> PhoneDexDesktopHandoff? {
+        guard !lifecycleState.isInFlight else { return nil }
         guard let client = bridgeClient else {
             lifecycleState = .failed("The bridge URL is invalid.")
             return nil
@@ -490,6 +497,7 @@ final class PhoneDexAppModel: ObservableObject {
     }
 
     func createTask(deviceId: String, workspaceName: String, prompt: String) async -> Bool {
+        guard !lifecycleState.isInFlight else { return false }
         guard let client = bridgeClient else {
             lifecycleState = .failed("The bridge URL is invalid.")
             return false
@@ -522,6 +530,7 @@ final class PhoneDexAppModel: ObservableObject {
         approvalId: String? = nil,
         approvalTaskVersion: Int? = nil
     ) async -> Bool {
+        guard !lifecycleState.isInFlight else { return false }
         guard bridgeClient != nil else {
             lifecycleState = .failed("The bridge URL is invalid.")
             return false
