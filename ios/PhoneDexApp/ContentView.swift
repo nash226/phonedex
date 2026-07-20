@@ -2067,11 +2067,12 @@ private struct PhoneDexSettingsView: View {
                     Button {
                         Task { await redeemPairing() }
                     } label: {
-                        Label("Pair iPhone", systemImage: "checkmark.shield")
+                        Label("Pair", systemImage: "checkmark.shield")
                             .fixedSize(horizontal: false, vertical: true)
                             .multilineTextAlignment(.leading)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .layoutPriority(1)
+                            .accessibilityLabel("Pair iPhone")
                     }
                     .disabled(isPairing || pairingGrant.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || pairingCode.count != 6)
 
