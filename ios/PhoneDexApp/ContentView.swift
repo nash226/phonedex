@@ -180,6 +180,10 @@ private struct PhoneDexChatsView: View {
                 .padding(.vertical, 6)
                 .background(.bar)
 
+                if model.offlineOutboxSummary.totalCount > 0 {
+                    PhoneDexOfflineOutboxBanner(summary: model.offlineOutboxSummary)
+                }
+
                 List(selection: $model.selectedTaskID) {
                     Section {
                         ForEach(filteredTasks) { task in
@@ -371,6 +375,33 @@ private struct PhoneDexChatsView: View {
             model.selectedTaskID = filteredTasks.first?.id
             return
         }
+    }
+}
+
+private struct PhoneDexOfflineOutboxBanner: View {
+    let summary: PhoneDexOfflineOutboxSummary
+
+    var body: some View {
+        Label {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(summary.title)
+                    .font(.subheadline.weight(.semibold))
+                Text(summary.detail)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        } icon: {
+            Image(systemName: "clock.arrow.circlepath")
+                .foregroundStyle(.orange)
+        }
+        .labelStyle(.titleAndIcon)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.orange.opacity(0.12))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(summary.title). \(summary.detail)")
     }
 }
 

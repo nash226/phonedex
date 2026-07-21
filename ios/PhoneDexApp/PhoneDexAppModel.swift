@@ -1,5 +1,28 @@
 import Foundation
 
+struct PhoneDexOfflineOutboxSummary: Equatable {
+    let replyCount: Int
+    let lifecycleCount: Int
+    let taskCount: Int
+
+    var totalCount: Int { replyCount + lifecycleCount }
+
+    var title: String {
+        totalCount == 1 ? "1 action queued offline" : "\(totalCount) actions queued offline"
+    }
+
+    var detail: String {
+        let kinds: [String] = [
+            replyCount == 0 ? nil : replyCount == 1 ? "1 reply" : "\(replyCount) replies",
+            lifecycleCount == 0 ? nil : lifecycleCount == 1 ? "1 task action" : "\(lifecycleCount) task actions"
+        ].compactMap { $0 }
+        let taskDescription = taskCount == 1 ? "for 1 conversation" : "across \(taskCount) conversations"
+        return "\(kinds.joined(separator: " and ")) \(taskDescription). They will retry after a successful sync."
+    }
+
+    static let empty = Self(replyCount: 0, lifecycleCount: 0, taskCount: 0)
+}
+
 @MainActor
 final class PhoneDexAppModel: ObservableObject {
     enum DataSet: Equatable {
@@ -123,6 +146,15 @@ final class PhoneDexAppModel: ObservableObject {
 
     var selectedTask: PhoneDexTask? {
         tasks.first { $0.id == selectedTaskID }
+    }
+
+    var offlineOutboxSummary: PhoneDexOfflineOutboxSummary {
+        let taskIDs = Set(pendingReplies.map(\.taskId) + pendingLifecycleCommands.map(\.taskId))
+        return PhoneDexOfflineOutboxSummary(
+            replyCount: pendingReplies.count,
+            lifecycleCount: pendingLifecycleCommands.count,
+            taskCount: taskIDs.count
+        )
     }
 
     func pendingLifecycleCommand(for task: PhoneDexTask) -> PhoneDexPendingLifecycleCommand? {
