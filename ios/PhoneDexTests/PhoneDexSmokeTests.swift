@@ -229,6 +229,35 @@ final class PhoneDexSmokeTests: XCTestCase {
         XCTAssertThrowsError(try JSONDecoder().decode(PhoneDexTaskEvidence.self, from: oversizedCollectionData))
     }
 
+    func testNativeModelCollectionsRejectOversizedPayloadsBeforeMaterializing() throws {
+        let oversizedTranscript = try JSONSerialization.data(withJSONObject: [
+            "id": "task_large_transcript",
+            "transcript": (0...PhoneDexNativeDecodeBounds.transcriptEntries).map { [
+                "id": "turn_\($0)", "role": "assistant", "text": "bounded"
+            ] }
+        ])
+        XCTAssertThrowsError(try JSONDecoder().decode(PhoneDexTask.self, from: oversizedTranscript))
+
+        let oversizedChoices = try JSONSerialization.data(withJSONObject: [
+            "id": "question_large",
+            "prompt": "Choose",
+            "choices": (0...PhoneDexNativeDecodeBounds.questionChoices).map { [
+                "id": "choice_\($0)", "label": "Choice"
+            ] },
+            "allowsFreeText": false
+        ])
+        XCTAssertThrowsError(try JSONDecoder().decode(PhoneDexTaskQuestion.self, from: oversizedChoices))
+
+        let oversizedSyncChanges = try JSONSerialization.data(withJSONObject: [
+            "changes": (0...PhoneDexNativeDecodeBounds.syncPageItems).map { [
+                "position": $0, "kind": "task", "id": "task_\($0)", "deleted": true
+            ] },
+            "cursor": "cursor.v1",
+            "hasMore": false
+        ])
+        XCTAssertThrowsError(try JSONDecoder().decode(PhoneDexSyncPage.self, from: oversizedSyncChanges))
+    }
+
     func testProjectsCombineMatchingNamesAcrossDevices() throws {
         let first = try decodeTask(
             id: "task_mac",
