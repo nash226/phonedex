@@ -231,6 +231,10 @@ final class PhoneDexAppModel: ObservableObject {
             if result.isComplete {
                 lastSuccessfulSync = now
                 syncCursor = result.usedCompatibilityFallback ? nil : result.cursor
+                // A complete sync has rebuilt the local projection. Do not
+                // leave a one-time cache recovery warning visible after the
+                // user has successfully recovered from the hub.
+                cacheRecoveryMessage = nil
                 try Task.checkCancellation()
                 guard !refreshCoordinator.shouldCancel(requestID) else { return }
                 await flushPendingReplies()
