@@ -35,6 +35,15 @@ const unsupportedOnly = evaluateAcceptanceEvidence({ scenarios: [{ ...passing[0]
 assert.equal(unsupportedOnly.ok, false);
 assert.match(unsupportedOnly.issues.map((issue) => issue.message).join(" "), /at least one supported platform/);
 
+const duplicatePlatform = evaluateAcceptanceEvidence({ scenarios: [{ ...passing[0], platforms: ["ios", "ios"] }] }, { now });
+assert.equal(duplicatePlatform.ok, false);
+assert.match(duplicatePlatform.issues.map((issue) => issue.message).join(" "), /platform is duplicated/);
+
+const overBroadPlatforms = evaluateAcceptanceEvidence({ scenarios: [{ ...passing[0], platforms: ["ios", "macos", "windows", "android"] }] }, { now });
+assert.equal(overBroadPlatforms.ok, false);
+assert.match(overBroadPlatforms.issues.map((issue) => issue.message).join(" "), /no more than 3 platforms/);
+assert.match(overBroadPlatforms.issues.map((issue) => issue.message).join(" "), /unsupported platform/);
+
 const oversized = evaluateAcceptanceEvidence({ scenarios: [...passing, ...Array.from({ length: 21 }, (_, index) => ({
   id: `extra-${index}`,
   status: "pass",
