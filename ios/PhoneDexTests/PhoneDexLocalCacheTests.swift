@@ -376,16 +376,54 @@ final class PhoneDexLocalCacheTests: XCTestCase {
         let pending = pendingReply(id: "notification", prompt: "Continue", createdAt: Date(timeIntervalSince1970: 2))
 
         XCTAssertTrue(store.enqueue(pending))
-        XCTAssertTrue(store.complete(pending, responseKey: "notification|action", at: Date(timeIntervalSince1970: 3)))
+        let handledAt = Date(timeIntervalSince1970: 3)
+        let responseKey = PhoneDexNotificationDelegate.notificationResponseKey(
+            notificationID: "notification",
+            actionIdentifier: "action",
+            taskVersion: 1
+        )
+        XCTAssertTrue(store.complete(pending, responseKey: responseKey, at: handledAt))
         let restored = try XCTUnwrap(cache.load())
         XCTAssertEqual(restored.cursor, state.cursor)
         XCTAssertEqual(restored.tasks, state.tasks)
         XCTAssertEqual(restored.events, state.events)
         XCTAssertTrue(restored.pendingReplies.isEmpty)
-        XCTAssertEqual(restored.handledNotificationResponses["notification|action"], Date(timeIntervalSince1970: 3))
+        XCTAssertEqual(restored.handledNotificationResponses[responseKey], handledAt)
+        XCTAssertTrue(store.containsHandled(responseKey, now: handledAt.addingTimeInterval(1)))
+        XCTAssertFalse(store.containsHandled(
+            responseKey,
+            now: handledAt.addingTimeInterval(PhoneDexNotificationReplyStore.handledResponseRetention + 1)
+        ))
 
-        XCTAssertTrue(store.markHandled("notification|second-action", at: Date(timeIntervalSince1970: 4)))
+        XCTAssertTrue(store.markHandled("notification|second-action|v1", at: Date(timeIntervalSince1970: 4)))
         XCTAssertTrue(store.remove(pending))
+    }
+
+    func testNotificationActionIdentityChangesWithTaskVersion() {
+        let firstResponse = PhoneDexNotificationDelegate.notificationResponseKey(
+            notificationID: "task-1",
+            actionIdentifier: "PHONEDEX_CUSTOM_REPLY",
+            taskVersion: 1
+        )
+        let secondResponse = PhoneDexNotificationDelegate.notificationResponseKey(
+            notificationID: "task-1",
+            actionIdentifier: "PHONEDEX_CUSTOM_REPLY",
+            taskVersion: 2
+        )
+
+        XCTAssertNotEqual(firstResponse, secondResponse)
+        XCTAssertNotEqual(
+            PhoneDexNotificationDelegate.notificationCommandID(
+                notificationID: "task-1",
+                actionIdentifier: "PHONEDEX_CUSTOM_REPLY",
+                taskVersion: 1
+            ),
+            PhoneDexNotificationDelegate.notificationCommandID(
+                notificationID: "task-1",
+                actionIdentifier: "PHONEDEX_CUSTOM_REPLY",
+                taskVersion: 2
+            )
+        )
     }
 
     func testNotificationReplyStoreFailsClosedWhenCacheCannotBeWritten() {

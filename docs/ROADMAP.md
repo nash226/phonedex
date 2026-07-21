@@ -704,7 +704,7 @@ Outcome: deliver timely remote awareness without treating push as durable state.
 - [ ] Add notification classes, grouping, and actionable badge counts.
 - [x] Add a local per-workspace notification policy that can suppress manual
   and deep-link notification scheduling without changing durable task state.
-- [ ] Add duplicate suppression and handled/expired notification behavior.
+- [x] Add duplicate suppression and handled/expired notification behavior.
 - [ ] Validate background opportunities, Focus modes, denied permission, poor
   connectivity, and push outage recovery on real devices.
 - [ ] Evaluate Live Activities only after core push correctness is proven.
@@ -718,6 +718,14 @@ expires, suppresses repeated taps without creating another command, and
 preserves retry behavior for transport failures. Expired actions explain that
 the user should reopen PhoneDex for current task context. This is local
 notification correctness only; APNs provider choice, remote registration, and
+real-device background validation remain human-gated release work.
+
+Local notification duplicate and expiry evidence: handled response keys and
+command idempotency keys include the notification action's task version, so a
+newer update for the same task cannot be mistaken for a repeated tap on an
+older notification. Handled keys expire after 24 hours and are bounded during
+cache writes; actions for the same version remain duplicate-safe. These
+guarantees are covered by `PhoneDexLocalCacheTests`; remote push delivery and
 real-device background validation remain human-gated release work.
 
 Local notification permission recovery evidence: Settings now reads the current

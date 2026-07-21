@@ -30,7 +30,12 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
         }
 
         let userInfo = response.notification.request.content.userInfo
-        let responseKey = responseKey(for: response)
+        let taskVersion = userInfo["taskVersion"] as? Int ?? 1
+        let responseKey = Self.notificationResponseKey(
+            notificationID: response.notification.request.identifier,
+            actionIdentifier: response.actionIdentifier,
+            taskVersion: taskVersion
+        )
         if replyStore.containsHandled(responseKey) {
             NotificationReplyResult.record(.duplicate("This notification action was already handled."))
             return
@@ -62,9 +67,13 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
 
         let client = PhoneDexBridgeClient(bridgeURL: bridgeURL, token: token)
         let notificationID = response.notification.request.identifier
-        let commandID = "notification-" + notificationID + "-" + response.actionIdentifier
+        let commandID = Self.notificationCommandID(
+            notificationID: notificationID,
+            actionIdentifier: response.actionIdentifier,
+            taskVersion: taskVersion
+        )
         let idempotencyKey = "ios-" + commandID
-        let expectedTaskVersion = userInfo["taskVersion"] as? Int ?? 1
+        let expectedTaskVersion = taskVersion
         let pending = PhoneDexPendingReply(
             commandId: commandID,
             idempotencyKey: idempotencyKey,
@@ -106,8 +115,20 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
         }
     }
 
-    private func responseKey(for response: UNNotificationResponse) -> String {
-        response.notification.request.identifier + "|" + response.actionIdentifier
+    static func notificationResponseKey(
+        notificationID: String,
+        actionIdentifier: String,
+        taskVersion: Int
+    ) -> String {
+        "\(notificationID)|\(actionIdentifier)|v\(max(taskVersion, 1))"
+    }
+
+    static func notificationCommandID(
+        notificationID: String,
+        actionIdentifier: String,
+        taskVersion: Int
+    ) -> String {
+        "notification-\(notificationID)-\(actionIdentifier)-v\(max(taskVersion, 1))"
     }
 
     private func bridgeURLFromCurrentSettings() async -> URL? {
@@ -133,6 +154,7 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
 /// Owns notification-action mutations so a failed cache write cannot be
 /// mistaken for a durable offline outbox operation.
 struct PhoneDexNotificationReplyStore {
+    static let handledResponseRetention: TimeInterval = 24 * 60 * 60
     private let cache: any PhoneDexCacheStoring
 
     init(cache: any PhoneDexCacheStoring = PhoneDexEncryptedCache()) {
@@ -185,7 +207,7 @@ struct PhoneDexNotificationReplyStore {
         pendingReplies.removeAll { $0.id == pending.id }
         var handled = existing.handledNotificationResponses
         handled[responseKey] = date
-        trimHandled(&handled)
+        trimHandled(&handled, now: date)
         return save(existing.replacingNotificationState(
             pendingReplies: pendingReplies,
             handledNotificationResponses: handled
@@ -207,12 +229,16 @@ struct PhoneDexNotificationReplyStore {
         }
         var handled = existing.handledNotificationResponses
         handled[responseKey] = date
-        trimHandled(&handled)
+        trimHandled(&handled, now: date)
         return save(existing.replacingNotificationState(handledNotificationResponses: handled))
     }
 
-    func containsHandled(_ responseKey: String) -> Bool {
-        (try? cache.load())?.handledNotificationResponses[responseKey] != nil
+    func containsHandled(_ responseKey: String, now: Date = Date()) -> Bool {
+        guard let handledAt = (try? cache.load())?.handledNotificationResponses[responseKey] else {
+            return false
+        }
+        let age = now.timeIntervalSince(handledAt)
+        return age >= 0 && age < Self.handledResponseRetention
     }
 
     private func save(_ state: PhoneDexCachedState) -> Bool {
@@ -224,7 +250,11 @@ struct PhoneDexNotificationReplyStore {
         }
     }
 
-    private func trimHandled(_ handled: inout [String: Date]) {
+    private func trimHandled(_ handled: inout [String: Date], now: Date) {
+        handled = handled.filter { _, handledAt in
+            let age = now.timeIntervalSince(handledAt)
+            return age >= 0 && age < Self.handledResponseRetention
+        }
         guard handled.count > 100 else { return }
         let staleKeys = handled
             .sorted { $0.value < $1.value }
