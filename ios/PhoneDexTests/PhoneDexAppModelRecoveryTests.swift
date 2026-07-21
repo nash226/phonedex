@@ -58,19 +58,53 @@ final class PhoneDexAppModelRecoveryTests: XCTestCase {
 
         let model = PhoneDexAppModel(settings: settings, cache: cache, bridgeClient: client)
         XCTAssertNotNil(model.cacheRecoveryMessage)
+        settings.markCacheRestoreBypassNeeded()
 
         await model.refresh()
 
         XCTAssertNil(model.cacheRecoveryMessage)
+        XCTAssertFalse(settings.shouldBypassCacheRestore)
         XCTAssertEqual(model.connectionState, .online(model.lastSuccessfulSync!))
+    }
+
+    func testFailedQuarantineSkipsTheSameCorruptCacheOnNextLaunch() {
+        let cache = FailingRecoveryCache(quarantineShouldFail: true)
+        let suiteName = "PhoneDexAppModelRecoveryTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        addTeardownBlock { defaults.removePersistentDomain(forName: suiteName) }
+        let settings = PhoneDexSettings(defaults: defaults, tokenStore: RecoveryTokenStore())
+
+        let firstLaunch = PhoneDexAppModel(settings: settings, cache: cache)
+
+        XCTAssertTrue(firstLaunch.tasks.isEmpty)
+        XCTAssertEqual(cache.loadCalls, 1)
+        XCTAssertEqual(cache.quarantineCalls, 1)
+        XCTAssertTrue(settings.shouldBypassCacheRestore)
+
+        let secondLaunch = PhoneDexAppModel(settings: settings, cache: cache)
+
+        XCTAssertTrue(secondLaunch.tasks.isEmpty)
+        XCTAssertEqual(cache.loadCalls, 1)
+        XCTAssertEqual(cache.quarantineCalls, 1)
+        XCTAssertEqual(
+            secondLaunch.cacheRecoveryMessage,
+            "PhoneDex is starting without its previous local cache. Fresh data will be fetched when the hub is reachable."
+        )
     }
 }
 
 private final class FailingRecoveryCache: PhoneDexCacheStoring {
+    let quarantineShouldFail: Bool
+    private(set) var loadCalls = 0
     private(set) var quarantineCalls = 0
     private(set) var saveCalls = 0
 
+    init(quarantineShouldFail: Bool = false) {
+        self.quarantineShouldFail = quarantineShouldFail
+    }
+
     func load() throws -> PhoneDexCachedState? {
+        loadCalls += 1
         throw PhoneDexCacheError.invalidData
     }
 
@@ -82,6 +116,7 @@ private final class FailingRecoveryCache: PhoneDexCacheStoring {
 
     func quarantine() throws {
         quarantineCalls += 1
+        if quarantineShouldFail { throw PhoneDexCacheError.persistenceFailed }
     }
 }
 
