@@ -1008,6 +1008,14 @@ Windows hub outages without claiming that task content, source paths, or
 credentials are included in diagnostics; the existing real-device outage and
 privacy matrix remains the release-owner gate.
 
+Diagnostics resource-bound verification for the in-progress release-readiness
+slice: `PhoneDexDiagnosticsSnapshot` rejects component, route, recent-request,
+and capability collections above explicit client limits before materializing
+them. `PhoneDexDiagnosticsTests` covers the fail-closed oversized-component
+boundary. This protects native support recovery from malformed or unexpectedly
+large Mac or Windows hub projections without changing the content-free
+diagnostics contract or claiming real-device performance evidence.
+
 Battery verification for the in-progress release-readiness slice:
 `PhoneDexRefreshPolicy` limits automatic refreshes triggered by app launch and
 returning to the foreground to one request per 30 seconds after a healthy sync,
