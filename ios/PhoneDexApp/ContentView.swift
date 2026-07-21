@@ -2195,6 +2195,7 @@ private struct PhoneDexSettingsView: View {
     @ObservedObject var model: PhoneDexAppModel
     @ObservedObject private var settings: PhoneDexSettings
     @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
     @State private var notificationStatus = ""
     @State private var notificationAuthorization = PhoneDexNotificationAuthorization.unknown
     @State private var pairingGrant = ""
@@ -2377,6 +2378,10 @@ private struct PhoneDexSettingsView: View {
                     }
                 }
                 .task { await refreshNotificationAuthorization() }
+                .onChange(of: scenePhase) { _, phase in
+                    guard phase == .active else { return }
+                    Task { await refreshNotificationAuthorization() }
+                }
 
                 Section {
                     Button("Refresh Diagnostics", systemImage: "stethoscope") {

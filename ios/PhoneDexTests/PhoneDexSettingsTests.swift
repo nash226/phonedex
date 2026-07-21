@@ -441,6 +441,13 @@ final class PhoneDexSettingsTests: XCTestCase {
         XCTAssertTrue(PhoneDexNotificationAuthorization.restricted.canOpenSettings)
     }
 
+    func testNotificationAuthorizationRecoveryStatesHaveExplicitSettingsBoundary() {
+        XCTAssertTrue(PhoneDexNotificationAuthorization.denied.canOpenSettings)
+        XCTAssertTrue(PhoneDexNotificationAuthorization.restricted.canOpenSettings)
+        XCTAssertFalse(PhoneDexNotificationAuthorization.unknown.canOpenSettings)
+        XCTAssertTrue(PhoneDexNotificationAuthorization.denied.explanation.contains("still refreshes"))
+    }
+
     func testSafeNotificationSummaryExcludesTaskContent() {
         let task = PhoneDexTask(
             id: "task-privacy", at: nil, source: "stop-hook", title: "Private prompt",

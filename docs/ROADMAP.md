@@ -732,11 +732,12 @@ Local notification permission recovery evidence: Settings now reads the current
 authorization state, distinguishes full, quiet, denied, restricted, and
 not-yet-requested delivery, and sends denied or restricted users to the system
 notification settings instead of repeatedly presenting an ineffective prompt.
-The surface keeps the foreground-refresh fallback explicit, uses generic
-permission copy, and is covered by `PhoneDexSettingsTests` for enabled and
-denied-state semantics. This improves local permission recovery only; APNs,
-background execution, and real-device Focus/permission validation remain
-release-owner gates.
+The surface rechecks authorization when the app becomes active after returning
+from iPhone Settings, keeps the foreground-refresh fallback explicit, uses
+generic permission copy, and is covered by `PhoneDexSettingsTests` for enabled,
+denied, restricted, and unknown-state semantics. This improves local
+permission recovery only; APNs, background execution, and real-device
+Focus/permission validation remain release-owner gates.
 
 Local workspace notification-policy evidence: Settings persists a bounded set
 of muted workspace display names, task detail exposes an accessible mute or
