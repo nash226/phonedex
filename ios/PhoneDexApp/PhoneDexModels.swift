@@ -23,6 +23,8 @@ enum PhoneDexNativeDecodeBounds {
     static let patch = 600_000
     static let eventData = 32
     static let eventDataValue = 1_000
+    static let protocolVersions = 16
+    static let protocolCapabilities = 64
     static let syncPageItems = 100
     static let cachedTasks = 500
     static let cachedDevices = 100
@@ -1301,6 +1303,33 @@ struct PhoneDexProtocolNegotiation: Decodable, Equatable {
     let negotiatedVersion: Int
     let supportedVersions: [Int]
     let capabilities: [PhoneDexCapability]
+
+    private enum CodingKeys: String, CodingKey {
+        case negotiatedVersion
+        case supportedVersions
+        case capabilities
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        negotiatedVersion = try container.decode(Int.self, forKey: .negotiatedVersion)
+        supportedVersions = try PhoneDexNativeDecodeBounds.array(
+            Int.self,
+            from: container,
+            forKey: .supportedVersions,
+            max: PhoneDexNativeDecodeBounds.protocolVersions,
+            name: "protocol.supportedVersions",
+            decoder: decoder
+        )
+        capabilities = try PhoneDexNativeDecodeBounds.array(
+            PhoneDexCapability.self,
+            from: container,
+            forKey: .capabilities,
+            max: PhoneDexNativeDecodeBounds.protocolCapabilities,
+            name: "protocol.capabilities",
+            decoder: decoder
+        )
+    }
 
     var isCurrent: Bool {
         negotiatedVersion == 1 && supportedVersions.contains(1)

@@ -340,6 +340,14 @@ Chats, Projects, Devices, and Settings. `PhoneDexBridgeClientTests.swift`
 covers compatibility fallback, partial data, and transport classification;
 the iOS test target also retains its smoke and diagnostics coverage.
 
+Native protocol-negotiation bounds evidence: `PhoneDexProtocolNegotiation`
+rejects oversized supported-version and capability collections before the
+iPhone materializes them. This keeps a malicious or misconfigured hub from
+using negotiation metadata to bypass the bounded sync model, while preserving
+the existing explicit incompatibility state. `PhoneDexBridgeClientTests` covers
+the fail-closed response path; the limit is local decoding safety and does not
+claim support for undocumented protocol versions or private Codex APIs.
+
 Verification evidence for the completed encrypted cache slice:
 `ios/PhoneDexApp/PhoneDexLocalCache.swift` encrypts the cached task/device/event
 snapshot and opaque cursor with AES-GCM, stores its 256-bit key in a device-only

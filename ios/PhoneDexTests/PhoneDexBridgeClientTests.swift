@@ -3,6 +3,27 @@ import CryptoKit
 @testable import PhoneDex
 
 final class PhoneDexBridgeClientTests: XCTestCase {
+    func testProtocolNegotiationRejectsOversizedMetadataCollections() throws {
+        let supportedVersions = Array(repeating: "1", count: PhoneDexNativeDecodeBounds.protocolVersions + 1).joined(separator: ",")
+        let capabilities = Array(repeating: "{\"id\":\"task.reply\",\"version\":\"1\",\"scope\":\"task\",\"supported\":true}", count: PhoneDexNativeDecodeBounds.protocolCapabilities + 1).joined(separator: ",")
+        let payloads = [
+            Data("""
+            {"protocol":{"negotiatedVersion":1,"supportedVersions":[\(supportedVersions)],"capabilities":[]},"snapshot":null,"changes":[],"cursor":"cursor","hasMore":false}
+            """.utf8),
+            Data("""
+            {"protocol":{"negotiatedVersion":1,"supportedVersions":[1],"capabilities":[\(capabilities)]},"snapshot":null,"changes":[],"cursor":"cursor","hasMore":false}
+            """.utf8)
+        ]
+
+        for payload in payloads {
+            XCTAssertThrowsError(try JSONDecoder().decode(PhoneDexSyncPage.self, from: payload)) { error in
+                guard case DecodingError.dataCorrupted = error else {
+                    return XCTFail("Expected a bounded decoding failure, got \(error)")
+                }
+            }
+        }
+    }
+
     func testUserFacingErrorMessagesNeverExposeServerOrURLDetails() {
         let serverMessage = PhoneDexBridgeClientError.pairingFailed(
             "credential=secret-token path=/Users/example/private"
