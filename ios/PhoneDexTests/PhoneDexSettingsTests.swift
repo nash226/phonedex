@@ -156,6 +156,58 @@ final class PhoneDexSettingsTests: XCTestCase {
         XCTAssertEqual(store.token, "paired-secret")
     }
 
+    func testModelClearLocalCacheRemovesPrivateProjectionButKeepsCredential() throws {
+        let defaults = try makeDefaults()
+        let store = InMemoryTokenStore()
+        let settings = PhoneDexSettings(defaults: defaults, tokenStore: store)
+        settings.token = "paired-secret"
+        let task = PhoneDexTask(
+            id: "task-1", at: nil, source: "codex", title: "Private task",
+            text: "Private transcript", cwd: "/work/project", workspaceName: "PhoneDex",
+            machineName: "Mac", sessionId: "session-1", status: "completed",
+            branch: "main", repository: "phonedex"
+        )
+        let cache = TestCache(state: PhoneDexCachedState(
+            cursor: "cursor-1", tasks: [task], devices: [],
+            lastSyncAt: Date(), drafts: [task.id: "private draft"],
+            cachedArtifacts: [PhoneDexCachedArtifact(
+                id: "artifact-1", name: "private.log", mediaType: "text/plain",
+                data: Data("private bytes".utf8), downloadedAt: Date()
+            )]
+        ))
+        let model = PhoneDexAppModel(settings: settings, cache: cache)
+
+        XCTAssertTrue(model.clearLocalCache())
+        XCTAssertTrue(model.tasks.isEmpty)
+        XCTAssertTrue(model.drafts.isEmpty)
+        XCTAssertTrue(model.cachedArtifacts.isEmpty)
+        XCTAssertNil(cache.state?.cursor)
+        XCTAssertTrue(cache.state?.tasks.isEmpty == true)
+        XCTAssertEqual(store.token, "paired-secret")
+        XCTAssertTrue(model.localCacheStatusMessage?.contains("credential was kept") == true)
+    }
+
+    func testModelClearLocalCacheFailurePreservesTrustedProjection() throws {
+        let defaults = try makeDefaults()
+        let settings = PhoneDexSettings(defaults: defaults, tokenStore: InMemoryTokenStore())
+        let task = PhoneDexTask(
+            id: "task-1", at: nil, source: "codex", title: "Trusted task",
+            text: "Cached response", cwd: nil, workspaceName: nil,
+            machineName: nil, sessionId: nil, status: "completed",
+            branch: nil, repository: nil
+        )
+        let cache = TestCache(state: PhoneDexCachedState(
+            cursor: "cursor-1", tasks: [task], devices: [], lastSyncAt: Date()
+        ))
+        let model = PhoneDexAppModel(settings: settings, cache: cache)
+        cache.shouldFail = true
+
+        XCTAssertFalse(model.clearLocalCache())
+        XCTAssertEqual(model.tasks, [task])
+        XCTAssertEqual(cache.state?.cursor, "cursor-1")
+        XCTAssertEqual(model.localCacheStatusMessage, "Local data could not be cleared. Try again.")
+    }
+
     func testForgetCredentialFailurePreservesTokenAndDoesNotLeakSecret() throws {
         let defaults = try makeDefaults()
         let store = InMemoryTokenStore()
@@ -468,6 +520,7 @@ private final class InMemoryTokenStore: PhoneDexTokenStoring {
 
 private final class TestCache: PhoneDexCacheStoring {
     var state: PhoneDexCachedState?
+    var shouldFail = false
 
     init(state: PhoneDexCachedState?) {
         self.state = state
@@ -476,6 +529,7 @@ private final class TestCache: PhoneDexCacheStoring {
     func load() throws -> PhoneDexCachedState? { state }
 
     func save(_ state: PhoneDexCachedState) throws {
+        if shouldFail { throw PhoneDexCacheError.persistenceFailed }
         self.state = state
     }
 

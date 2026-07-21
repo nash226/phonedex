@@ -133,6 +133,10 @@ The repository already proves the core loop, but not the final product.
   archiving or muting is a local triage choice and never changes lifecycle or
   sends a hub command. Active, archived, and muted views remain explicit so a
   user can recover locally hidden work.
+- Settings can clear the complete local task, review, draft, receipt, offline
+  command, diagnostics, and downloaded-artifact projection after confirmation.
+  The paired bridge credential remains in the device-only Keychain, and the
+  action never deletes hub history or claims that a remote revoke occurred.
 - The project targets iOS 17 and includes unit and UI test targets for the
   native shell.
 

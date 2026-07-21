@@ -848,6 +848,18 @@ surfaces from regression. This is implementation evidence only; the release
 owner still must approve the final privacy policy, disclosures, and real-device
 validation gates.
 
+Local cache-reset verification: Settings provides a confirmation-gated local
+cache reset that atomically writes an empty encrypted projection before
+clearing the in-memory tasks, drafts, receipts, offline commands, diagnostics,
+and downloaded artifacts. It preserves the paired bridge credential in the
+device-only Keychain, invalidates an in-flight foreground refresh, reports
+success or persistence failure without exposing server detail, and never
+deletes hub history or implies remote credential revocation.
+`PhoneDexSettingsTests` covers successful reset, credential preservation, and
+failure-safe retention of the trusted projection. This is a local privacy and
+recovery control; hub deletion, credential revocation, and real-device privacy
+validation remain separate release-owner responsibilities.
+
 Exit gate: the release owner records a go decision with known limitations,
 metrics, rollback plan, and verification evidence.
 
