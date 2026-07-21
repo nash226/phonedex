@@ -52,6 +52,7 @@ enum PhoneDexNotificationAuthorization: Equatable {
 
 enum PhoneDexNotificationScheduler {
     static let categoryIdentifier = "PHONEDEX_TASK"
+    private static let maxBadgeCount = 99
     private static let maxPreviewBodyLength = 500
 
     static let previewBody = """
@@ -109,7 +110,8 @@ enum PhoneDexNotificationScheduler {
     static func scheduleTaskNotification(
         _ task: PhoneDexTask,
         bridgeURL: URL,
-        privacy: PhoneDexNotificationPrivacy = .safeSummary
+        privacy: PhoneDexNotificationPrivacy = .safeSummary,
+        badgeCount: Int? = nil
     ) async throws {
         guard bridgeURL.user == nil,
               bridgeURL.password == nil,
@@ -133,6 +135,9 @@ enum PhoneDexNotificationScheduler {
         content.categoryIdentifier = categoryIdentifier
         content.threadIdentifier = taskNotificationThreadIdentifier(task)
         content.sound = .default
+        if let badgeCount {
+            content.badge = NSNumber(value: max(0, badgeCount))
+        }
         content.userInfo = taskNotificationUserInfo(task)
 
         let request = UNNotificationRequest(
@@ -142,6 +147,23 @@ enum PhoneDexNotificationScheduler {
         )
 
         try await center.add(request)
+    }
+
+    /// Returns the number of unread conversations that need a user's attention.
+    /// The badge is derived from local task status and read state only; it does
+    /// not expose task text, paths, credentials, or remote notification state.
+    static func needsYouBadgeCount(
+        tasks: [PhoneDexTask],
+        readTaskIDs: Set<PhoneDexTask.ID> = []
+    ) -> Int {
+        let count = tasks.reduce(into: 0) { count, task in
+            let needsAttention = ["needs_input", "awaiting_approval", "needs_review", "failed"]
+                .contains(task.status ?? "")
+            if needsAttention && !readTaskIDs.contains(task.id) {
+                count += 1
+            }
+        }
+        return min(count, maxBadgeCount)
     }
 
     static func notificationPresentation(
