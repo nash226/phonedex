@@ -101,7 +101,8 @@ The repository already proves the core loop, but not the final product.
 
 - A native SwiftUI shell provides Chats, Workspaces, Browser, Devices, and
   Settings, with read-only workspace and device detail surfaces for machine
-  context, task counts, heartbeat health, and actionable diagnostics.
+  context, task counts, recent device-owned conversations, heartbeat health,
+  and actionable diagnostics.
 - The app stores one bridge URL and a paired device credential in Keychain,
   restores an encrypted local task/device cache, and reconciles from the hub's
   opaque cursor while foregrounded. Legacy token entry remains for migration.

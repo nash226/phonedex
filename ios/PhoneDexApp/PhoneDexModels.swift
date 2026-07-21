@@ -1099,6 +1099,15 @@ struct PhoneDexDevice: Codable, Identifiable, Equatable {
         return taskMachineName == machineName
     }
 
+    /// Returns the latest locally synced row for each conversation owned by this device.
+    /// Device identity remains authoritative, with the legacy machine-name fallback
+    /// handled by `owns(_:)` for older hub records.
+    func conversations(from tasks: [PhoneDexTask]) -> [PhoneDexTask] {
+        PhoneDexTask.latestPerConversation(tasks.filter(owns)).sorted { lhs, rhs in
+            (lhs.displayDate ?? .distantPast) > (rhs.displayDate ?? .distantPast)
+        }
+    }
+
     var isOnline: Bool { status == "online" }
 
     func supportsCapability(_ capability: String) -> Bool {
