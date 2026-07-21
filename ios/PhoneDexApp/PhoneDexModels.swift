@@ -750,6 +750,22 @@ struct PhoneDexEvent: Codable, Equatable, Identifiable {
         return id < other.id
     }
 
+    /// Builds the latest-event projection in one pass so conversation rows do
+    /// not rescan the complete event stream while SwiftUI renders the list.
+    static func latestByTaskID(_ events: [PhoneDexEvent]) -> [String: PhoneDexEvent] {
+        var latest: [String: PhoneDexEvent] = [:]
+        for event in events {
+            guard let current = latest[event.taskId] else {
+                latest[event.taskId] = event
+                continue
+            }
+            if event.isLater(than: current) {
+                latest[event.taskId] = event
+            }
+        }
+        return latest
+    }
+
     init(
         id: String,
         taskId: String,
