@@ -2,6 +2,18 @@ import XCTest
 @testable import PhoneDex
 
 final class PhoneDexSmokeTests: XCTestCase {
+    func testOfflineOutboxSummaryExplainsEmptyAndQueuedActions() {
+        XCTAssertEqual(PhoneDexOfflineOutboxSummary.empty.totalCount, 0)
+        XCTAssertEqual(
+            PhoneDexOfflineOutboxSummary(replyCount: 1, lifecycleCount: 0, taskCount: 1).detail,
+            "1 reply for 1 conversation. They will retry after a successful sync."
+        )
+        XCTAssertEqual(
+            PhoneDexOfflineOutboxSummary(replyCount: 2, lifecycleCount: 1, taskCount: 2).detail,
+            "2 replies and 1 task action across 2 conversations. They will retry after a successful sync."
+        )
+    }
+
     func testTaskDeepLinkAcceptsBoundedOpaqueTaskIDWithoutQueryData() throws {
         let url = try XCTUnwrap(URL(string: "phonedex://task/task_123-abc"))
 

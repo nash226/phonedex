@@ -1521,3 +1521,13 @@ Dynamic Type, and accessibility contract test now also rejects hard-coded RGB or
 grayscale colors. This is implementation evidence for appearance adaptation;
 light/dark notification snapshots on real devices remain part of the
 release-owner validation matrix.
+
+Offline outbox presentation verification for the in-progress release-readiness
+slice: Chats now shows a bounded, privacy-safe summary whenever encrypted
+reply or managed lifecycle commands are waiting for a successful sync. The
+summary distinguishes reply and task-action counts, counts affected
+conversations without exposing prompt text or command metadata, wraps at large
+Dynamic Type sizes, and exposes one combined VoiceOver label. This makes
+offline work discoverable after relaunch while preserving non-optimistic
+delivery semantics; it does not claim that a queued action reached a Mac or
+Windows agent.
