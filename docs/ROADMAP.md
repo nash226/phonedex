@@ -225,6 +225,15 @@ the pairing flow below builds on the same Keychain credential path. The native a
 credential when handling a notification action and the bridge accepts the
 authenticated header while retaining legacy body-token compatibility.
 
+Native credential-boundary regression evidence:
+`scripts/test-ios-credential-boundary.js` guards the source-level storage
+contract by requiring device-only Keychain accessibility, allowing the legacy
+`UserDefaults` key only for one-time migration and removal, and rejecting token
+extraction from notification metadata. This is a content-free
+regression guard; it does not claim that a signed device, crash report, or
+system backup can never expose secrets and does not change the supported
+secure-pairing path.
+
 Verification evidence for the completed threat-model and security-regression
 slice: `docs/THREAT_MODEL.md` records PhoneDex assets, trust boundaries,
 security invariants, current mitigations, known legacy-token/TLS gaps, and
