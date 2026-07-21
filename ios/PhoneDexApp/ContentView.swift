@@ -544,6 +544,7 @@ private struct PhoneDexCreateTaskView: View {
 
 struct PhoneDexConnectionHeader: View {
     let state: PhoneDexAppModel.ConnectionState
+    var accessibilityIdentifier = "connection-status"
 
     var body: some View {
         HStack(alignment: .top, spacing: 7) {
@@ -564,6 +565,7 @@ struct PhoneDexConnectionHeader: View {
         .font(.caption)
         .foregroundStyle(.secondary)
         .accessibilityElement(children: .combine)
+        .accessibilityIdentifier(accessibilityIdentifier)
     }
 
     private var color: Color {
@@ -1834,34 +1836,58 @@ private struct PhoneDexProjectsView: View {
 
     var body: some View {
         NavigationStack {
-            List(visibleProjects) { project in
-                NavigationLink {
-                    PhoneDexWorkspaceDetailView(project: project, model: model)
-                } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: "folder.fill")
-                            .foregroundStyle(.purple)
-                            .frame(width: 32)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(project.name).font(.headline)
-                            Text("\(project.deviceSummary) · \(project.tasks.count) conversation\(project.tasks.count == 1 ? "" : "s")")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            if project.activeTaskCount > 0 || project.attentionTaskCount > 0 {
-                                Text(workspaceStatus(project))
-                                    .font(.caption2.weight(.medium))
-                                    .foregroundStyle(project.attentionTaskCount > 0 ? .orange : .blue)
+            VStack(spacing: 0) {
+                PhoneDexConnectionHeader(state: model.connectionState, accessibilityIdentifier: "projects-connection-status")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(.bar)
+                Divider()
+
+                List(visibleProjects) { project in
+                    NavigationLink {
+                        PhoneDexWorkspaceDetailView(project: project, model: model)
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "folder.fill")
+                                .foregroundStyle(.purple)
+                                .frame(width: 32)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(project.name).font(.headline)
+                                Text("\(project.deviceSummary) · \(project.tasks.count) conversation\(project.tasks.count == 1 ? "" : "s")")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                if project.activeTaskCount > 0 || project.attentionTaskCount > 0 {
+                                    Text(workspaceStatus(project))
+                                        .font(.caption2.weight(.medium))
+                                        .foregroundStyle(project.attentionTaskCount > 0 ? .orange : .blue)
+                                }
+                                if let path = project.path {
+                                    Text(path)
+                                        .font(.caption2)
+                                        .foregroundStyle(.tertiary)
+                                        .lineLimit(1)
+                                } else if project.paths.count > 1 {
+                                    Text("\(project.paths.count) working directories")
+                                        .font(.caption2)
+                                        .foregroundStyle(.tertiary)
+                                }
                             }
-                            if let path = project.path {
-                                Text(path)
-                                    .font(.caption2)
-                                    .foregroundStyle(.tertiary)
-                                    .lineLimit(1)
-                            } else if project.paths.count > 1 {
-                                Text("\(project.paths.count) working directories")
-                                    .font(.caption2)
-                                    .foregroundStyle(.tertiary)
+                        }
+                    }
+                }
+                .listStyle(.plain)
+                .refreshable { await model.refresh() }
+                .overlay {
+                    if visibleProjects.isEmpty {
+                        if model.tasks.isEmpty && model.connectionState.blocksEmptyContent {
+                            PhoneDexSyncUnavailableView(state: model.connectionState) {
+                                Task { await model.refresh() }
                             }
+                        } else if !model.projects.isEmpty && !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            ContentUnavailableView.search(text: searchText)
+                        } else {
+                            ContentUnavailableView("No projects", systemImage: "folder")
                         }
                     }
                 }
@@ -1877,20 +1903,6 @@ private struct PhoneDexProjectsView: View {
                     }
                     .accessibilityLabel("Open artifact library")
                     .accessibilityHint("Browse exported artifacts from synced conversations")
-                }
-            }
-            .refreshable { await model.refresh() }
-            .overlay {
-                if visibleProjects.isEmpty {
-                    if model.tasks.isEmpty && model.connectionState.blocksEmptyContent {
-                        PhoneDexSyncUnavailableView(state: model.connectionState) {
-                            Task { await model.refresh() }
-                        }
-                    } else if !model.projects.isEmpty && !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        ContentUnavailableView.search(text: searchText)
-                    } else {
-                        ContentUnavailableView("No projects", systemImage: "folder")
-                    }
                 }
             }
         }
@@ -2041,42 +2053,52 @@ private struct PhoneDexDevicesView: View {
 
     var body: some View {
         NavigationStack {
-            List(model.devices) { device in
-                NavigationLink {
-                    PhoneDexDeviceDetailView(device: device, model: model)
-                } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: device.isMacPlatform ? "desktopcomputer" : "pc")
-                            .foregroundStyle(device.health.isActionable ? .orange : .green)
-                            .frame(width: 34)
+            VStack(spacing: 0) {
+                PhoneDexConnectionHeader(state: model.connectionState, accessibilityIdentifier: "devices-connection-status")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(.bar)
+                Divider()
 
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(device.displayName).font(.headline)
-                            Text(deviceSummary(device))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                List(model.devices) { device in
+                    NavigationLink {
+                        PhoneDexDeviceDetailView(device: device, model: model)
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: device.isMacPlatform ? "desktopcomputer" : "pc")
+                                .foregroundStyle(device.health.isActionable ? .orange : .green)
+                                .frame(width: 34)
+
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(device.displayName).font(.headline)
+                                Text(deviceSummary(device))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: device.health.symbol)
+                                .foregroundStyle(device.health.isActionable ? .orange : .green)
+                                .accessibilityLabel(device.health.title)
                         }
-                        Spacer()
-                        Image(systemName: device.health.symbol)
-                            .foregroundStyle(device.health.isActionable ? .orange : .green)
-                            .accessibilityLabel(device.health.title)
+                        .padding(.vertical, 4)
                     }
-                    .padding(.vertical, 4)
+                }
+                .listStyle(.plain)
+                .refreshable { await model.refresh() }
+                .overlay {
+                    if model.devices.isEmpty {
+                        if model.connectionState.blocksEmptyContent {
+                            PhoneDexSyncUnavailableView(state: model.connectionState) {
+                                Task { await model.refresh() }
+                            }
+                        } else {
+                            ContentUnavailableView("No devices", systemImage: "desktopcomputer")
+                        }
+                    }
                 }
             }
             .navigationTitle("Devices")
-            .refreshable { await model.refresh() }
-            .overlay {
-                if model.devices.isEmpty {
-                    if model.connectionState.blocksEmptyContent {
-                        PhoneDexSyncUnavailableView(state: model.connectionState) {
-                            Task { await model.refresh() }
-                        }
-                    } else {
-                        ContentUnavailableView("No devices", systemImage: "desktopcomputer")
-                    }
-                }
-            }
         }
     }
 
