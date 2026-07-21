@@ -152,6 +152,48 @@ final class PhoneDexLocalCacheTests: XCTestCase {
         XCTAssertTrue(decoded.cachedArtifacts.isEmpty)
     }
 
+    func testCacheRejectsOversizedTopLevelCollectionsBeforeRestore() throws {
+        let oversizedTasks = (0...PhoneDexNativeDecodeBounds.cachedTasks).map { index in
+            task(id: "task-\(index)")
+        }
+        let state = PhoneDexCachedState(
+            cursor: "cursor",
+            tasks: oversizedTasks,
+            devices: [],
+            lastSyncAt: nil
+        )
+
+        let data = try JSONEncoder().encode(state)
+
+        XCTAssertThrowsError(try JSONDecoder().decode(PhoneDexCachedState.self, from: data)) { error in
+            guard case let DecodingError.dataCorrupted(context) = error else {
+                return XCTFail("Expected a bounded cache decode error, got \(error)")
+            }
+            XCTAssertTrue(context.debugDescription.contains("cache.tasks"))
+        }
+    }
+
+    func testCacheRejectsOversizedPresentationMetadataBeforeRestore() throws {
+        let state = PhoneDexCachedState(
+            cursor: "cursor",
+            tasks: [],
+            devices: [],
+            lastSyncAt: nil,
+            drafts: Dictionary(uniqueKeysWithValues: (0...PhoneDexNativeDecodeBounds.cachedPresentationMetadata).map {
+                ("task-\($0)", "Draft")
+            })
+        )
+
+        let data = try JSONEncoder().encode(state)
+
+        XCTAssertThrowsError(try JSONDecoder().decode(PhoneDexCachedState.self, from: data)) { error in
+            guard case let DecodingError.dataCorrupted(context) = error else {
+                return XCTFail("Expected a bounded cache decode error, got \(error)")
+            }
+            XCTAssertTrue(context.debugDescription.contains("cache.drafts"))
+        }
+    }
+
     func testTamperedCacheFailsClosedWithoutReturningPartialState() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("PhoneDexLocalCacheTests-\(UUID().uuidString)", isDirectory: true)

@@ -74,21 +74,23 @@ struct PhoneDexCachedState: Codable, Equatable {
         schema = try container.decode(String.self, forKey: .schema)
         version = try container.decode(Int.self, forKey: .version)
         cursor = try container.decodeIfPresent(String.self, forKey: .cursor)
-        tasks = try container.decode([PhoneDexTask].self, forKey: .tasks)
-        devices = try container.decode([PhoneDexDevice].self, forKey: .devices)
-        events = try container.decodeIfPresent([PhoneDexEvent].self, forKey: .events) ?? []
+        guard container.contains(.tasks) else { throw DecodingError.keyNotFound(CodingKeys.tasks, .init(codingPath: decoder.codingPath, debugDescription: "cache.tasks must be present")) }
+        guard container.contains(.devices) else { throw DecodingError.keyNotFound(CodingKeys.devices, .init(codingPath: decoder.codingPath, debugDescription: "cache.devices must be present")) }
+        tasks = try PhoneDexNativeDecodeBounds.array(PhoneDexTask.self, from: container, forKey: .tasks, max: PhoneDexNativeDecodeBounds.cachedTasks, name: "cache.tasks", decoder: decoder)
+        devices = try PhoneDexNativeDecodeBounds.array(PhoneDexDevice.self, from: container, forKey: .devices, max: PhoneDexNativeDecodeBounds.cachedDevices, name: "cache.devices", decoder: decoder)
+        events = try PhoneDexNativeDecodeBounds.array(PhoneDexEvent.self, from: container, forKey: .events, max: PhoneDexNativeDecodeBounds.cachedEvents, name: "cache.events", decoder: decoder)
         lastSyncAt = try container.decodeIfPresent(Date.self, forKey: .lastSyncAt)
-        drafts = try container.decodeIfPresent([String: String].self, forKey: .drafts) ?? [:]
-        readingPositions = try container.decodeIfPresent([String: String].self, forKey: .readingPositions) ?? [:]
-        readAt = try container.decodeIfPresent([String: Date].self, forKey: .readAt) ?? [:]
-        archivedAt = try container.decodeIfPresent([String: Date].self, forKey: .archivedAt) ?? [:]
-        mutedAt = try container.decodeIfPresent([String: Date].self, forKey: .mutedAt) ?? [:]
-        pendingReplies = try container.decodeIfPresent([PhoneDexPendingReply].self, forKey: .pendingReplies) ?? []
-        pendingLifecycleCommands = try container.decodeIfPresent([PhoneDexPendingLifecycleCommand].self, forKey: .pendingLifecycleCommands) ?? []
-        replyReceipts = try container.decodeIfPresent([PhoneDexReplyDeliveryRecord].self, forKey: .replyReceipts) ?? []
-        lifecycleReceipts = try container.decodeIfPresent([PhoneDexLifecycleDeliveryRecord].self, forKey: .lifecycleReceipts) ?? []
-        handledNotificationResponses = try container.decodeIfPresent([String: Date].self, forKey: .handledNotificationResponses) ?? [:]
-        cachedArtifacts = try container.decodeIfPresent([PhoneDexCachedArtifact].self, forKey: .cachedArtifacts) ?? []
+        drafts = try PhoneDexNativeDecodeBounds.dictionary(String.self, from: container, forKey: .drafts, max: PhoneDexNativeDecodeBounds.cachedPresentationMetadata, name: "cache.drafts", decoder: decoder)
+        readingPositions = try PhoneDexNativeDecodeBounds.dictionary(String.self, from: container, forKey: .readingPositions, max: PhoneDexNativeDecodeBounds.cachedPresentationMetadata, name: "cache.readingPositions", decoder: decoder)
+        readAt = try PhoneDexNativeDecodeBounds.dictionary(Date.self, from: container, forKey: .readAt, max: PhoneDexNativeDecodeBounds.cachedPresentationMetadata, name: "cache.readAt", decoder: decoder)
+        archivedAt = try PhoneDexNativeDecodeBounds.dictionary(Date.self, from: container, forKey: .archivedAt, max: PhoneDexNativeDecodeBounds.cachedPresentationMetadata, name: "cache.archivedAt", decoder: decoder)
+        mutedAt = try PhoneDexNativeDecodeBounds.dictionary(Date.self, from: container, forKey: .mutedAt, max: PhoneDexNativeDecodeBounds.cachedPresentationMetadata, name: "cache.mutedAt", decoder: decoder)
+        pendingReplies = try PhoneDexNativeDecodeBounds.array(PhoneDexPendingReply.self, from: container, forKey: .pendingReplies, max: PhoneDexNativeDecodeBounds.cachedPendingReplies, name: "cache.pendingReplies", decoder: decoder)
+        pendingLifecycleCommands = try PhoneDexNativeDecodeBounds.array(PhoneDexPendingLifecycleCommand.self, from: container, forKey: .pendingLifecycleCommands, max: PhoneDexNativeDecodeBounds.cachedPendingLifecycleCommands, name: "cache.pendingLifecycleCommands", decoder: decoder)
+        replyReceipts = try PhoneDexNativeDecodeBounds.array(PhoneDexReplyDeliveryRecord.self, from: container, forKey: .replyReceipts, max: PhoneDexNativeDecodeBounds.cachedReplyReceipts, name: "cache.replyReceipts", decoder: decoder)
+        lifecycleReceipts = try PhoneDexNativeDecodeBounds.array(PhoneDexLifecycleDeliveryRecord.self, from: container, forKey: .lifecycleReceipts, max: PhoneDexNativeDecodeBounds.cachedLifecycleReceipts, name: "cache.lifecycleReceipts", decoder: decoder)
+        handledNotificationResponses = try PhoneDexNativeDecodeBounds.dictionary(Date.self, from: container, forKey: .handledNotificationResponses, max: PhoneDexNativeDecodeBounds.cachedNotificationResponses, name: "cache.handledNotificationResponses", decoder: decoder)
+        cachedArtifacts = try PhoneDexNativeDecodeBounds.array(PhoneDexCachedArtifact.self, from: container, forKey: .cachedArtifacts, max: PhoneDexNativeDecodeBounds.cachedArtifacts, name: "cache.cachedArtifacts", decoder: decoder)
     }
 
     func encode(to encoder: Encoder) throws {
