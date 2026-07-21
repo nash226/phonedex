@@ -27,6 +27,18 @@ final class PhoneDexShellUITests: XCTestCase {
             app.buttons["refresh-conversations"].waitForExistence(timeout: 5),
             "The primary refresh action must remain discoverable at accessibility sizes."
         )
+
+        app.tabBars.buttons["Projects"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["projects-connection-status"].waitForExistence(timeout: 5),
+            "Projects must keep sync state visible while cached workspaces are shown."
+        )
+
+        app.tabBars.buttons["Devices"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["devices-connection-status"].waitForExistence(timeout: 5),
+            "Devices must keep sync state visible while cached computers are shown."
+        )
     }
 
     func testSettingsControlsRemainReachableInDarkAppearance() {

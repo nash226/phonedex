@@ -1077,6 +1077,17 @@ creation remain immediate-only and no unsupported lifecycle command is added.
 `PhoneDexLocalCacheTests` covers the bounded, content-free queue copy used by
 the native surface.
 
+Cross-surface sync-state verification for the in-progress release-readiness
+slice: the populated Projects and Devices destinations now keep the same
+connection header used by Chats and Settings visible above cached Mac and
+Windows projections. Stale, offline, partial, revoked, incompatible, and
+failed states therefore remain explicit even when those lists contain trusted
+local data, while pull-to-refresh remains available. The status copy contains
+only bounded sync timing and generic recovery guidance; it does not infer agent
+reachability, expose task content, or imply background delivery. Shell UI
+coverage checks that both status surfaces remain discoverable at the largest
+Dynamic Type size and with reduced motion enabled.
+
 Crash recovery verification for the in-progress release-readiness slice:
 `PhoneDexEncryptedCache.quarantine()` moves an unreadable encrypted cache aside
 under a generated, non-sensitive filename while preserving the device-only
