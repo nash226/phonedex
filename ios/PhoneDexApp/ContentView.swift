@@ -117,7 +117,8 @@ struct ContentView: View {
             now: Date(),
             lastAutomaticRefreshAt: lastAutomaticRefreshAt,
             consecutiveFailures: consecutiveAutomaticRefreshFailures,
-            jitter: Double.random(in: -1...1)
+            jitter: Double.random(in: -1...1),
+            lowPowerModeEnabled: ProcessInfo.processInfo.isLowPowerModeEnabled
         ) else { return }
 
         await model.refresh()

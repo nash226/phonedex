@@ -990,6 +990,15 @@ body updates do not repeat the bounded parse on context toggles, Dynamic Type,
 or accessibility state changes; the view identity is reset per selected file
 so that cache cannot be reused for the wrong patch.
 
+Battery verification for the in-progress release-readiness slice:
+`PhoneDexRefreshPolicy` keeps explicit user refreshes immediate while limiting
+automatic refreshes to foreground scene activation. When iOS reports Low Power
+Mode, the policy extends the automatic refresh ceiling from five to fifteen
+minutes and retains bounded failure backoff and jitter. `PhoneDexRefreshPolicyTests`
+covers the Low Power Mode ceiling, failure backoff, jitter, and no-refresh
+window. This is a deterministic policy guard; battery impact on oldest
+supported devices remains a real-device/TestFlight release gate.
+
 Crash-gate verification for the in-progress release-readiness slice:
 `scripts/test-ios-crash-recovery.js` guards the native cold-start recovery
 contract: cache restore is isolated from app launch, corrupt encrypted state is
