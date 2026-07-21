@@ -355,6 +355,47 @@ final class PhoneDexLocalCacheTests: XCTestCase {
         XCTAssertEqual(withHandledResponse.handledNotificationResponses.count, 1)
     }
 
+    func testNotificationReplyStorePersistsOutboxAndHandledState() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("PhoneDexNotificationStoreTests-\(UUID().uuidString)", isDirectory: true)
+        let cache = PhoneDexEncryptedCache(
+            fileURL: root.appendingPathComponent("cache.bin"),
+            keyStore: InMemoryCacheKeyStore()
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let state = PhoneDexCachedState(
+            cursor: "cursor",
+            tasks: [task(id: "task")],
+            devices: [],
+            events: [event(taskID: "task")],
+            lastSyncAt: Date(timeIntervalSince1970: 1)
+        )
+        try cache.save(state)
+        let store = PhoneDexNotificationReplyStore(cache: cache)
+        let pending = pendingReply(id: "notification", prompt: "Continue", createdAt: Date(timeIntervalSince1970: 2))
+
+        XCTAssertTrue(store.enqueue(pending))
+        XCTAssertTrue(store.complete(pending, responseKey: "notification|action", at: Date(timeIntervalSince1970: 3)))
+        let restored = try XCTUnwrap(cache.load())
+        XCTAssertEqual(restored.cursor, state.cursor)
+        XCTAssertEqual(restored.tasks, state.tasks)
+        XCTAssertEqual(restored.events, state.events)
+        XCTAssertTrue(restored.pendingReplies.isEmpty)
+        XCTAssertEqual(restored.handledNotificationResponses["notification|action"], Date(timeIntervalSince1970: 3))
+
+        XCTAssertTrue(store.markHandled("notification|second-action", at: Date(timeIntervalSince1970: 4)))
+        XCTAssertTrue(store.remove(pending))
+    }
+
+    func testNotificationReplyStoreFailsClosedWhenCacheCannotBeWritten() {
+        let store = PhoneDexNotificationReplyStore(cache: FailingNotificationCache())
+        let pending = pendingReply(id: "notification", prompt: "Continue", createdAt: Date(timeIntervalSince1970: 2))
+
+        XCTAssertFalse(store.enqueue(pending))
+        XCTAssertFalse(store.markHandled("notification|action"))
+    }
+
     private func task(id: String) -> PhoneDexTask {
         PhoneDexTask(
             id: id,
@@ -404,4 +445,10 @@ private final class InMemoryCacheKeyStore: PhoneDexCacheKeyStoring {
     func readKey() throws -> Data? { key }
     func writeKey(_ key: Data) throws { self.key = key }
     func removeKey() throws { key = nil }
+}
+
+private struct FailingNotificationCache: PhoneDexCacheStoring {
+    func load() throws -> PhoneDexCachedState? { nil }
+    func save(_ state: PhoneDexCachedState) throws { throw PhoneDexCacheError.persistenceFailed }
+    func remove() throws {}
 }
