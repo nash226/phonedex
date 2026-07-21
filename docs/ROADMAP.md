@@ -539,6 +539,15 @@ removes the disposable Scheduled Task and verifies that status reports it as
 absent afterward. Full update, sleep/reconnect, session-file, and revoke
 validation remain real Windows release-matrix work.
 
+Verification evidence for the desktop service lifecycle slice:
+`scripts/test-macos-service-lifecycle.js` runs only on macOS and uses an
+ephemeral HOME directory to validate the user LaunchAgent install, load,
+status, start, and stop path without touching a developer's existing
+LaunchAgents. The `macos-service` Node CI job runs it on `macos-15` for Node
+18.x and 22.x, matching the Windows Scheduled Task lifecycle coverage. This
+proves disposable service plumbing only; session-file access, sleep/reconnect,
+updates, revoke behavior, and real-machine release validation remain open.
+
 Verification evidence for the completed cross-platform contract slice:
 `scripts/test-cross-platform-contract.js` runs one local hub with simulated
 Mac and Windows agent heartbeats, captures one task from each machine, reads
