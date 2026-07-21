@@ -37,6 +37,35 @@ final class PhoneDexAppModel: ObservableObject {
         }
     }
 
+    enum DeviceInventoryState: Equatable {
+        case empty
+        case unavailable
+
+        init(devices: [PhoneDexDevice], connectionState: ConnectionState) {
+            if devices.isEmpty && connectionState.blocksEmptyContent {
+                self = .unavailable
+            } else {
+                self = .empty
+            }
+        }
+
+        var title: String {
+            switch self {
+            case .empty: return "No computers connected"
+            case .unavailable: return "Computer list unavailable"
+            }
+        }
+
+        var detail: String {
+            switch self {
+            case .empty:
+                return "Pair a Mac or Windows agent to see its health, workspaces, and conversations here."
+            case .unavailable:
+                return "PhoneDex cannot verify the computer list right now. Refresh before relying on device reachability or task ownership."
+            }
+        }
+    }
+
     enum ConnectionState: Equatable {
         case idle
         case syncing

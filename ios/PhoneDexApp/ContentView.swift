@@ -2142,12 +2142,10 @@ private struct PhoneDexDevicesView: View {
                 .refreshable { await model.refresh() }
                 .overlay {
                     if model.devices.isEmpty {
-                        if model.connectionState.blocksEmptyContent {
-                            PhoneDexSyncUnavailableView(state: model.connectionState) {
-                                Task { await model.refresh() }
-                            }
-                        } else {
-                            ContentUnavailableView("No devices", systemImage: "desktopcomputer")
+                        PhoneDexDeviceInventoryEmptyView(
+                            state: .init(devices: model.devices, connectionState: model.connectionState)
+                        ) {
+                            Task { await model.refresh() }
                         }
                     }
                 }
@@ -2160,6 +2158,37 @@ private struct PhoneDexDevicesView: View {
         [device.health.title, device.platform?.capitalized, device.version.map { "v\($0)" }]
             .compactMap { $0 }
             .joined(separator: " · ")
+    }
+}
+
+private struct PhoneDexDeviceInventoryEmptyView: View {
+    let state: PhoneDexAppModel.DeviceInventoryState
+    let retry: () -> Void
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Image(systemName: state == .empty ? "desktopcomputer" : "wifi.exclamationmark")
+                .font(.system(size: 34))
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+            Text(state.title)
+                .font(.headline)
+                .multilineTextAlignment(.center)
+            Text(state.detail)
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            if state == .unavailable {
+                Button("Refresh computers", action: retry)
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityHint("Retries the authenticated hub sync")
+            }
+        }
+        .padding(28)
+        .frame(maxWidth: 420)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("devices-empty-state")
     }
 }
 

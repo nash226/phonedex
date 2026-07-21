@@ -1558,3 +1558,12 @@ unavailable state reuses the bounded sync explanation and refresh action, while
 cached conversations remain visible during degraded connectivity. Focused
 `PhoneDexDiagnosticsTests` cover both branches. This is local presentation and
 recovery guidance only; it does not add remote history or background sync.
+
+Device inventory recovery verification: the native Devices destination now
+distinguishes a healthy hub with no enrolled Mac or Windows agents from a
+device projection that cannot currently be trusted. The healthy empty state
+explains the supported pairing path, while degraded empty data provides an
+explicit refresh action and does not imply that no computers exist. The
+bounded copy is covered by `PhoneDexDiagnosticsTests`; device enrollment,
+reachability, and task ownership remain sourced from the authenticated hub
+projection.
