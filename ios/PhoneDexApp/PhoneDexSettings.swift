@@ -64,6 +64,13 @@ final class PhoneDexSettings: ObservableObject {
 
     @Published private(set) var credentialStorageError: String?
 
+    /// A failed quarantine must not make every cold launch retry the same
+    /// unreadable cache. This marker is non-sensitive presentation state; it
+    /// is cleared only after a complete hub sync rebuilds the projection.
+    var shouldBypassCacheRestore: Bool {
+        defaults.bool(forKey: Keys.bypassCacheRestore)
+    }
+
     init(
         defaults: UserDefaults = .standard,
         tokenStore: any PhoneDexTokenStoring = PhoneDexKeychainTokenStore()
@@ -178,12 +185,21 @@ final class PhoneDexSettings: ObservableObject {
         }
     }
 
+    func markCacheRestoreBypassNeeded() {
+        defaults.set(true, forKey: Keys.bypassCacheRestore)
+    }
+
+    func clearCacheRestoreBypass() {
+        defaults.removeObject(forKey: Keys.bypassCacheRestore)
+    }
+
     private enum Keys {
         static let bridgeURL = "phonedex.bridgeURL"
         static let token = "phonedex.token"
         static let requireApprovalAuthentication = "phonedex.requireApprovalAuthentication"
         static let notificationPrivacy = "phonedex.notificationPrivacy"
         static let mutedNotificationWorkspaces = "phonedex.mutedNotificationWorkspaces"
+        static let bypassCacheRestore = "phonedex.bypassCacheRestore"
     }
 
     func isNotificationMuted(for workspace: String) -> Bool {

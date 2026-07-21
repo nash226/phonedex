@@ -267,6 +267,7 @@ final class PhoneDexAppModel: ObservableObject {
                 // leave a one-time cache recovery warning visible after the
                 // user has successfully recovered from the hub.
                 cacheRecoveryMessage = nil
+                settings.clearCacheRestoreBypass()
                 try Task.checkCancellation()
                 guard !refreshCoordinator.shouldCancel(requestID) else { return }
                 await flushPendingReplies()
@@ -954,6 +955,11 @@ final class PhoneDexAppModel: ObservableObject {
     }
 
     private func restoreCachedState() {
+        if settings.shouldBypassCacheRestore {
+            cacheRecoveryMessage = "PhoneDex is starting without its previous local cache. Fresh data will be fetched when the hub is reachable."
+            return
+        }
+
         do {
             guard let cached = try cache.load() else { return }
             syncTasks = cached.tasks
@@ -998,7 +1004,14 @@ final class PhoneDexAppModel: ObservableObject {
             // Move a corrupt file aside so notification actions and the next
             // launch can start from a clean encrypted state instead of
             // retrying the same failure forever.
-            try? cache.quarantine()
+            do {
+                try cache.quarantine()
+            } catch {
+                // If the file cannot be moved aside, remember that this
+                // projection is untrusted so a cold relaunch does not retry
+                // the same failing decode indefinitely.
+                settings.markCacheRestoreBypassNeeded()
+            }
             cacheRecoveryMessage = "PhoneDex could not restore its local cache. Fresh data will be fetched when the hub is reachable."
         }
     }
