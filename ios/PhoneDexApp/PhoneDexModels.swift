@@ -786,6 +786,21 @@ struct PhoneDexEvent: Codable, Equatable, Identifiable {
     }
 }
 
+enum PhoneDexLiveActivityPresentation {
+    static let collapsedLimit = 1
+
+    static func visibleEvents(_ events: [PhoneDexEvent], expanded: Bool) -> [PhoneDexEvent] {
+        expanded ? events : Array(events.suffix(collapsedLimit))
+    }
+
+    static func disclosureTitle(eventCount: Int, expanded: Bool) -> String? {
+        guard eventCount > collapsedLimit else { return nil }
+        if expanded { return "Show latest activity only" }
+        let olderCount = eventCount - collapsedLimit
+        return "Show \(olderCount) older event\(olderCount == 1 ? "" : "s")"
+    }
+}
+
 struct PhoneDexProject: Identifiable, Equatable {
     let id: String
     let name: String

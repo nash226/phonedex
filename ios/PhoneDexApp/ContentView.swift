@@ -707,6 +707,7 @@ struct PhoneDexTaskDetailView: View {
     @ObservedObject var model: PhoneDexAppModel
     @State private var draft: String
     @State private var showNewActivity = false
+    @State private var showingAllLiveActivity = false
     @State private var draftSaveTask: Task<Void, Never>?
     @State private var hasRestoredReadingPosition = false
     @State private var showCancelConfirmation = false
@@ -1247,8 +1248,9 @@ struct PhoneDexTaskDetailView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } else {
+                let visibleEvents = PhoneDexLiveActivityPresentation.visibleEvents(events, expanded: showingAllLiveActivity)
                 VStack(alignment: .leading, spacing: 0) {
-                    ForEach(events) { event in
+                    ForEach(visibleEvents) { event in
                         HStack(alignment: .top, spacing: 10) {
                             Image(systemName: event.symbol)
                                 .foregroundStyle(event.type == "task_failed" ? .red : .secondary)
@@ -1273,6 +1275,25 @@ struct PhoneDexTaskDetailView: View {
                         .padding(.vertical, 8)
                         .accessibilityElement(children: .combine)
                     }
+                }
+                if let disclosureTitle = PhoneDexLiveActivityPresentation.disclosureTitle(
+                    eventCount: events.count,
+                    expanded: showingAllLiveActivity
+                ) {
+                    Button {
+                        withAnimation(.snappy) {
+                            showingAllLiveActivity.toggle()
+                        }
+                    } label: {
+                        Label(
+                            disclosureTitle,
+                            systemImage: showingAllLiveActivity ? "chevron.up" : "chevron.down"
+                        )
+                        .font(.caption.weight(.semibold))
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityIdentifier("toggle-live-activity")
+                    .accessibilityHint(showingAllLiveActivity ? "Collapses older lifecycle events" : "Reveals older lifecycle events")
                 }
             }
         }
