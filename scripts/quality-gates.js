@@ -4,7 +4,8 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
-const { DEFAULT_MAX_AGE_DAYS, evaluateQualityGates } = require("../lib/phonedex-quality-gates");
+const childProcess = require("node:child_process");
+const { DEFAULT_MAX_AGE_DAYS, SOURCE_REVISION_PATTERN, evaluateQualityGates } = require("../lib/phonedex-quality-gates");
 
 const flags = parseFlags(process.argv.slice(2));
 if (!flags.input) {
@@ -17,7 +18,11 @@ if (!flags.input) {
     if (Number.isNaN(now.getTime())) throw new Error("--now must be a valid ISO-8601 date.");
     const maxAgeDays = flags.maxagedays === undefined ? DEFAULT_MAX_AGE_DAYS : Number(flags.maxagedays);
     if (!Number.isFinite(maxAgeDays) || maxAgeDays < 0) throw new Error("--max-age-days must be a non-negative number.");
-    const report = evaluateQualityGates(input, { now, maxAgeDays });
+    const sourceRevision = resolveSourceRevision();
+    if (input.sourceRevision && input.sourceRevision !== sourceRevision) {
+      throw new Error("quality-gate evidence source revision does not match the checked-out revision.");
+    }
+    const report = evaluateQualityGates({ ...input, sourceRevision }, { now, maxAgeDays });
     const serialized = `${JSON.stringify(report, null, 2)}\n`;
     process.stdout.write(serialized);
     if (flags.output) {
@@ -30,6 +35,15 @@ if (!flags.input) {
     console.error(`Quality-gate validation failed: ${error.message}`);
     process.exitCode = 2;
   }
+}
+
+function resolveSourceRevision() {
+  const candidate = process.env.GITHUB_SHA || childProcess.execFileSync("git", ["rev-parse", "HEAD"], {
+    cwd: path.resolve(__dirname, ".."),
+    encoding: "utf8"
+  }).trim();
+  if (!SOURCE_REVISION_PATTERN.test(candidate)) throw new Error("unable to resolve a full checked-out source revision.");
+  return candidate.toLowerCase();
 }
 
 function parseFlags(args) {
