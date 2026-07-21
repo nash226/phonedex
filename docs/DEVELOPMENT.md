@@ -61,7 +61,10 @@ and requires no Apple signing credentials for simulator tests.
 - macOS hub and agents use the shell scripts and LaunchAgent integration in
   this repository. Foreground reply submission is an explicitly limited
   macOS fallback and needs Accessibility permission; it is not a cross-platform
-  control contract.
+  control contract. GitHub Actions validates the disposable LaunchAgent
+  install, load, status, start, and stop lifecycle on `macos-15` with Node 18.x
+  and 22.x; this does not replace real-machine session-file, sleep/reconnect,
+  or Accessibility validation.
 - Windows agents use the PowerShell Scheduled Task integration. Keep the
   service under the same user that can read the local Codex session files, and
   run `npm run agent:self-test` after enrollment. `npm run test:windows-adapter`
