@@ -16,6 +16,7 @@ const {
   negotiateProtocolVersion,
   normalizeApprovalRequest,
   normalizeCaptureSources,
+  normalizeEventData,
   normalizeTaskQuestion,
   protocolRecord
 } = require("../lib/phonedex-protocol");
@@ -763,7 +764,7 @@ function appendTaskEvent(cfg, task, event) {
       ? event.sequence
       : existing.length + 1,
     type: event.type,
-    data: event.data && typeof event.data === "object" ? event.data : {}
+    data: normalizeEventData(event.data)
   });
   return durableStore(cfg.dataDir).appendEvent(record);
 }
@@ -5861,7 +5862,13 @@ function sessionActivity(filePath, sessionId, cwd, record, payload, text, sequen
       createdAt: record.timestamp || new Date().toISOString(),
       type,
       data: {
-        summary: normalizeNotificationText(text || (type === "task_started" ? "Codex started this task." : "Codex reported progress."), 1000)
+        summary: normalizeNotificationText(text || (type === "task_started" ? "Codex started this task." : "Codex reported progress."), 1000),
+        ...(payload.progressPercent !== undefined || payload.progress_percent !== undefined
+          ? { progressPercent: payload.progressPercent ?? payload.progress_percent }
+          : {}),
+        ...(payload.progressPhase !== undefined || payload.progress_phase !== undefined
+          ? { progressPhase: payload.progressPhase ?? payload.progress_phase }
+          : {})
       }
     }
   };

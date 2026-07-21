@@ -724,6 +724,28 @@ struct PhoneDexEvent: Codable, Equatable, Identifiable {
         data["summary"]
     }
 
+    /// Progress is optional metadata from a supported agent. A missing value
+    /// remains indeterminate rather than implying that the task is stalled.
+    var progressPercent: Int? {
+        guard type == "progress", let raw = data["progressPercent"],
+              let value = Int(raw), (0...100).contains(value) else { return nil }
+        return value
+    }
+
+    var progressPhase: String? {
+        guard type == "progress" else { return nil }
+        let phase = data["progressPhase"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return phase.isEmpty ? nil : phase
+    }
+
+    var progressAccessibilityValue: String? {
+        guard type == "progress" else { return nil }
+        if let progressPercent {
+            return "\(progressPercent) percent complete"
+        }
+        return "Progress is continuing"
+    }
+
     var displaySummary: String {
         let normalizedSummary = summary?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return normalizedSummary.isEmpty ? displayTitle : normalizedSummary

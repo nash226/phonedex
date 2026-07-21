@@ -11,6 +11,7 @@ const {
   defaultCapabilities,
   negotiateCapabilities,
   negotiateProtocolVersion,
+  normalizeEventData,
   protocolRecord,
   validateProtocolRecord
 } = require("../lib/phonedex-protocol");
@@ -44,6 +45,30 @@ assert.equal(task.origin.deviceId, "macbook-air");
 assert.equal(task.question.choices[0].id, "tests");
 assert.equal(task.evidence.changedFiles[0].sourceRef, "Sources/App.swift#L1-L8");
 assert.equal(task.evidence.validations[0].status, "passed");
+
+const progressEvent = protocolRecord("event", {
+  id: "event_progress",
+  taskId: task.id,
+  createdAt: now,
+  sequence: 2,
+  type: "progress",
+  data: normalizeEventData({
+    summary: "Running checks",
+    progressPercent: 41.6,
+    progressPhase: "  Validation  "
+  })
+});
+assert.equal(validateProtocolRecord("event", progressEvent).valid, true);
+assert.deepEqual(progressEvent.data, {
+  summary: "Running checks",
+  progressPercent: "42",
+  progressPhase: "Validation"
+});
+assert.throws(() => normalizeEventData({ progressPercent: 101 }), /between 0 and 100/);
+assert.equal(validateProtocolRecord("event", {
+  ...progressEvent,
+  data: { progressPercent: "not-a-number" }
+}).valid, false);
 
 const approvalTask = addTaskProtocolFields({
   id: "task_approval",
