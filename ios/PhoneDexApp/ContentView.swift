@@ -2363,7 +2363,11 @@ private struct PhoneDexSettingsView: View {
             try await PhoneDexNotificationScheduler.scheduleTaskNotification(
                 task,
                 bridgeURL: bridgeURL,
-                privacy: settings.notificationPrivacy
+                privacy: settings.notificationPrivacy,
+                badgeCount: PhoneDexNotificationScheduler.needsYouBadgeCount(
+                    tasks: model.tasks,
+                    readTaskIDs: Set(model.readAt.keys)
+                )
             )
             notificationStatus = "Notification scheduled."
         } catch {

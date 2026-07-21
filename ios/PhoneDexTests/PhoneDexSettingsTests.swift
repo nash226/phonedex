@@ -306,6 +306,45 @@ final class PhoneDexSettingsTests: XCTestCase {
         )
     }
 
+    func testNeedsYouBadgeCountsUnreadActionableTasksOnly() {
+        let makeTask: (String, String) -> PhoneDexTask = { title, status in
+            PhoneDexTask(
+                id: title,
+                at: nil,
+                source: "stop-hook",
+                title: title,
+                text: "",
+                cwd: nil,
+                workspaceName: "PhoneDex",
+                machineName: "MacBook",
+                sessionId: nil,
+                status: status,
+                branch: nil,
+                repository: nil
+            )
+        }
+        let tasks = [
+            makeTask("needs input", "needs_input"),
+            makeTask("approval", "awaiting_approval"),
+            makeTask("review", "needs_review"),
+            makeTask("failed", "failed"),
+            makeTask("running", "running"),
+            makeTask("completed", "completed")
+        ]
+
+        XCTAssertEqual(
+            PhoneDexNotificationScheduler.needsYouBadgeCount(tasks: tasks),
+            4
+        )
+        XCTAssertEqual(
+            PhoneDexNotificationScheduler.needsYouBadgeCount(
+                tasks: tasks,
+                readTaskIDs: [tasks[0].id, tasks[3].id]
+            ),
+            2
+        )
+    }
+
     func testNotificationCopyHasStableEnglishFallbacks() {
         XCTAssertEqual(PhoneDexNotificationCopy.previewTitle, "Codex done: PR update")
         XCTAssertEqual(PhoneDexNotificationCopy.previewSubtitle, "PhoneDex • MacBook Air")

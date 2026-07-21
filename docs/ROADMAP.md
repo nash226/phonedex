@@ -745,6 +745,15 @@ cover the safe default, persistence, and content-free presentation. This is
 local notification privacy only; remote APNs payload policy and real-device
 lock-screen validation remain human-gated release work.
 
+Local notification badge evidence: `PhoneDexNotificationScheduler` derives a
+bounded badge count from unread native conversations in the Needs You scope and
+sets it on local task alerts. Read state is the only suppression input, and the
+badge contains no task text, paths, credentials, or remote delivery state.
+`PhoneDexSettingsTests` covers each actionable lifecycle status, read-task
+suppression, and exclusion of running and completed tasks. Remote APNs badge
+semantics and real-device notification validation remain human-gated release
+work.
+
 ## M7: Mobile Review Experience
 
 Status: **Current**
