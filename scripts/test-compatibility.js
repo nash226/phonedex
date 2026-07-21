@@ -62,6 +62,8 @@ function spawnHub(dataDir, port) {
       WATCH_BRIDGE_PORT: String(port),
       WATCH_BRIDGE_PUBLIC_URL: hubUrl,
       WATCH_BRIDGE_TOKEN: "hub-token",
+      PHONEDEX_ENABLE_LEGACY_QUERY_TOKENS: "true",
+      PHONEDEX_ENABLE_LEGACY_BODY_TOKENS: "true",
       WATCH_BRIDGE_PROVIDER: "pushcut",
       WATCH_BRIDGE_AUTO_RESUME: "false",
       PHONEDEX_ADAPTER_MODE: "cli",

@@ -363,12 +363,13 @@ task projection from the durable store rather than treating JSONL as a second
 source of truth. A legacy ingested task receives a new hub task id while its
 caller-provided id is retained as `originTaskId` for reply routing.
 
-Legacy reply forms may authenticate with a body or query token and may omit the
-new command envelope fields; the adapter supplies command and idempotency
+Legacy reply forms may authenticate with a body or query token only when the
+matching migration compatibility flag is explicitly enabled. They may omit
+the new command envelope fields; the adapter supplies command and idempotency
 identities, writes the legacy `replies.jsonl` mirror, and returns the same
 versioned delivery receipt used by native clients. New clients should use the
 bearer-authenticated `/sync` and `/reply` contracts and must not put tokens in
-URLs.
+URLs or ordinary request bodies.
 
 The legacy Pushcut notification provider uses a ten-minute, single-use opaque
 action grant for its quick replies. The hub stores only the grant hash and

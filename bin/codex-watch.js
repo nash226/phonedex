@@ -2,6 +2,7 @@
 
 const fs = require("node:fs");
 const http = require("node:http");
+const https = require("node:https");
 const os = require("node:os");
 const path = require("node:path");
 const crypto = require("node:crypto");
@@ -48,6 +49,7 @@ const {
 const {
   createPhoneDexLifecycleManager
 } = require("../lib/phonedex-lifecycle");
+const { createTransportConfig } = require("../lib/phonedex-transport");
 const {
   DELETE_CONFIRMATION,
   RETENTION_CONFIRMATION,
@@ -254,11 +256,33 @@ async function main() {
 
 function config() {
   const env = process.env;
+  const productionDeployment = parseBoolean(env.PHONEDEX_PRODUCTION, false) || env.NODE_ENV === "production";
+  const legacyQueryTokenCompatibility = parseBoolean(
+    env.PHONEDEX_ENABLE_LEGACY_QUERY_TOKENS,
+    false
+  );
+  const legacyBodyTokenCompatibility = parseBoolean(
+    env.PHONEDEX_ENABLE_LEGACY_BODY_TOKENS,
+    false
+  );
+  if (productionDeployment && (legacyQueryTokenCompatibility || legacyBodyTokenCompatibility)) {
+    throw new Error(
+      "Legacy query/form-body token compatibility cannot be enabled in a production deployment."
+    );
+  }
   const port = Number(env.WATCH_BRIDGE_PORT || "8765");
   const host = env.WATCH_BRIDGE_HOST || "127.0.0.1";
   const publicUrl = trimTrailingSlash(
     env.WATCH_BRIDGE_PUBLIC_URL || `http://${host}:${port}`
   );
+  const transport = createTransportConfig({
+    host,
+    port,
+    publicUrl,
+    requireTls: parseBoolean(env.PHONEDEX_REQUIRE_TLS, false),
+    certificateFile: env.PHONEDEX_TLS_CERT_FILE || "",
+    keyFile: env.PHONEDEX_TLS_KEY_FILE || ""
+  });
   const machineName = env.PHONEDEX_MACHINE_NAME || env.WATCHDEX_MACHINE_NAME || os.hostname();
   const deviceId = env.PHONEDEX_DEVICE_ID || env.WATCHDEX_DEVICE_ID || os.hostname();
   const provider = env.WATCH_BRIDGE_PROVIDER || "pushcut";
@@ -284,6 +308,9 @@ function config() {
     publicUrl,
     replyUrl: `${publicUrl}/reply`,
     token: env.WATCH_BRIDGE_TOKEN || "",
+    productionDeployment,
+    legacyQueryTokenCompatibility,
+    legacyBodyTokenCompatibility,
     hubUrl,
     hubToken: env.PHONEDEX_HUB_TOKEN || env.WATCH_BRIDGE_TOKEN || "",
     agentMode: parseBoolean(env.PHONEDEX_AGENT_MODE, false),
@@ -313,6 +340,7 @@ function config() {
     ),
     host,
     port,
+    transport,
     dataDir: env.WATCH_BRIDGE_DATA_DIR || DATA_DIR_DEFAULT,
     agentBundleDir: path.resolve(ROOT, env.PHONEDEX_AGENT_BUNDLE_DIR || AGENT_BOOTSTRAP_DIR_DEFAULT),
     pushcutSound: env.PUSHCUT_SOUND || "jobDone",
@@ -1013,7 +1041,9 @@ function isScopedBearerAuthorized(req, cfg, scope) {
 
 function isRequestAuthorized(req, requestUrl, cfg, scope) {
   if (!cfg.token) return true;
-  if (requestUrl.searchParams.get("token") === cfg.token) return true;
+  if (cfg.legacyQueryTokenCompatibility && requestUrl.searchParams.get("token") === cfg.token) {
+    return true;
+  }
 
   const authHeader = req.headers.authorization || "";
   const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
@@ -1022,6 +1052,15 @@ function isRequestAuthorized(req, requestUrl, cfg, scope) {
 
   const identity = findIdentityForRequest(req, cfg);
   return Boolean(identity && (!scope || hasScope(identity, scope)));
+}
+
+function isLegacyBodyTokenAuthorized(bodyFields, cfg) {
+  return Boolean(
+    cfg.token &&
+    cfg.legacyBodyTokenCompatibility &&
+    bodyFields &&
+    bodyFields.token === cfg.token
+  );
 }
 
 function findIdentityForRequest(req, cfg) {
@@ -1080,7 +1119,7 @@ async function startServer(providedCfg) {
     console.warn("Warning: WATCH_BRIDGE_TOKEN is empty. /reply is not protected.");
   }
 
-  const server = http.createServer(async (req, res) => {
+  const requestHandler = async (req, res) => {
     const requestStartedAt = process.hrtime.bigint();
     const correlationId = correlationIdFromRequest(req.headers["x-phonedex-correlation-id"]);
     req.phonedexCorrelationId = correlationId;
@@ -1091,7 +1130,7 @@ async function startServer(providedCfg) {
       ...rest
     );
     try {
-      const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+      const requestUrl = new URL(req.url, `${cfg.transport.protocol}://${req.headers.host || "localhost"}`);
 
       if (requestUrl.pathname === "/health") {
         return sendJson(res, 200, {
@@ -1101,6 +1140,7 @@ async function startServer(providedCfg) {
           deviceId: cfg.deviceId,
           publicUrl: safeSupportURL(cfg.publicUrl),
           replyUrl: `${safeSupportURL(cfg.publicUrl)}/reply`,
+          transport: { protocol: cfg.transport.protocol, tls: cfg.transport.tls },
           role: cfg.agentMode ? "agent" : "hub",
           hubUrl: safeSupportURL(cfg.hubUrl),
           protocolVersion: 1,
@@ -1316,10 +1356,17 @@ async function startServer(providedCfg) {
         errorClass: status >= 500 ? "server_error" : status >= 400 ? `http_${status}` : ""
       });
     }
-  });
+  };
+
+  const server = cfg.transport.tls
+    ? https.createServer({
+        cert: fs.readFileSync(cfg.transport.certificateFile),
+        key: fs.readFileSync(cfg.transport.keyFile)
+      }, requestHandler)
+    : http.createServer(requestHandler);
 
   await new Promise((resolve) => server.listen(cfg.port, cfg.host, resolve));
-  console.log(`PhoneDex listening on http://${cfg.host}:${cfg.port}`);
+  console.log(`PhoneDex listening on ${cfg.transport.protocol}://${cfg.host}:${cfg.port}`);
   console.log(`Phone reply callback public URL should be: ${safeSupportURL(cfg.publicUrl)}/reply`);
   if (cfg.hubUrl) {
     console.log(`Forwarding local Codex completions to PhoneDex hub: ${safeSupportURL(cfg.hubUrl)}`);
@@ -1568,13 +1615,14 @@ async function startService(args) {
 
 async function handleTaskIngestRequest(req, res, requestUrl, cfg) {
   const body = await readHttpBody(req);
+  const bodyFields = parseBodyFields(body, req.headers["content-type"] || "");
   const fields = {
     ...Object.fromEntries(requestUrl.searchParams.entries()),
-    ...parseBodyFields(body, req.headers["content-type"] || "")
+    ...bodyFields
   };
-  const token = fields.token || "";
 
-  if (cfg.token && token !== cfg.token && !isRequestAuthorized(req, requestUrl, cfg, "tasks.ingest")) {
+  if (cfg.token && !isLegacyBodyTokenAuthorized(bodyFields, cfg) &&
+      !isRequestAuthorized(req, requestUrl, cfg, "tasks.ingest")) {
     return sendJson(res, 401, { ok: false, error: "Invalid token" });
   }
 
@@ -1713,13 +1761,14 @@ async function handleDeviceHeartbeatRequest(req, res, requestUrl, cfg) {
   }
 
   const body = await readHttpBody(req);
+  const bodyFields = parseBodyFields(body, req.headers["content-type"] || "");
   const fields = {
     ...Object.fromEntries(requestUrl.searchParams.entries()),
-    ...parseBodyFields(body, req.headers["content-type"] || "")
+    ...bodyFields
   };
-  const token = fields.token || "";
 
-  if (cfg.token && token !== cfg.token && !isRequestAuthorized(req, requestUrl, cfg, "devices.heartbeat")) {
+  if (cfg.token && !isLegacyBodyTokenAuthorized(bodyFields, cfg) &&
+      !isRequestAuthorized(req, requestUrl, cfg, "devices.heartbeat")) {
     return sendJson(res, 401, { ok: false, error: "Invalid token" });
   }
 
@@ -1731,13 +1780,14 @@ async function handleDeviceHeartbeatRequest(req, res, requestUrl, cfg) {
 
 async function handleAgentInstallReportRequest(req, res, requestUrl, cfg) {
   const body = await readHttpBody(req);
+  const bodyFields = parseBodyFields(body, req.headers["content-type"] || "");
   const fields = {
     ...Object.fromEntries(requestUrl.searchParams.entries()),
-    ...parseBodyFields(body, req.headers["content-type"] || "")
+    ...bodyFields
   };
-  const token = fields.token || "";
 
-  if (cfg.token && token !== cfg.token && !isRequestAuthorized(req, requestUrl, cfg, "devices.heartbeat")) {
+  if (cfg.token && !isLegacyBodyTokenAuthorized(bodyFields, cfg) &&
+      !isRequestAuthorized(req, requestUrl, cfg, "devices.heartbeat")) {
     return sendJson(res, 401, { ok: false, error: "Invalid token" });
   }
 
@@ -2142,7 +2192,7 @@ function readAgentBootstrapSetup(cfg, options = {}) {
     const platform = target.platform || guessAgentPlatform(target);
     const downloadUrl = options.inviteCode
       ? agentBootstrapInviteDownloadUrl(hubUrl, options.inviteCode, target.fileName)
-      : agentBootstrapDownloadUrl(hubUrl, target.fileName, cfg.token);
+      : agentBootstrapDownloadUrl(hubUrl, target.fileName, cfg);
     return {
       deviceId: target.deviceId || "",
       machineName: target.machineName || target.deviceId || "",
@@ -2160,7 +2210,7 @@ function readAgentBootstrapSetup(cfg, options = {}) {
     hubUrl: safeSupportURL(hubUrl),
     setupUrl: options.inviteCode
       ? `${hubUrl}/agent-bootstrap/invite/${encodeURIComponent(options.inviteCode)}`
-      : `${hubUrl}/agent-bootstrap/setup?token=${encodeURIComponent(cfg.token)}`,
+      : legacyAgentBootstrapSetupUrl(hubUrl, cfg),
     expectedDevices: manifest.expectedDevices || "",
     targets
   };
@@ -2188,8 +2238,18 @@ function latestAgentInstallReportsByDevice(dataDir) {
   return byDevice;
 }
 
-function agentBootstrapDownloadUrl(hubUrl, fileName, token) {
-  return `${hubUrl}/agent-bootstrap/${encodeURIComponent(fileName)}?token=${encodeURIComponent(token)}`;
+function agentBootstrapDownloadUrl(hubUrl, fileName, cfg) {
+  const baseUrl = `${hubUrl}/agent-bootstrap/${encodeURIComponent(fileName)}`;
+  return cfg.legacyQueryTokenCompatibility
+    ? `${baseUrl}?token=${encodeURIComponent(cfg.token)}`
+    : baseUrl;
+}
+
+function legacyAgentBootstrapSetupUrl(hubUrl, cfg) {
+  const baseUrl = `${hubUrl}/agent-bootstrap/setup`;
+  return cfg.legacyQueryTokenCompatibility
+    ? `${baseUrl}?token=${encodeURIComponent(cfg.token)}`
+    : baseUrl;
 }
 
 function agentBootstrapInviteDownloadUrl(hubUrl, inviteCode, fileName) {
@@ -2214,7 +2274,7 @@ function agentBootstrapInstallCommands(target, downloadUrl) {
 
 async function handleTaskPageRequest(req, res, requestUrl, cfg) {
   const token = requestUrl.searchParams.get("token") || "";
-  if (cfg.token && token !== cfg.token) {
+  if (cfg.token && (!cfg.legacyQueryTokenCompatibility || token !== cfg.token)) {
     return sendHtml(res, 401, renderMessagePage("PhoneDex", "Invalid token."));
   }
 
@@ -2231,9 +2291,10 @@ async function handleTaskPageRequest(req, res, requestUrl, cfg) {
 
 async function handleReplyRequest(req, res, requestUrl, cfg) {
   const body = await readHttpBody(req);
+  const bodyFields = parseBodyFields(body, req.headers["content-type"] || "");
   const fields = {
     ...Object.fromEntries(requestUrl.searchParams.entries()),
-    ...parseBodyFields(body, req.headers["content-type"] || "")
+    ...bodyFields
   };
 
   let notificationAction = null;
@@ -2273,7 +2334,9 @@ async function handleReplyRequest(req, res, requestUrl, cfg) {
     fields.action = "notification";
   }
 
-  if (cfg.token && !notificationAction && fields.token !== cfg.token && !isRequestAuthorized(req, requestUrl, cfg, "tasks.reply")) {
+  if (cfg.token && !notificationAction &&
+      !isLegacyBodyTokenAuthorized(bodyFields, cfg) &&
+      !isRequestAuthorized(req, requestUrl, cfg, "tasks.reply")) {
     return sendJson(res, 401, { ok: false, error: "Invalid token" });
   }
 
@@ -5069,7 +5132,7 @@ function printAgentBundle(bundle) {
   console.log(`PhoneDex agent bootstrap bundle written to ${safe.outputDir}`);
   console.log(`Manifest: ${safe.manifestPath}`);
   console.log(`Readme: ${safe.readmePath}`);
-  console.log(`Setup page: ${safe.hubUrl}/agent-bootstrap/setup?token=HUB_TOKEN`);
+  console.log(`Setup page: ${safe.hubUrl}/agent-bootstrap/setup (use a short-lived agent invite)`);
   if (safe.targets.length === 0) {
     console.log("No missing expected agents need bootstrap scripts right now.");
     return;
@@ -5077,7 +5140,7 @@ function printAgentBundle(bundle) {
 
   for (const target of safe.targets) {
     console.log(`- ${target.machineName} [${target.deviceId}] ${target.platform}: ${target.filePath}`);
-    console.log(`  Hub download: ${safe.hubUrl}/agent-bootstrap/${target.fileName}?token=HUB_TOKEN`);
+    console.log(`  Hub download: ${safe.hubUrl}/agent-bootstrap/${target.fileName} (use a short-lived agent invite)`);
   }
 }
 
@@ -5090,8 +5153,8 @@ function renderAgentBundleReadme(manifest) {
     `Expected devices: ${manifest.expectedDevices || "(none)"}`,
     "",
     "Download or copy each script to its matching target device and run it there.",
-    "The hub serves these private files from /agent-bootstrap/<file>?token=HUB_TOKEN.",
-    `Setup page: ${safeSupportURL(manifest.hubUrl)}/agent-bootstrap/setup?token=HUB_TOKEN`,
+    "The hub serves these private files through short-lived agent invites.",
+    `Setup page: ${safeSupportURL(manifest.hubUrl)}/agent-bootstrap/setup (use a short-lived agent invite)`,
     "Each script contains local tokens from this hub. Treat the files as private.",
     ""
   ];
@@ -5099,7 +5162,7 @@ function renderAgentBundleReadme(manifest) {
   for (const target of manifest.targets) {
     lines.push(`${target.machineName} [${target.deviceId}]`);
     lines.push(`  Script: ${target.fileName}`);
-    lines.push(`  Hub download: ${safeSupportURL(manifest.hubUrl)}/agent-bootstrap/${target.fileName}?token=HUB_TOKEN`);
+    lines.push(`  Hub download: ${safeSupportURL(manifest.hubUrl)}/agent-bootstrap/${target.fileName} (use a short-lived agent invite)`);
     lines.push(
       target.platform === "windows"
         ? `  Run on Windows PowerShell: powershell -ExecutionPolicy Bypass -File .\\${target.fileName}`

@@ -15,4 +15,23 @@ final class PhoneDexBrowserTests: XCTestCase {
 
         XCTAssertNil(model.shareURL)
     }
+
+    func testLoadFailureExposesSafeRetryState() {
+        let model = PhoneDexBrowserModel()
+
+        model.recordLoadFailure()
+
+        XCTAssertEqual(model.loadErrorMessage, "The page could not be loaded. Check your connection and try again.")
+        XCTAssertFalse(model.isLoading)
+    }
+
+    func testSuccessfulAddressClearsPreviousLoadFailure() {
+        let model = PhoneDexBrowserModel()
+        model.recordLoadFailure()
+
+        model.address = "https://example.com"
+        model.loadAddress()
+
+        XCTAssertNil(model.loadErrorMessage)
+    }
 }

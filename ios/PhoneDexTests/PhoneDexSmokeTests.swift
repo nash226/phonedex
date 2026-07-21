@@ -2,6 +2,100 @@ import XCTest
 @testable import PhoneDex
 
 final class PhoneDexSmokeTests: XCTestCase {
+    func testTaskDeepLinkAcceptsBoundedOpaqueTaskIDWithoutQueryData() throws {
+        let url = try XCTUnwrap(URL(string: "phonedex://task/task_123-abc"))
+
+        XCTAssertEqual(PhoneDexDeepLinkRoute(url: url), .task("task_123-abc"))
+    }
+
+    func testTaskDeepLinkRejectsQueryDataAndUnsafeOrUnboundedIDs() throws {
+        let queryURL = try XCTUnwrap(URL(string: "phonedex://task/task_123?token=secret"))
+        let unsafeURL = try XCTUnwrap(URL(string: "phonedex://task/task%2F123"))
+        let oversizedID = String(repeating: "a", count: 129)
+        let oversizedURL = try XCTUnwrap(URL(string: "phonedex://task/\(oversizedID)"))
+
+        XCTAssertNil(PhoneDexDeepLinkRoute(url: queryURL))
+        XCTAssertNil(PhoneDexDeepLinkRoute(url: unsafeURL))
+        XCTAssertNil(PhoneDexDeepLinkRoute(url: oversizedURL))
+    }
+
+    func testTaskDeepLinkPreservesSupportedUtilityRoutes() throws {
+        XCTAssertEqual(PhoneDexDeepLinkRoute(url: URL(string: "phonedex://preview")!), .preview)
+        XCTAssertEqual(PhoneDexDeepLinkRoute(url: URL(string: "phonedex://notify-latest")!), .notifyLatest)
+        XCTAssertEqual(PhoneDexDeepLinkRoute(url: URL(string: "phonedex://status")!), .status)
+    }
+
+    func testPrivacyShieldCoversInactiveAndBackgroundSnapshots() {
+        XCTAssertFalse(PhoneDexPrivacyShieldPolicy.shouldShield(.active))
+        XCTAssertTrue(PhoneDexPrivacyShieldPolicy.shouldShield(.inactive))
+        XCTAssertTrue(PhoneDexPrivacyShieldPolicy.shouldShield(.background))
+    }
+
+    func testPrimaryTabRestoresKnownValuesAndDefaultsSafely() {
+        XCTAssertEqual(PhoneDexPrimaryTab.restored(from: "settings"), .settings)
+        XCTAssertEqual(PhoneDexPrimaryTab.restored(from: "projects"), .projects)
+        XCTAssertEqual(PhoneDexPrimaryTab.restored(from: nil), .chats)
+        XCTAssertEqual(PhoneDexPrimaryTab.restored(from: "future-tab"), .chats)
+    }
+
+    func testPrimaryTabStorageKeyIsStableAndContainsNoTaskContext() {
+        XCTAssertEqual(PhoneDexPrimaryTab.storageKey, "phonedex.primaryTab")
+        XCTAssertFalse(PhoneDexPrimaryTab.storageKey.contains("task"))
+        XCTAssertEqual(PhoneDexPrimaryTab.allCases.count, 5)
+    }
+
+    func testDuplicateNotificationResultSurvivesPersistenceAsNeutralOutcome() {
+        let defaults = UserDefaults.standard
+        let keys = [
+            "phonedex.notificationReply.state",
+            "phonedex.notificationReply.message",
+            "phonedex.notificationReply.updatedAt"
+        ]
+        defer { keys.forEach(defaults.removeObject(forKey:)) }
+
+        NotificationReplyResult.record(.duplicate("This notification action was already handled."))
+
+        XCTAssertEqual(
+            NotificationReplyResult.latest(now: Date()),
+            .duplicate("This notification action was already handled.")
+        )
+    }
+
+    func testNotificationReplyResultExpiresAfterBoundedFreshnessWindow() {
+        let defaults = UserDefaults.standard
+        let keys = [
+            "phonedex.notificationReply.state",
+            "phonedex.notificationReply.message",
+            "phonedex.notificationReply.updatedAt"
+        ]
+        defer { keys.forEach(defaults.removeObject(forKey:)) }
+
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        defaults.set("sent", forKey: "phonedex.notificationReply.state")
+        defaults.set("Reply sent", forKey: "phonedex.notificationReply.message")
+        defaults.set(now.timeIntervalSince1970 - NotificationReplyResult.maxAge - 1, forKey: "phonedex.notificationReply.updatedAt")
+
+        XCTAssertNil(NotificationReplyResult.latest(now: now))
+    }
+
+    func testNotificationReplyResultRejectsFutureOrMalformedTimestamps() {
+        let defaults = UserDefaults.standard
+        let keys = [
+            "phonedex.notificationReply.state",
+            "phonedex.notificationReply.message",
+            "phonedex.notificationReply.updatedAt"
+        ]
+        defer { keys.forEach(defaults.removeObject(forKey:)) }
+
+        defaults.set("failed", forKey: "phonedex.notificationReply.state")
+        defaults.set("Try again", forKey: "phonedex.notificationReply.message")
+        defaults.set(Date().addingTimeInterval(60).timeIntervalSince1970, forKey: "phonedex.notificationReply.updatedAt")
+        XCTAssertNil(NotificationReplyResult.latest())
+
+        defaults.set("not-a-timestamp", forKey: "phonedex.notificationReply.updatedAt")
+        XCTAssertNil(NotificationReplyResult.latest())
+    }
+
     func testDeepLinkDiagnosticsExcludeCredentialsAndQueryValues() {
         let url = URL(string: "phonedex://configure?bridgeUrl=https%3A%2F%2Fbridge.test&token=secret")!
 
@@ -39,6 +133,76 @@ final class PhoneDexSmokeTests: XCTestCase {
         XCTAssertEqual(task.sessionId, "session_smoke")
     }
 
+    func testTaskDecoderRejectsOverlongDisplayText() {
+        let data = Data("""
+        {"id":"task_large","text":"\(String(repeating: "x", count: PhoneDexNativeDecodeBounds.taskText + 1))"}
+        """.utf8)
+
+        XCTAssertThrowsError(try JSONDecoder().decode(PhoneDexTask.self, from: data)) { error in
+            guard case DecodingError.dataCorrupted = error else {
+                return XCTFail("Expected a bounded native decoding error, got \(error)")
+            }
+        }
+    }
+
+    func testRequiredBoundedFieldsRejectOversizedDataWithoutTrapping() throws {
+        let oversizedID = String(repeating: "x", count: PhoneDexNativeDecodeBounds.id + 1)
+        let oversizedPath = String(repeating: "x", count: PhoneDexNativeDecodeBounds.path + 1)
+        let oversizedType = String(repeating: "x", count: PhoneDexNativeDecodeBounds.status + 1)
+        let taskData = Data("{\"id\":\"\(oversizedID)\"}".utf8)
+        let questionData = Data("{\"id\":\"\(oversizedID)\",\"prompt\":\"Choose\",\"choices\":[],\"allowsFreeText\":false}".utf8)
+        let fileData = Data("{\"path\":\"\(oversizedPath)\",\"status\":\"modified\"}".utf8)
+        let eventData = Data("{\"id\":\"event_1\",\"taskId\":\"task_1\",\"createdAt\":\"2026-07-15T00:00:00.000Z\",\"sequence\":1,\"type\":\"\(oversizedType)\"}".utf8)
+
+        XCTAssertThrowsError(try JSONDecoder().decode(PhoneDexTask.self, from: taskData))
+        XCTAssertThrowsError(try JSONDecoder().decode(PhoneDexTaskQuestion.self, from: questionData))
+        XCTAssertThrowsError(try JSONDecoder().decode(PhoneDexChangedFile.self, from: fileData))
+        XCTAssertThrowsError(try JSONDecoder().decode(PhoneDexEvent.self, from: eventData))
+    }
+
+    func testLiveActivityKeepsLatestEventVisibleUntilExpanded() {
+        let events = (1...3).map { sequence in
+            PhoneDexEvent(
+                id: "event_\(sequence)",
+                taskId: "task_live",
+                createdAt: "2026-07-15T12:0\(sequence):00.000Z",
+                sequence: sequence,
+                type: "progress"
+            )
+        }
+
+        XCTAssertEqual(
+            PhoneDexLiveActivityPresentation.visibleEvents(events, expanded: false).map(\.sequence),
+            [3]
+        )
+        XCTAssertEqual(
+            PhoneDexLiveActivityPresentation.visibleEvents(events, expanded: true).map(\.sequence),
+            [1, 2, 3]
+        )
+        XCTAssertEqual(
+            PhoneDexLiveActivityPresentation.disclosureTitle(eventCount: 3, expanded: false),
+            "Show 2 older events"
+        )
+        XCTAssertNil(PhoneDexLiveActivityPresentation.disclosureTitle(eventCount: 1, expanded: false))
+    }
+
+    func testEvidenceDecoderRejectsOversizedPatchAndCollections() throws {
+        let oversizedPatch = String(repeating: "+line\n", count: PhoneDexNativeDecodeBounds.patch / 6 + 1)
+        let oversizedPatchPayload: [String: Any] = [
+            "changedFiles": [["path": "Sources/App.swift", "status": "modified", "patch": oversizedPatch]]
+        ]
+        let oversizedPatchData = try JSONSerialization.data(withJSONObject: oversizedPatchPayload)
+        XCTAssertThrowsError(try JSONDecoder().decode(PhoneDexTaskEvidence.self, from: oversizedPatchData))
+
+        let oversizedCollectionPayload: [String: Any] = [
+            "validations": (0...PhoneDexNativeDecodeBounds.evidenceItems).map { index in
+                ["id": "validation_\(index)", "name": "Tests", "status": "passed"]
+            }
+        ]
+        let oversizedCollectionData = try JSONSerialization.data(withJSONObject: oversizedCollectionPayload)
+        XCTAssertThrowsError(try JSONDecoder().decode(PhoneDexTaskEvidence.self, from: oversizedCollectionData))
+    }
+
     func testProjectsCombineMatchingNamesAcrossDevices() throws {
         let first = try decodeTask(
             id: "task_mac",
@@ -55,13 +219,37 @@ final class PhoneDexSmokeTests: XCTestCase {
 
         let projects = Dictionary(grouping: [first, second], by: \PhoneDexTask.projectID)
             .values
-            .map(PhoneDexProject.init(tasks:))
+            .compactMap(PhoneDexProject.init(tasks:))
 
         XCTAssertEqual(projects.count, 1)
         XCTAssertEqual(projects[0].machineNames, ["MacBook Pro", "Windows PC"])
         XCTAssertEqual(projects[0].deviceSummary, "2 devices")
         XCTAssertEqual(projects[0].paths.count, 2)
         XCTAssertEqual(projects[0].tasks.count, 2)
+    }
+
+    func testEmptyProjectInputIsRejectedWithoutIndexingACollection() {
+        XCTAssertNil(PhoneDexProject(tasks: []))
+    }
+
+    func testSyncDecoderRejectsUnknownRecordKindsWithoutAdvancingState() throws {
+        let data = Data("""
+        {
+          "position": 42,
+          "kind": "future_record",
+          "id": "future_1",
+          "deleted": false,
+          "record": {"id": "future_1"}
+        }
+        """.utf8)
+
+        XCTAssertThrowsError(try JSONDecoder().decode(PhoneDexSyncChange.self, from: data)) { error in
+            guard case let DecodingError.dataCorrupted(context) = error else {
+                return XCTFail("Expected an explicit compatibility decoding error, got \(error)")
+            }
+            XCTAssertTrue(context.debugDescription.contains("unsupported record kind"))
+            XCTAssertTrue(context.debugDescription.contains("future_record"))
+        }
     }
 
     func testProjectsKeepDifferentWorkspaceNamesSeparate() throws {

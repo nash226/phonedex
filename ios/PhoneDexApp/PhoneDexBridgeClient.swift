@@ -113,6 +113,11 @@ struct PhoneDexPairedIdentity: Decodable, Equatable {
 }
 
 struct PhoneDexBridgeClient {
+    static let requestTimeout: TimeInterval = 15
+    static let structuredResponseLimit = 2 * 1024 * 1024
+    static let legacyTasksResponseLimit = 4 * 1024 * 1024
+    static let artifactResponseLimit = 25 * 1024 * 1024
+
     var bridgeURL: URL
     var token: String
     var session: URLSession = .shared
@@ -129,21 +134,21 @@ struct PhoneDexBridgeClient {
         let request = authorizedRequest(url: url)
 
         let (data, response) = try await session.data(for: request)
-        try validate(response: response, data: data)
+        try validate(response: response, data: data, maxBytes: Self.legacyTasksResponseLimit)
         return try JSONDecoder().decode([PhoneDexTask].self, from: data)
     }
 
     func fetchDevices() async throws -> [PhoneDexDevice] {
         let request = authorizedRequest(url: bridgeURL.appending(path: "devices"))
         let (data, response) = try await session.data(for: request)
-        try validate(response: response, data: data)
+        try validate(response: response, data: data, maxBytes: Self.structuredResponseLimit)
         return try JSONDecoder().decode([PhoneDexDevice].self, from: data)
     }
 
     func fetchDiagnostics() async throws -> PhoneDexDiagnosticsSnapshot {
         let request = authorizedRequest(url: bridgeURL.appending(path: "diagnostics"))
         let (data, response) = try await session.data(for: request)
-        try validate(response: response, data: data)
+        try validate(response: response, data: data, maxBytes: Self.structuredResponseLimit)
         return try JSONDecoder().decode(PhoneDexDiagnosticsSnapshot.self, from: data)
     }
 
@@ -153,7 +158,7 @@ struct PhoneDexBridgeClient {
         }
         let request = authorizedRequest(url: bridgeURL.appending(path: "artifacts/\(downloadId)"))
         let (data, response) = try await session.data(for: request)
-        try validate(response: response, data: data)
+        try validate(response: response, data: data, maxBytes: Self.artifactResponseLimit)
         guard let expectedDigest = artifact.sha256?.lowercased() else {
             throw PhoneDexBridgeClientError.artifactIntegrityFailed
         }
@@ -174,7 +179,7 @@ struct PhoneDexBridgeClient {
         let url = bridgeURL.appending(path: "pair")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.timeoutInterval = 15
+        request.timeoutInterval = Self.requestTimeout
         request.setValue("application/json", forHTTPHeaderField: "content-type")
         request.httpBody = try JSONSerialization.data(withJSONObject: [
             "grant": grant,
@@ -212,7 +217,7 @@ struct PhoneDexBridgeClient {
 
         let request = authorizedRequest(url: url)
         let (data, response) = try await session.data(for: request)
-        try validate(response: response, data: data)
+        try validate(response: response, data: data, maxBytes: Self.structuredResponseLimit)
         let page = try JSONDecoder().decode(PhoneDexSyncPage.self, from: data)
         if let protocolNegotiation = page.protocolNegotiation, !protocolNegotiation.isCurrent {
             throw PhoneDexBridgeClientError.protocolIncompatible(
@@ -236,9 +241,18 @@ struct PhoneDexBridgeClient {
     ) async throws -> PhoneDexSyncResult {
         var currentCursor = cursor?.isEmpty == true ? nil : cursor
         var restartedFromSnapshot = false
-        var tasksByID = Dictionary(uniqueKeysWithValues: currentCursor == nil ? [] : tasks.map { ($0.id, $0) })
-        var devicesByID = Dictionary(uniqueKeysWithValues: currentCursor == nil ? [] : devices.map { ($0.id, $0) })
-        var eventsByID = Dictionary(uniqueKeysWithValues: currentCursor == nil ? [] : events.map { ($0.id, $0) })
+        var tasksByID = Dictionary(
+            (currentCursor == nil ? [] : tasks).map { ($0.id, $0) },
+            uniquingKeysWith: { _, latest in latest }
+        )
+        var devicesByID = Dictionary(
+            (currentCursor == nil ? [] : devices).map { ($0.id, $0) },
+            uniquingKeysWith: { _, latest in latest }
+        )
+        var eventsByID = Dictionary(
+            (currentCursor == nil ? [] : events).map { ($0.id, $0) },
+            uniquingKeysWith: { _, latest in latest }
+        )
 
         while true {
             let page: PhoneDexSyncPage
@@ -349,6 +363,7 @@ struct PhoneDexBridgeClient {
         let url = bridgeURL.appending(path: "reply")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        request.timeoutInterval = Self.requestTimeout
         request.setValue("application/json", forHTTPHeaderField: "content-type")
         if !token.isEmpty {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
@@ -378,7 +393,7 @@ struct PhoneDexBridgeClient {
         request.httpBody = try JSONSerialization.data(withJSONObject: payload)
 
         let (data, response) = try await session.data(for: request)
-        try validate(response: response, data: data)
+        try validate(response: response, data: data, maxBytes: Self.structuredResponseLimit)
         if let envelope = try? JSONDecoder().decode(PhoneDexReplyEnvelope.self, from: data),
            let receipt = envelope.receipt {
             return receipt
@@ -401,7 +416,7 @@ struct PhoneDexBridgeClient {
         let url = bridgeURL.appending(path: "command")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.timeoutInterval = 15
+        request.timeoutInterval = Self.requestTimeout
         request.setValue("application/json", forHTTPHeaderField: "content-type")
         if !token.isEmpty {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
@@ -428,13 +443,13 @@ struct PhoneDexBridgeClient {
         request.httpBody = try JSONSerialization.data(withJSONObject: payload)
 
         let (data, response) = try await session.data(for: request)
-        try validate(response: response, data: data)
+        try validate(response: response, data: data, maxBytes: Self.structuredResponseLimit)
         return try JSONDecoder().decode(PhoneDexLifecycleResponse.self, from: data)
     }
 
     private func authorizedRequest(url: URL) -> URLRequest {
         var request = URLRequest(url: url)
-        request.timeoutInterval = 15
+        request.timeoutInterval = Self.requestTimeout
         request.setValue("1", forHTTPHeaderField: "x-phonedex-protocol-version")
         request.setValue(
             "sync.snapshot.v1,device.health.v1",
@@ -454,7 +469,10 @@ struct PhoneDexBridgeClient {
         try? await fetchDevices()
     }
 
-    private func validate(response: URLResponse, data: Data) throws {
+    private func validate(response: URLResponse, data: Data, maxBytes: Int) throws {
+        guard data.count <= maxBytes else {
+            throw PhoneDexBridgeClientError.responseTooLarge(maxBytes: maxBytes)
+        }
         guard let httpResponse = response as? HTTPURLResponse else {
             throw PhoneDexBridgeClientError.invalidResponse
         }
@@ -489,6 +507,7 @@ enum PhoneDexBridgeClientError: LocalizedError {
     case pairingFailed(String)
     case artifactUnavailable
     case artifactIntegrityFailed
+    case responseTooLarge(maxBytes: Int)
 
     var isCompatibilityFailure: Bool {
         guard case .httpStatus(let status, _) = self else { return false }
@@ -533,6 +552,8 @@ enum PhoneDexBridgeClientError: LocalizedError {
             return "This artifact is not available for download from the originating agent."
         case .artifactIntegrityFailed:
             return "The downloaded artifact failed its integrity check and was not shared."
+        case .responseTooLarge:
+            return "The bridge returned more data than PhoneDex can safely process. Try again or contact support."
         }
     }
 }
@@ -546,6 +567,57 @@ private struct PhoneDexErrorEnvelope: Decodable {
 }
 
 extension Error {
+    /// Returns bounded, privacy-safe copy for user-visible state and local diagnostics.
+    ///
+    /// Bridge errors can carry server-provided detail or URL-related descriptions. Those
+    /// values are useful for debugging but must not become app UI, notification metadata,
+    /// or persisted deep-link diagnostics.
+    var phoneDexSafeMessage: String {
+        if let authenticationError = self as? PhoneDexApprovalAuthenticationError {
+            return authenticationError.localizedDescription
+        }
+
+        if let bridgeError = self as? PhoneDexBridgeClientError {
+            switch bridgeError {
+            case .invalidURL:
+                return "Bridge URL is invalid."
+            case .invalidResponse:
+                return "The bridge returned an invalid response. Try again."
+            case .httpStatus(let status, _):
+                switch status {
+                case 401, 403:
+                    return "The bridge credential was not accepted. Re-pair this iPhone."
+                case 404, 405:
+                    return "This hub does not support the required PhoneDex connection. Update the hub and try again."
+                case 408, 429:
+                    return "The bridge is busy. Wait a moment and try again."
+                case 500...599:
+                    return "The bridge is temporarily unavailable. Try again shortly."
+                default:
+                    return "The bridge could not complete that request. Try again."
+                }
+            case .protocolIncompatible:
+                return "The hub and PhoneDex app use incompatible protocol versions. Update the hub and try again."
+            case .staleTask:
+                return "This task changed before the action arrived. Refresh and review the latest context."
+            case .pairingFailed:
+                return "Pairing could not be completed. Generate a new grant and try again."
+            case .artifactUnavailable:
+                return "This artifact is not available for download from the originating agent."
+            case .artifactIntegrityFailed:
+                return "The downloaded artifact failed its integrity check and was not shared."
+            case .responseTooLarge:
+                return "The bridge returned more data than PhoneDex can safely process. Try again or contact support."
+            }
+        }
+
+        if let urlError = self as? URLError, urlError.isOffline {
+            return "The hub is unavailable. Check the connection and try again."
+        }
+
+        return "PhoneDex could not complete that action. Try again."
+    }
+
     var isRevoked: Bool {
         (self as? PhoneDexBridgeClientError)?.isRevoked ?? false
     }
@@ -569,11 +641,16 @@ extension Error {
     var isOffline: Bool {
         guard let urlError = self as? URLError else { return false }
         return [
+            .callIsActive,
+            .cannotLoadFromNetwork,
             .cannotConnectToHost,
             .cannotFindHost,
             .dataNotAllowed,
+            .dnsLookupFailed,
+            .internationalRoamingOff,
             .networkConnectionLost,
             .notConnectedToInternet,
+            .resourceUnavailable,
             .timedOut
         ].contains(urlError.code)
     }

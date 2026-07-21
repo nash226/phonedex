@@ -13,6 +13,28 @@ final class PhoneDexDiagnosticsTests: XCTestCase {
         XCTAssertFalse(snapshot.shareText.contains("token"))
     }
 
+    func testDiagnosticsExposeBoundedComponentHealthAndSafeRecentFailures() throws {
+        let data = Data(#"{"schema":"phonedex.diagnostics.v1","generatedAt":"2026-07-17T00:00:00Z","startedAt":"2026-07-16T00:00:00Z","service":"watchdex","role":"hub","version":"0.1.0","protocolVersion":1,"components":{"hub":"healthy","agent":"degraded","adapter":"unknown","push":"unhealthy","extra":"healthy","extra2":"healthy","extra3":"healthy","extra4":"healthy","extra5":"healthy"},"metrics":{"requests":6,"failures":2,"commands":0,"routes":{}},"recentRequests":[{"at":"2026-07-17T00:00:00Z","correlationId":"safe-request-1","route":"/sync?token=secret","status":409,"latencyMs":10,"errorClass":"private text"},{"at":"2026-07-17T00:01:00Z","correlationId":"safe-request-2","route":"bad route","status":500,"latencyMs":11}],"capabilities":[]}"#.utf8)
+        let snapshot = try JSONDecoder().decode(PhoneDexDiagnosticsSnapshot.self, from: data)
+
+        XCTAssertEqual(snapshot.componentRows.count, 8)
+        XCTAssertEqual(snapshot.overallHealth, .unhealthy)
+        XCTAssertEqual(snapshot.recentFailures.count, 2)
+        XCTAssertEqual(snapshot.recentFailures[0].routeLabel, "/sync")
+        XCTAssertEqual(snapshot.recentFailures[1].routeLabel, "Unknown endpoint")
+        XCTAssertFalse(snapshot.recentFailures[0].routeLabel.contains("token"))
+    }
+
+    func testDiagnosticsRejectOversizedCollectionsBeforeMaterializingThem() {
+        let components = (0...PhoneDexDiagnosticsSnapshot.maxComponents)
+            .map { "\"component\($0)\":\"healthy\"" }
+            .joined(separator: ",")
+        let payload = #"{"schema":"phonedex.diagnostics.v1","generatedAt":"2026-07-17T00:00:00Z","startedAt":"2026-07-16T00:00:00Z","service":"watchdex","role":"hub","version":"0.1.0","protocolVersion":1,"components":{"# + components + #"},"metrics":{"requests":0,"failures":0,"commands":0,"routes":{}},"recentRequests":[],"capabilities":[]}"#
+        let data = Data(payload.utf8)
+
+        XCTAssertThrowsError(try JSONDecoder().decode(PhoneDexDiagnosticsSnapshot.self, from: data))
+    }
+
     func testDeviceHealthMapsProtocolStatesAndUnknownValues() {
         XCTAssertEqual(PhoneDexDeviceHealth(status: "online"), .online)
         XCTAssertEqual(PhoneDexDeviceHealth(status: "stale"), .stale)
@@ -35,7 +57,7 @@ final class PhoneDexDiagnosticsTests: XCTestCase {
             makeTask(id: "running", status: "running", at: "2026-07-15T12:00:00.000Z"),
             makeTask(id: "question", status: "needs_input", at: "2026-07-15T12:01:00.000Z"),
             makeTask(id: "done", status: "completed", at: "2026-07-15T12:02:00.000Z")
-        ])
+        ])!
 
         XCTAssertEqual(project.activeTaskCount, 1)
         XCTAssertEqual(project.attentionTaskCount, 1)
@@ -104,6 +126,62 @@ final class PhoneDexDiagnosticsTests: XCTestCase {
         XCTAssertEqual(device.capabilityDetails.map(\.displayName), ["Task Reply", "Task Cancel"])
         XCTAssertFalse(device.capabilityDetails[0].isActionable)
         XCTAssertTrue(device.capabilityDetails[1].isActionable)
+    }
+
+    func testDeviceTaskAttributionPrefersStableIdentityOverDisplayName() {
+        let device = makeDevice(status: "online")
+        let sameNameOtherDevice = PhoneDexTask(
+            id: "other-task",
+            at: "2026-07-15T12:00:00Z",
+            source: "remote-agent",
+            title: "Other machine",
+            text: "Done",
+            cwd: "/workspace/other",
+            workspaceName: "Other",
+            machineName: device.machineName,
+            sessionId: "other-session",
+            status: "completed",
+            branch: nil,
+            repository: nil,
+            deviceId: "other-device"
+        )
+        let matchingTask = PhoneDexTask(
+            id: "matching-task",
+            at: "2026-07-15T12:00:00Z",
+            source: "remote-agent",
+            title: "Matching machine",
+            text: "Done",
+            cwd: "/workspace/matching",
+            workspaceName: "Matching",
+            machineName: device.machineName,
+            sessionId: "matching-session",
+            status: "completed",
+            branch: nil,
+            repository: nil,
+            deviceId: device.deviceId
+        )
+
+        XCTAssertFalse(device.owns(sameNameOtherDevice))
+        XCTAssertTrue(device.owns(matchingTask))
+    }
+
+    func testLegacyTaskAttributionRequiresNonEmptyMachineIdentity() {
+        let device = makeDevice(status: "online")
+        let legacyTask = makeTask(id: "legacy", status: "completed", at: "2026-07-15T12:00:00Z")
+        let unknownDevice = PhoneDexDevice(
+            deviceId: "unknown-device",
+            machineName: nil,
+            platform: "windows",
+            role: "agent",
+            status: "online",
+            lastSeenAt: nil,
+            version: nil,
+            publicUrl: nil,
+            expected: nil
+        )
+
+        XCTAssertTrue(device.owns(legacyTask))
+        XCTAssertFalse(unknownDevice.owns(legacyTask))
     }
 
     func testTaskControlsExplainMissingCapabilityWithoutAdvertisingUnsupportedActions() {

@@ -96,7 +96,7 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
                 NotificationReplyResult.record(.failed(receipt.message ?? "The reply remains queued for retry."))
             }
         } catch {
-            NotificationReplyResult.record(.failed(error.localizedDescription))
+            NotificationReplyResult.record(.failed(error.phoneDexSafeMessage))
         }
     }
 
@@ -113,17 +113,7 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
             devices: [],
             lastSyncAt: nil
         )
-        try? cache.save(PhoneDexCachedState(
-            cursor: state.cursor,
-            tasks: state.tasks,
-            devices: state.devices,
-            lastSyncAt: state.lastSyncAt,
-            drafts: state.drafts,
-            readingPositions: state.readingPositions,
-            pendingReplies: pendingReplies,
-            replyReceipts: state.replyReceipts,
-            handledNotificationResponses: state.handledNotificationResponses
-        ))
+        try? cache.save(state.replacingNotificationState(pendingReplies: pendingReplies))
     }
 
     private func responseKey(for response: UNNotificationResponse) -> String {
@@ -147,18 +137,7 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
             staleKeys.forEach { handled.removeValue(forKey: $0) }
         }
         let state = existing ?? PhoneDexCachedState(cursor: nil, tasks: [], devices: [], lastSyncAt: nil)
-        try? cache.save(PhoneDexCachedState(
-            cursor: state.cursor,
-            tasks: state.tasks,
-            devices: state.devices,
-            events: state.events,
-            lastSyncAt: state.lastSyncAt,
-            drafts: state.drafts,
-            readingPositions: state.readingPositions,
-            pendingReplies: state.pendingReplies,
-            replyReceipts: state.replyReceipts,
-            handledNotificationResponses: handled
-        ))
+        try? cache.save(state.replacingNotificationState(handledNotificationResponses: handled))
     }
 
     private func bridgeURLFromCurrentSettings() async -> URL? {
@@ -182,20 +161,31 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
 }
 
 enum NotificationReplyResult: Equatable {
+    static let maxAge: TimeInterval = 24 * 60 * 60
+
     case sent(String)
     case failed(String)
     case duplicate(String)
 
     static let didChange = Notification.Name("PhoneDexNotificationReplyResultDidChange")
 
-    static var latest: NotificationReplyResult? {
+    static func latest(now: Date = Date(), maxAge: TimeInterval = Self.maxAge) -> NotificationReplyResult? {
+        guard maxAge >= 0 else { return nil }
         let defaults = UserDefaults.standard
         guard let state = defaults.string(forKey: Keys.state),
-              let message = defaults.string(forKey: Keys.message)
+              let message = defaults.string(forKey: Keys.message),
+              let updatedAt = defaults.object(forKey: Keys.updatedAt) as? TimeInterval,
+              updatedAt.isFinite
         else {
             return nil
         }
-        return state == "sent" ? .sent(message) : .failed(message)
+        let age = now.timeIntervalSince1970 - updatedAt
+        guard age >= 0, age <= maxAge else { return nil }
+        switch state {
+        case "sent": return .sent(message)
+        case "duplicate": return .duplicate(message)
+        default: return .failed(message)
+        }
     }
 
     static func record(_ result: NotificationReplyResult) {

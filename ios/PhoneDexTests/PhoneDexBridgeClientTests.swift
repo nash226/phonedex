@@ -3,6 +3,30 @@ import CryptoKit
 @testable import PhoneDex
 
 final class PhoneDexBridgeClientTests: XCTestCase {
+    func testUserFacingErrorMessagesNeverExposeServerOrURLDetails() {
+        let serverMessage = PhoneDexBridgeClientError.pairingFailed(
+            "credential=secret-token path=/Users/example/private"
+        )
+        let responseMessage = PhoneDexBridgeClientError.httpStatus(
+            502,
+            "upstream token=secret-token"
+        )
+        let genericURLMessage = URLError(
+            .cannotConnectToHost,
+            userInfo: [NSLocalizedDescriptionKey: "https://user:secret@example.com/private"]
+        )
+
+        for error in [serverMessage as Error, responseMessage as Error, genericURLMessage as Error] {
+            XCTAssertFalse(error.phoneDexSafeMessage.contains("secret"))
+            XCTAssertFalse(error.phoneDexSafeMessage.contains("/Users"))
+            XCTAssertFalse(error.phoneDexSafeMessage.contains("example.com"))
+        }
+
+        XCTAssertEqual(serverMessage.phoneDexSafeMessage, "Pairing could not be completed. Generate a new grant and try again.")
+        XCTAssertEqual(responseMessage.phoneDexSafeMessage, "The bridge is temporarily unavailable. Try again shortly.")
+        XCTAssertEqual(genericURLMessage.phoneDexSafeMessage, "The hub is unavailable. Check the connection and try again.")
+    }
+
     override func tearDown() {
         URLProtocolStub.handler = nil
         super.tearDown()
@@ -16,6 +40,7 @@ final class PhoneDexBridgeClientTests: XCTestCase {
         URLProtocolStub.handler = { request in
             XCTAssertEqual(request.url?.absoluteString, "http://bridge.test/reply")
             XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.timeoutInterval, PhoneDexBridgeClient.requestTimeout)
             XCTAssertEqual(request.value(forHTTPHeaderField: "authorization"), "Bearer secret")
             XCTAssertEqual(request.value(forHTTPHeaderField: "content-type"), "application/json")
 
@@ -364,6 +389,44 @@ final class PhoneDexBridgeClientTests: XCTestCase {
         XCTAssertEqual(result.cursor, "cursor.new")
     }
 
+    func testIncrementalSyncKeepsLatestDuplicateCachedRecordsWithoutTrapping() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [URLProtocolStub.self]
+        let session = URLSession(configuration: configuration)
+
+        URLProtocolStub.handler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "http://bridge.test/sync?limit=50&cursor=cursor.old")
+            return (
+                HTTPURLResponse(
+                    url: try XCTUnwrap(request.url),
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: ["content-type": "application/json"]
+                )!,
+                Data("""
+                {"snapshot":{"complete":true,"revision":2,"position":2,"tasks":[
+                  {"id":"task_duplicate","title":"Old","text":"old"},
+                  {"id":"task_duplicate","title":"Latest","text":"latest"}
+                ],"devices":[
+                  {"deviceId":"device_duplicate","machineName":"Old Mac"},
+                  {"deviceId":"device_duplicate","machineName":"Latest Mac"}
+                ],"events":[]},"changes":[],"cursor":"cursor.new","hasMore":false}
+                """.utf8)
+            )
+        }
+
+        let result = try await PhoneDexBridgeClient(
+            bridgeURL: URL(string: "http://bridge.test")!,
+            token: "secret",
+            session: session
+        ).fetchSyncState(cursor: "cursor.old")
+
+        XCTAssertEqual(result.tasks?.count, 1)
+        XCTAssertEqual(result.tasks?.first?.title, "Latest")
+        XCTAssertEqual(result.devices?.count, 1)
+        XCTAssertEqual(result.devices?.first?.machineName, "Latest Mac")
+    }
+
     func testStaleCursorRestartsFromFreshSnapshot() async throws {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [URLProtocolStub.self]
@@ -552,6 +615,32 @@ final class PhoneDexBridgeClientTests: XCTestCase {
         XCTAssertTrue(URLError(.notConnectedToInternet).isOffline)
     }
 
+    func testTransientTransportFailuresUseOfflineRecoveryPath() {
+        let transientFailures: [URLError.Code] = [
+            .callIsActive,
+            .cannotLoadFromNetwork,
+            .cannotConnectToHost,
+            .cannotFindHost,
+            .dataNotAllowed,
+            .dnsLookupFailed,
+            .internationalRoamingOff,
+            .networkConnectionLost,
+            .notConnectedToInternet,
+            .resourceUnavailable,
+            .timedOut
+        ]
+
+        for code in transientFailures {
+            XCTAssertTrue(URLError(code).isOffline, "Expected \\(code) to use the offline path")
+        }
+    }
+
+    func testAuthenticationAndTLSFailuresDoNotPretendToBeOffline() {
+        XCTAssertFalse(PhoneDexBridgeClientError.httpStatus(401, "").isOffline)
+        XCTAssertFalse(PhoneDexBridgeClientError.httpStatus(403, "").isOffline)
+        XCTAssertFalse(URLError(.secureConnectionFailed).isOffline)
+    }
+
     func testDownloadArtifactUsesBearerAuthAndVerifiesDigest() async throws {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [URLProtocolStub.self]
@@ -632,6 +721,41 @@ final class PhoneDexBridgeClientTests: XCTestCase {
                 XCTFail("Unexpected artifact error: \(error)")
             }
         }
+    }
+
+    func testSyncPageRejectsOversizedResponseBeforeDecoding() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [URLProtocolStub.self]
+        let session = URLSession(configuration: configuration)
+        URLProtocolStub.handler = { request in
+            (
+                HTTPURLResponse(
+                    url: try XCTUnwrap(request.url),
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: ["content-type": "application/json"]
+                )!,
+                Data(repeating: 0x20, count: PhoneDexBridgeClient.structuredResponseLimit + 1)
+            )
+        }
+
+        do {
+            _ = try await PhoneDexBridgeClient(
+                bridgeURL: URL(string: "http://bridge.test")!,
+                token: "secret",
+                session: session
+            ).fetchSyncPage()
+            XCTFail("Expected oversized response rejection")
+        } catch let error as PhoneDexBridgeClientError {
+            guard case .responseTooLarge(let maxBytes) = error else {
+                return XCTFail("Unexpected bridge error: \(error)")
+            }
+            XCTAssertEqual(maxBytes, PhoneDexBridgeClient.structuredResponseLimit)
+        }
+    }
+
+    func testArtifactResponseLimitMatchesEncryptedCacheBudget() {
+        XCTAssertEqual(PhoneDexBridgeClient.artifactResponseLimit, 25 * 1024 * 1024)
     }
 }
 

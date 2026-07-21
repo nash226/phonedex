@@ -105,6 +105,9 @@ The repository already proves the core loop, but not the final product.
 - The app stores one bridge URL and a paired device credential in Keychain,
   restores an encrypted local task/device cache, and reconciles from the hub's
   opaque cursor while foregrounded. Legacy token entry remains for migration.
+  Settings can forget the local credential after confirmation; this does not
+  revoke the hub credential or other paired devices and directs the user back
+  through pairing.
 - The app schedules a local notification and registers three reply actions.
 - A notification content extension renders a long, scrollable result.
 - Notification actions post canned or typed/dictated replies to the bridge.
@@ -122,6 +125,18 @@ The repository already proves the core loop, but not the final product.
   handoff that preserves the exact task and Codex session identity without
   invoking private desktop UI or exposing local paths and credentials.
 - Configuration and preview actions can be invoked through a custom URL scheme.
+- Supported `phonedex://task/<task-id>` links open the matching locally cached
+  conversation in Chats; unknown tasks stay in the native shell and offer a
+  refresh path rather than exposing remote identifiers or claiming delivery.
+- Chats keeps read/unread, archived, and muted presentation state per task in
+  the encrypted local cache. A newer task update becomes unread again;
+  archiving or muting is a local triage choice and never changes lifecycle or
+  sends a hub command. Active, archived, and muted views remain explicit so a
+  user can recover locally hidden work.
+- Settings can clear the complete local task, review, draft, receipt, offline
+  command, diagnostics, and downloaded-artifact projection after confirmation.
+  The paired bridge credential remains in the device-only Keychain, and the
+  action never deletes hub history or claims that a remote revoke occurred.
 - The project targets iOS 17 and includes unit and UI test targets for the
   native shell.
 
@@ -132,13 +147,17 @@ The repository already proves the core loop, but not the final product.
 - The iOS app restores an encrypted local cache, resumes foreground sync from a
   durable cursor, and distinguishes loading, stale, offline, revoked,
   incompatible, and partial refresh states; reply commands are now persisted
-  in the same encrypted cache for offline retry.
-- The iOS app has no complete live-progress model or full artifact viewer, and
-  its artifact library is limited to metadata attached to the synced task list;
-  a downloaded artifact remains available only in the current app session.
+  in the same encrypted cache for offline retry, with bounded count,
+  prompt-size, byte, and seven-day retention limits.
+- The iOS app has no complete live-progress model or full artifact viewer. Its
+  artifact library is metadata-first, while verified downloads are retained in
+  the encrypted local cache for up to 30 days within bounded count and size
+  limits; the hub remains the source of truth for re-download and retention.
   General lifecycle command queueing remains future work; task detail renders
   bounded approval review metadata when exported by the bridge, with the
-  managed-task controls described above.
+  managed-task controls described above. Supported offline cancel and retry
+  actions remain visible in task detail after relaunch and retry only after a
+  successful sync; they never change task state optimistically.
 - The shared token remains part of legacy setup and can be accepted in URLs by
   the current bridge; notification payloads no longer contain it. The iOS
   settings token is stored in device-only Keychain storage, with legacy
@@ -148,10 +167,11 @@ The repository already proves the core loop, but not the final product.
   local development. Hub and agent TLS deployment is still release work.
 - Reply and managed lifecycle commands carry a client idempotency key and
   expected task version; the bridge persists command receipts and the iPhone
-  exposes accepted, duplicate, stale, and failed delivery states. Approval
-  requests now carry bounded operation, scope, origin, reason, risk, expiry,
-  and task-version metadata; response controls and agent execution remain
-  future work.
+  exposes accepted, duplicate, stale, and failed delivery states. Supported
+  cancel and retry actions also persist a bounded encrypted offline outbox and
+  retry after a successful sync; approval, handoff, and task creation remain
+  immediate-only. Approval requests carry bounded operation, scope, origin,
+  reason, risk, expiry, and task-version metadata.
 - Paired credentials can be rotated without changing task history, protected
   requests are rate-limited per principal, and reply idempotency keys reject
   mutated replays. Content-free security lifecycle outcomes are written to the
@@ -176,16 +196,16 @@ supported command path on the originating machine.
 
 | User capability | Product outcome | Status and feasible path |
 | --- | --- | --- |
-| Find recent work | Unified, searchable tasks grouped by workspace and machine | **Target.** Extend the hub protocol and durable store. |
+| Find recent work | Unified, searchable tasks grouped by workspace and machine | **Current, bounded.** Chats and Workspaces search the locally cached sync projection; richer server-side history remains future work. |
 | Read a completed response | Rich, readable transcript with machine and workspace context | **Current, partial.** Completion text exists; full transcript sync does not. |
 | Reply to a task | Send text or a constrained quick action with delivery state | **Current, partial.** Reply receipts, retries, task-version conflict checks, and structured question responses exist; broader agent commands remain partial. |
-| See live progress | Running state, concise activity, and latest meaningful event | **Target.** Requires structured agent events; iOS cannot infer this from desktop UI. |
+| See live progress | Running state, concise activity, and latest meaningful event | **Current, bounded.** Structured agent events appear in task detail and the Chats list; continuous background delivery remains future work. |
 | Start a task | Choose a machine/workspace, enter a prompt, and create a tracked run | **Current, bounded.** Allowlisted agents expose a versioned create command; arbitrary desktop task creation is not promised. |
 | Answer a question | Render explicit choices or text input and resume the same task | **Current, partial.** Bounded task questions and reply envelopes exist; richer event streams and adapter-native continuation remain future work. |
 | Review an approval | Show exact operation, scope, risk, and origin before approve/reject | **Current, bounded.** Expiring task-version-bound review metadata and capability-gated controls are native; configurable Face ID or device-passcode confirmation is enabled by default before an approval decision is sent. |
-| Review changes | Mobile diff summary, file list, patch detail, and validation results | **Current, partial.** Supported agents can export bounded patches for native mobile review alongside a native file-level summary, structured validation results, integrity-checked artifact metadata, and explicit download/share for bounded exports; user-controlled artifact retention is enforced by the local hub and a durable artifact library remains target work. |
+| Review changes | Mobile diff summary, file list, patch detail, and validation results | **Current, partial.** Supported agents can export bounded patches for native mobile review alongside a native file-level summary, structured validation results, integrity-checked artifact metadata, and explicit download/share for bounded exports; verified downloads persist in the encrypted iOS cache with bounded local retention, while the hub remains the source of truth. |
 | Cancel, retry, or queue | Issue idempotent lifecycle commands with visible receipts | **Target.** Requires adapter capability negotiation. |
-| Cancel, retry, or queue | Issue idempotent lifecycle commands with visible receipts | **Current, bounded.** Cancel/retry apply to PhoneDex-owned runs when advertised; general queueing remains Target. |
+| Cancel, retry, or queue | Issue idempotent lifecycle commands with visible receipts | **Current, bounded.** Cancel/retry apply to PhoneDex-owned runs when advertised and queue safely offline; approval, handoff, and task creation remain immediate-only. |
 | Open on desktop | Deep-link or hand off to the exact supported task/session | **Current, bounded.** A ready Mac or Windows CLI/app-server adapter can prepare a redacted handoff manifest; private desktop UI automation is not promised. |
 | Reproduce all desktop tools | Exact private UI, terminal, extensions, and local integrations | **Not promised.** Use explicit mobile workflows or hand off to the computer. |
 
@@ -339,7 +359,9 @@ Workspaces organize durable context across task runs.
 - A workspace maps to a repository or user-defined working directory on a
   specific machine; two machines can expose separate instances.
 - The list shows active task count, latest outcome, branch when known, and
-  machine availability.
+  machine availability. Search covers workspace, machine, working directory,
+  repository, branch, and the cached task context already available on the
+  iPhone.
 - Workspace detail shows task history, current runs, saved prompt drafts, and
   artifacts the agent has explicitly exported.
 - Starting work begins here when the selected agent advertises that capability.
@@ -546,7 +568,9 @@ device unavailable, and security event.
 - **TASK-04:** Duplicate hook and watcher captures must converge on one logical
   task event.
 - **TASK-05:** Read, unread, archived, and muted are user presentation state and
-  must not overwrite agent execution state.
+  must not overwrite agent execution state. The native client must persist
+  these choices locally and provide explicit recovery views for archived and
+  muted conversations.
 - **TASK-06:** Search and filters must return stable results across refreshes.
 - **TASK-07:** The hub must expose tombstones or equivalent semantics for data
   deleted on another client.
@@ -860,7 +884,11 @@ credential cannot inspect or mutate privacy controls.
 ### Current security blockers
 
 Before external beta, legacy shared-token setup must be retired in favor of
-scoped pairing and revocable identities. Native notification metadata contains
+scoped pairing and revocable identities. Legacy query and form-body token
+compatibility is disabled by default and may be enabled only for a bounded
+migration; a hub marked with `NODE_ENV=production` or
+`PHONEDEX_PRODUCTION=true` rejects either compatibility flag at startup.
+Native notification metadata contains
 no durable credential, and the Pushcut fallback uses a ten-minute, single-use
 opaque action grant whose hash is stored at rest; the iOS settings token is no
 longer stored in `UserDefaults`. Pairing grants are now short-lived,

@@ -1,34 +1,63 @@
 import SwiftUI
 import UIKit
 
+enum PhoneDexPrimaryTab: String, CaseIterable, Identifiable {
+    case chats
+    case projects
+    case browser
+    case devices
+    case settings
+
+    static let storageKey = "phonedex.primaryTab"
+
+    var id: Self { self }
+
+    static func restored(from rawValue: String?) -> Self {
+        guard let rawValue, let tab = Self(rawValue: rawValue) else {
+            return .chats
+        }
+        return tab
+    }
+}
+
 struct ContentView: View {
     @StateObject private var model: PhoneDexAppModel
+    @ObservedObject private var deepLinkRouter: PhoneDexDeepLinkRouter
+    @AppStorage(PhoneDexPrimaryTab.storageKey) private var selectedTabRawValue = PhoneDexPrimaryTab.chats.rawValue
     @State private var lastAutomaticRefreshAt: Date?
     @State private var consecutiveAutomaticRefreshFailures = 0
+    @State private var showingUnavailableDeepLink = false
     @Environment(\.scenePhase) private var scenePhase
 
-    init(settings: PhoneDexSettings) {
+    init(settings: PhoneDexSettings, deepLinkRouter: PhoneDexDeepLinkRouter) {
         _model = StateObject(wrappedValue: PhoneDexAppModel(settings: settings))
+        _deepLinkRouter = ObservedObject(wrappedValue: deepLinkRouter)
     }
 
     var body: some View {
-        TabView {
+        TabView(selection: selectedTabBinding) {
             PhoneDexChatsView(model: model)
                 .tabItem { Label("Chats", systemImage: "bubble.left.and.bubble.right") }
+                .tag(PhoneDexPrimaryTab.chats)
 
             PhoneDexProjectsView(model: model)
                 .tabItem { Label("Projects", systemImage: "folder") }
+                .tag(PhoneDexPrimaryTab.projects)
 
             PhoneDexBrowserView()
                 .tabItem { Label("Browser", systemImage: "safari") }
+                .tag(PhoneDexPrimaryTab.browser)
 
             PhoneDexDevicesView(model: model)
                 .tabItem { Label("Devices", systemImage: "desktopcomputer") }
+                .tag(PhoneDexPrimaryTab.devices)
 
             PhoneDexSettingsView(model: model)
                 .tabItem { Label("Settings", systemImage: "gearshape") }
+                .tag(PhoneDexPrimaryTab.settings)
         }
         .tint(.blue)
+        .onAppear { normalizeStoredTab() }
         .task { await refreshAutomatically(trigger: .initialLaunch) }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
@@ -37,6 +66,47 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NotificationReplyResult.didChange)) { _ in
             model.loadNotificationReplyResult()
+        }
+        .onChange(of: deepLinkRouter.pendingTaskID) { _, _ in
+            openPendingTaskIfAvailable()
+        }
+        .onChange(of: model.tasks) { _, _ in
+            openPendingTaskIfAvailable()
+        }
+        .alert("Conversation unavailable", isPresented: $showingUnavailableDeepLink) {
+            Button("Refresh") {
+                Task { await model.refresh() }
+            }
+            Button("Cancel", role: .cancel) {
+                deepLinkRouter.clearPendingTask()
+            }
+        } message: {
+            Text("This conversation is not in the current local cache. Refresh the configured hub and try again.")
+        }
+    }
+
+    private var selectedTabBinding: Binding<PhoneDexPrimaryTab> {
+        Binding(
+            get: { PhoneDexPrimaryTab.restored(from: selectedTabRawValue) },
+            set: { selectedTabRawValue = $0.rawValue }
+        )
+    }
+
+    private func normalizeStoredTab() {
+        let restoredTab = PhoneDexPrimaryTab.restored(from: selectedTabRawValue)
+        if restoredTab.rawValue != selectedTabRawValue {
+            selectedTabRawValue = restoredTab.rawValue
+        }
+    }
+
+    private func openPendingTaskIfAvailable() {
+        guard let taskID = deepLinkRouter.pendingTaskID else { return }
+        selectedTabRawValue = PhoneDexPrimaryTab.chats.rawValue
+        if model.tasks.contains(where: { $0.id == taskID }) {
+            model.selectedTaskID = taskID
+            deepLinkRouter.clearPendingTask()
+        } else if !model.connectionState.isInitialLoading {
+            showingUnavailableDeepLink = true
         }
     }
 
@@ -67,7 +137,11 @@ private struct PhoneDexChatsView: View {
     @State private var showingCreateTask = false
 
     private var filteredTasks: [PhoneDexTask] {
-        filter.filteredTasks(model.tasks)
+        filter.filteredTasks(
+            model.tasks,
+            archivedTaskIDs: Set(model.archivedAt.keys),
+            mutedTaskIDs: Set(model.mutedAt.keys)
+        )
     }
 
     var body: some View {
@@ -86,11 +160,71 @@ private struct PhoneDexChatsView: View {
 
                 Divider()
 
+                HStack {
+                    Button("Refresh conversations", systemImage: "arrow.clockwise") {
+                        Task { await model.refresh() }
+                    }
+                    .accessibilityHint("Refresh synced conversations from the configured hub")
+                    .accessibilityIdentifier("refresh-conversations")
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(.bar)
+
                 List(selection: $model.selectedTaskID) {
                     Section {
                         ForEach(filteredTasks) { task in
                             NavigationLink(value: task.id) {
-                                PhoneDexTaskRow(task: task)
+                                PhoneDexTaskRow(
+                                    task: task,
+                                    latestEvent: model.latestEvent(for: task.id),
+                                    isRead: model.isRead(task),
+                                    isMuted: model.isMuted(task),
+                                    isArchived: model.isArchived(task)
+                                )
+                            }
+                            .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                Button {
+                                    if model.isRead(task) {
+                                        model.markUnread(task)
+                                    } else {
+                                        model.markRead(task)
+                                    }
+                                } label: {
+                                    Label(
+                                        model.isRead(task) ? "Mark unread" : "Mark read",
+                                        systemImage: model.isRead(task) ? "envelope.badge" : "envelope.open"
+                                    )
+                                }
+                                .tint(.blue)
+                            }
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button {
+                                    if filter.presentation == .archived {
+                                        model.setArchived(false, for: task)
+                                    } else {
+                                        model.setArchived(true, for: task)
+                                    }
+                                } label: {
+                                    Label(
+                                        filter.presentation == .archived ? "Unarchive" : "Archive",
+                                        systemImage: filter.presentation == .archived ? "archivebox" : "archivebox.fill"
+                                    )
+                                }
+                                .tint(.indigo)
+
+                                if filter.presentation != .archived {
+                                    Button {
+                                        model.setMuted(!model.isMuted(task), for: task)
+                                    } label: {
+                                        Label(
+                                            model.isMuted(task) ? "Unmute" : "Mute",
+                                            systemImage: model.isMuted(task) ? "bell" : "bell.slash"
+                                        )
+                                    }
+                                    .tint(.orange)
+                                }
                             }
                         }
                     } header: {
@@ -100,18 +234,21 @@ private struct PhoneDexChatsView: View {
                 .listStyle(.plain)
                 .overlay { emptyState }
                 .refreshable { await model.refresh() }
+
+                if let cacheRecoveryMessage = model.cacheRecoveryMessage {
+                    Label(cacheRecoveryMessage, systemImage: "externaldrive.badge.exclamationmark")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.leading)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(.thinMaterial)
+                        .accessibilityElement(children: .combine)
+                }
             }
             .navigationTitle("PhoneDex")
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        Task { await model.refresh() }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    .accessibilityLabel("Refresh conversations")
-                }
-
                 ToolbarItem(placement: .topBarTrailing) {
                     filterMenu
                 }
@@ -160,7 +297,7 @@ private struct PhoneDexChatsView: View {
                 }
             } else {
                 ContentUnavailableView {
-                    Label(filter.scope.emptyTitle, systemImage: "bubble.left.and.bubble.right")
+                    Label(filter.presentation == .archived ? "No archived conversations" : filter.presentation == .muted ? "No muted conversations" : filter.scope.emptyTitle, systemImage: "bubble.left.and.bubble.right")
                 } description: {
                     Text(filter.hasFilters ? "Try a different search or filter." : filter.scope.emptyDescription)
                 } actions: {
@@ -174,6 +311,14 @@ private struct PhoneDexChatsView: View {
 
     private var filterMenu: some View {
         Menu {
+            Section("Presentation") {
+                Picker("Presentation", selection: $filter.presentation) {
+                    ForEach(PhoneDexPresentationFilter.allCases) { presentation in
+                        Text(presentation.title).tag(presentation)
+                    }
+                }
+            }
+
             Section("Machine") {
                 Picker("Machine", selection: $filter.machineName) {
                     Text("All machines").tag(nil as String?)
@@ -208,6 +353,7 @@ private struct PhoneDexChatsView: View {
         filter.searchText = ""
         filter.machineName = nil
         filter.workspaceName = nil
+        filter.presentation = .active
     }
 
     private func keepSelectionVisible() {
@@ -222,6 +368,32 @@ private struct PhoneDexChatsView: View {
 
 struct PhoneDexTaskRow: View {
     let task: PhoneDexTask
+    let latestEvent: PhoneDexEvent?
+    let isRead: Bool
+    let isMuted: Bool
+    let isArchived: Bool
+
+    init(task: PhoneDexTask, latestEvent: PhoneDexEvent? = nil, isRead: Bool = false, isMuted: Bool = false, isArchived: Bool = false) {
+        self.task = task
+        self.latestEvent = latestEvent
+        self.isRead = isRead
+        self.isMuted = isMuted
+        self.isArchived = isArchived
+    }
+
+    private var activityText: String {
+        guard ["queued", "running"].contains(task.status ?? ""), let latestEvent else {
+            return task.text
+        }
+        return latestEvent.displaySummary
+    }
+
+    private var activityLabel: String {
+        guard ["queued", "running"].contains(task.status ?? ""), latestEvent != nil else {
+            return "Latest task result"
+        }
+        return "Latest task activity"
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -237,19 +409,26 @@ struct PhoneDexTaskRow: View {
                 HStack(alignment: .firstTextBaseline) {
                     Text(task.title)
                         .font(.headline)
-                        .lineLimit(1)
+                        .fontWeight(isRead ? .regular : .semibold)
+                        .lineLimit(2)
                     Spacer(minLength: 8)
                     if let date = task.displayDate {
                         Text(date, style: .relative)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+                    if isMuted {
+                        Image(systemName: "bell.slash.fill")
+                            .foregroundStyle(.orange)
+                            .accessibilityLabel("Muted")
+                    }
                 }
 
-                Text(task.text)
+                Text(activityText)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
+                    .accessibilityLabel(activityLabel)
 
                 Label(task.displayStatus, systemImage: task.statusSymbol)
                     .font(.caption)
@@ -260,9 +439,17 @@ struct PhoneDexTaskRow: View {
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
             }
+
+            if !isRead {
+                Circle()
+                    .fill(.blue)
+                    .frame(width: 8, height: 8)
+                    .accessibilityLabel("Unread")
+            }
         }
         .padding(.vertical, 6)
         .accessibilityElement(children: .combine)
+        .accessibilityValue([isRead ? "Read" : "Unread", isMuted ? "Muted" : nil, isArchived ? "Archived" : nil].compactMap { $0 }.joined(separator: ", "))
         .privacySensitive()
     }
 }
@@ -358,6 +545,7 @@ private struct PhoneDexCreateTaskView: View {
 
 struct PhoneDexConnectionHeader: View {
     let state: PhoneDexAppModel.ConnectionState
+    var accessibilityIdentifier = "connection-status"
 
     var body: some View {
         HStack(alignment: .top, spacing: 7) {
@@ -378,6 +566,7 @@ struct PhoneDexConnectionHeader: View {
         .font(.caption)
         .foregroundStyle(.secondary)
         .accessibilityElement(children: .combine)
+        .accessibilityIdentifier(accessibilityIdentifier)
     }
 
     private var color: Color {
@@ -461,7 +650,9 @@ struct PhoneDexSyncUnavailableView: View {
             } description: {
                 Text(message)
             } actions: {
-                Button("Try again", action: retry)
+                Button("Refresh conversations", systemImage: "arrow.clockwise", action: retry)
+                    .accessibilityHint("Refresh synced conversations from the configured hub")
+                    .accessibilityIdentifier("refresh-conversations")
             }
         }
     }
@@ -519,6 +710,7 @@ struct PhoneDexTaskDetailView: View {
     @ObservedObject var model: PhoneDexAppModel
     @State private var draft: String
     @State private var showNewActivity = false
+    @State private var showingAllLiveActivity = false
     @State private var draftSaveTask: Task<Void, Never>?
     @State private var hasRestoredReadingPosition = false
     @State private var showCancelConfirmation = false
@@ -554,6 +746,7 @@ struct PhoneDexTaskDetailView: View {
                     detailSection(.activity) { activity }
                     detailSection(.evidence) { evidence }
                     replyStatus
+                    queuedLifecycleStatus
                     lifecycleStatus
 
                     Color.clear
@@ -636,12 +829,14 @@ struct PhoneDexTaskDetailView: View {
                         Button("Cancel task", systemImage: "xmark.circle") {
                             showCancelConfirmation = true
                         }
+                        .disabled(model.lifecycleState.isInFlight)
                     }
                     if task.supportsLifecycle("task.retry.v1") && ["failed", "cancelled"].contains(task.status ?? "") {
                         Divider()
                         Button("Retry task", systemImage: "arrow.clockwise") {
                             Task { _ = await model.retry(task: task) }
                         }
+                        .disabled(model.lifecycleState.isInFlight)
                     }
                     if model.supportsDesktopHandoff(for: task) {
                         Divider()
@@ -651,6 +846,7 @@ struct PhoneDexTaskDetailView: View {
                                 showDesktopHandoff = desktopHandoff != nil
                             }
                         }
+                        .disabled(model.lifecycleState.isInFlight)
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")
@@ -729,8 +925,19 @@ struct PhoneDexTaskDetailView: View {
                     .foregroundStyle(statusColor)
                 Spacer()
                 if let date = task.lastUpdatedDate {
-                    Text(date, style: .relative)
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(task.freshnessLabel)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(date, style: .relative)
+                            .foregroundStyle(.secondary)
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(task.freshnessAccessibilityValue)
+                } else {
+                    Text(task.freshnessLabel)
                         .foregroundStyle(.secondary)
+                        .accessibilityLabel(task.freshnessAccessibilityValue)
                 }
             }
             .font(.subheadline.weight(.semibold))
@@ -899,6 +1106,7 @@ struct PhoneDexTaskDetailView: View {
                             }
                             .buttonStyle(.borderedProminent)
                             .tint(.orange)
+                            .disabled(model.lifecycleState.isInFlight)
                             .accessibilityHint("Opens a confirmation before sending this approval.")
 
                             Button(role: .destructive) {
@@ -909,6 +1117,7 @@ struct PhoneDexTaskDetailView: View {
                                     .frame(maxWidth: .infinity)
                             }
                             .buttonStyle(.bordered)
+                            .disabled(model.lifecycleState.isInFlight)
                             .accessibilityHint("Opens a confirmation before rejecting this approval.")
                         }
                     } else {
@@ -1042,8 +1251,9 @@ struct PhoneDexTaskDetailView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } else {
+                let visibleEvents = PhoneDexLiveActivityPresentation.visibleEvents(events, expanded: showingAllLiveActivity)
                 VStack(alignment: .leading, spacing: 0) {
-                    ForEach(events) { event in
+                    ForEach(visibleEvents) { event in
                         HStack(alignment: .top, spacing: 10) {
                             Image(systemName: event.symbol)
                                 .foregroundStyle(event.type == "task_failed" ? .red : .secondary)
@@ -1068,6 +1278,25 @@ struct PhoneDexTaskDetailView: View {
                         .padding(.vertical, 8)
                         .accessibilityElement(children: .combine)
                     }
+                }
+                if let disclosureTitle = PhoneDexLiveActivityPresentation.disclosureTitle(
+                    eventCount: events.count,
+                    expanded: showingAllLiveActivity
+                ) {
+                    Button {
+                        withAnimation(.snappy) {
+                            showingAllLiveActivity.toggle()
+                        }
+                    } label: {
+                        Label(
+                            disclosureTitle,
+                            systemImage: showingAllLiveActivity ? "chevron.up" : "chevron.down"
+                        )
+                        .font(.caption.weight(.semibold))
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityIdentifier("toggle-live-activity")
+                    .accessibilityHint(showingAllLiveActivity ? "Collapses older lifecycle events" : "Reveals older lifecycle events")
                 }
             }
         }
@@ -1283,6 +1512,10 @@ struct PhoneDexTaskDetailView: View {
                     .foregroundStyle(.green)
                     .font(.subheadline)
             }
+        case .duplicate(let message):
+            Label(message, systemImage: "checkmark.circle")
+                .foregroundStyle(.secondary)
+                .font(.subheadline)
         case .queued(let prompt):
             HStack(spacing: 10) {
                 Label("Queued offline: \(prompt)", systemImage: "clock.arrow.circlepath")
@@ -1343,6 +1576,25 @@ struct PhoneDexTaskDetailView: View {
     }
 
     @ViewBuilder
+    private var queuedLifecycleStatus: some View {
+        if let pending = model.pendingLifecycleCommand(for: task) {
+            VStack(alignment: .leading, spacing: 6) {
+                Label(pending.queuedMessage, systemImage: "clock.arrow.circlepath")
+                    .foregroundStyle(.orange)
+                    .font(.subheadline.weight(.semibold))
+                Text("Created \(pending.createdAt, style: .relative). PhoneDex will retry this managed action after a successful sync. It remains local to this iPhone and does not change the task until the originating agent accepts it.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(pending.queuedMessage) Created \(pending.createdAt.formatted(.relative(presentation: .named))).")
+        }
+    }
+
+    @ViewBuilder
     private var lifecycleStatus: some View {
         switch model.lifecycleState {
         case .sending:
@@ -1357,6 +1609,10 @@ struct PhoneDexTaskDetailView: View {
             Label(message, systemImage: "checkmark.circle.fill")
                 .foregroundStyle(.green)
                 .font(.subheadline)
+        case .queued(let message):
+            Label(message, systemImage: "clock.arrow.circlepath")
+                .foregroundStyle(.orange)
+                .font(.subheadline)
                 .accessibilityElement(children: .combine)
         case .failed(let message):
             Label(message, systemImage: "exclamationmark.triangle.fill")
@@ -1364,7 +1620,24 @@ struct PhoneDexTaskDetailView: View {
                 .font(.subheadline)
                 .accessibilityElement(children: .combine)
         case .idle:
-            EmptyView()
+            if let receipt = model.latestLifecycleReceipt(for: task) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Label("\(receipt.actionLabel): \(receipt.displayState)", systemImage: receipt.isSuccessful ? "checkmark.circle.fill" : "exclamationmark.circle")
+                        .foregroundStyle(receipt.isSuccessful ? .green : .red)
+                        .font(.subheadline)
+                    if let message = receipt.message, !message.isEmpty {
+                        Text(message)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Text("Recorded \(receipt.recordedAt, style: .relative)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .accessibilityElement(children: .combine)
+            } else {
+                EmptyView()
+            }
         }
     }
 
@@ -1556,42 +1829,72 @@ private struct PhoneDexTaskDetailAnchorPreferenceKey: PreferenceKey {
 private struct PhoneDexProjectsView: View {
     @ObservedObject var model: PhoneDexAppModel
     @State private var showingArtifactLibrary = false
+    @State private var searchText = ""
+
+    private var visibleProjects: [PhoneDexProject] {
+        PhoneDexProject.filtered(model.projects, by: searchText)
+    }
 
     var body: some View {
         NavigationStack {
-            List(model.projects) { project in
-                NavigationLink {
-                    PhoneDexWorkspaceDetailView(project: project, model: model)
-                } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: "folder.fill")
-                            .foregroundStyle(.purple)
-                            .frame(width: 32)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(project.name).font(.headline)
-                            Text("\(project.deviceSummary) · \(project.tasks.count) conversation\(project.tasks.count == 1 ? "" : "s")")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            if project.activeTaskCount > 0 || project.attentionTaskCount > 0 {
-                                Text(workspaceStatus(project))
-                                    .font(.caption2.weight(.medium))
-                                    .foregroundStyle(project.attentionTaskCount > 0 ? .orange : .blue)
+            VStack(spacing: 0) {
+                PhoneDexConnectionHeader(state: model.connectionState, accessibilityIdentifier: "projects-connection-status")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(.bar)
+                Divider()
+
+                List(visibleProjects) { project in
+                    NavigationLink {
+                        PhoneDexWorkspaceDetailView(project: project, model: model)
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "folder.fill")
+                                .foregroundStyle(.purple)
+                                .frame(width: 32)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(project.name).font(.headline)
+                                Text("\(project.deviceSummary) · \(project.tasks.count) conversation\(project.tasks.count == 1 ? "" : "s")")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                if project.activeTaskCount > 0 || project.attentionTaskCount > 0 {
+                                    Text(workspaceStatus(project))
+                                        .font(.caption2.weight(.medium))
+                                        .foregroundStyle(project.attentionTaskCount > 0 ? .orange : .blue)
+                                }
+                                if let path = project.path {
+                                    Text(path)
+                                        .font(.caption2)
+                                        .foregroundStyle(.tertiary)
+                                        .lineLimit(1)
+                                } else if project.paths.count > 1 {
+                                    Text("\(project.paths.count) working directories")
+                                        .font(.caption2)
+                                        .foregroundStyle(.tertiary)
+                                }
                             }
-                            if let path = project.path {
-                                Text(path)
-                                    .font(.caption2)
-                                    .foregroundStyle(.tertiary)
-                                    .lineLimit(1)
-                            } else if project.paths.count > 1 {
-                                Text("\(project.paths.count) working directories")
-                                    .font(.caption2)
-                                    .foregroundStyle(.tertiary)
+                        }
+                    }
+                }
+                .listStyle(.plain)
+                .refreshable { await model.refresh() }
+                .overlay {
+                    if visibleProjects.isEmpty {
+                        if model.tasks.isEmpty && model.connectionState.blocksEmptyContent {
+                            PhoneDexSyncUnavailableView(state: model.connectionState) {
+                                Task { await model.refresh() }
                             }
+                        } else if !model.projects.isEmpty && !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            ContentUnavailableView.search(text: searchText)
+                        } else {
+                            ContentUnavailableView("No projects", systemImage: "folder")
                         }
                     }
                 }
             }
             .navigationTitle("Projects")
+            .searchable(text: $searchText, prompt: "Search workspaces")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -1601,18 +1904,6 @@ private struct PhoneDexProjectsView: View {
                     }
                     .accessibilityLabel("Open artifact library")
                     .accessibilityHint("Browse exported artifacts from synced conversations")
-                }
-            }
-            .refreshable { await model.refresh() }
-            .overlay {
-                if model.projects.isEmpty {
-                    if model.tasks.isEmpty && model.connectionState.blocksEmptyContent {
-                        PhoneDexSyncUnavailableView(state: model.connectionState) {
-                            Task { await model.refresh() }
-                        }
-                    } else {
-                        ContentUnavailableView("No projects", systemImage: "folder")
-                    }
                 }
             }
         }
@@ -1634,7 +1925,6 @@ private struct PhoneDexArtifactLibraryView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var searchText = ""
     @State private var selectedMachine: String?
-    @State private var downloaded: [String: Data] = [:]
     @State private var downloadingID: String?
     @State private var errorMessage: String?
 
@@ -1721,7 +2011,7 @@ private struct PhoneDexArtifactLibraryView: View {
             Label("\(item.workspaceName) · \(item.machineName)", systemImage: "desktopcomputer")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
-            if let data = downloaded[item.id] {
+            if let data = model.cachedArtifactData(for: artifact) {
                 ShareLink(item: data, preview: SharePreview(artifact.name)) {
                     Label("Share verified download", systemImage: "square.and.arrow.up")
                 }
@@ -1750,9 +2040,9 @@ private struct PhoneDexArtifactLibraryView: View {
         downloadingID = item.id
         Task {
             do {
-                downloaded[item.id] = try await model.downloadArtifact(item.artifact)
+                _ = try await model.downloadArtifact(item.artifact)
             } catch {
-                errorMessage = error.localizedDescription
+                errorMessage = error.phoneDexSafeMessage
             }
             downloadingID = nil
         }
@@ -1764,42 +2054,52 @@ private struct PhoneDexDevicesView: View {
 
     var body: some View {
         NavigationStack {
-            List(model.devices) { device in
-                NavigationLink {
-                    PhoneDexDeviceDetailView(device: device, model: model)
-                } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: device.isMacPlatform ? "desktopcomputer" : "pc")
-                            .foregroundStyle(device.health.isActionable ? .orange : .green)
-                            .frame(width: 34)
+            VStack(spacing: 0) {
+                PhoneDexConnectionHeader(state: model.connectionState, accessibilityIdentifier: "devices-connection-status")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(.bar)
+                Divider()
 
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(device.displayName).font(.headline)
-                            Text(deviceSummary(device))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                List(model.devices) { device in
+                    NavigationLink {
+                        PhoneDexDeviceDetailView(device: device, model: model)
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: device.isMacPlatform ? "desktopcomputer" : "pc")
+                                .foregroundStyle(device.health.isActionable ? .orange : .green)
+                                .frame(width: 34)
+
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(device.displayName).font(.headline)
+                                Text(deviceSummary(device))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: device.health.symbol)
+                                .foregroundStyle(device.health.isActionable ? .orange : .green)
+                                .accessibilityLabel(device.health.title)
                         }
-                        Spacer()
-                        Image(systemName: device.health.symbol)
-                            .foregroundStyle(device.health.isActionable ? .orange : .green)
-                            .accessibilityLabel(device.health.title)
+                        .padding(.vertical, 4)
                     }
-                    .padding(.vertical, 4)
+                }
+                .listStyle(.plain)
+                .refreshable { await model.refresh() }
+                .overlay {
+                    if model.devices.isEmpty {
+                        if model.connectionState.blocksEmptyContent {
+                            PhoneDexSyncUnavailableView(state: model.connectionState) {
+                                Task { await model.refresh() }
+                            }
+                        } else {
+                            ContentUnavailableView("No devices", systemImage: "desktopcomputer")
+                        }
+                    }
                 }
             }
             .navigationTitle("Devices")
-            .refreshable { await model.refresh() }
-            .overlay {
-                if model.devices.isEmpty {
-                    if model.connectionState.blocksEmptyContent {
-                        PhoneDexSyncUnavailableView(state: model.connectionState) {
-                            Task { await model.refresh() }
-                        }
-                    } else {
-                        ContentUnavailableView("No devices", systemImage: "desktopcomputer")
-                    }
-                }
-            }
         }
     }
 
@@ -1810,16 +2110,50 @@ private struct PhoneDexDevicesView: View {
     }
 }
 
+private struct PhoneDexLegacyCredentialDisclosure: View {
+    @Binding var token: String
+    @State private var isExpanded = false
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            Text(PhoneDexCredentialCopy.legacyWarning)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            SecureField("Legacy bridge token", text: $token)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .privacySensitive()
+                .accessibilityHint("Stores a legacy local-hub credential in the device-only Keychain.")
+
+            Text(PhoneDexCredentialCopy.legacyFooter)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        } label: {
+            Label(PhoneDexCredentialCopy.legacyHeader, systemImage: "rectangle.and.pencil.and.ellipsis")
+        }
+        .accessibilityHint("Reveals an older local-hub token field. Secure pairing is recommended for new connections.")
+    }
+}
+
 private struct PhoneDexSettingsView: View {
     @ObservedObject var model: PhoneDexAppModel
     @ObservedObject private var settings: PhoneDexSettings
+    @Environment(\.openURL) private var openURL
     @State private var notificationStatus = ""
+    @State private var notificationAuthorization = PhoneDexNotificationAuthorization.unknown
     @State private var pairingGrant = ""
     @State private var pairingCode = ""
     @State private var pairingStatus = ""
     @State private var isPairing = false
     @State private var diagnosticsStatus = ""
     @State private var isLoadingDiagnostics = false
+    @State private var showingClearArtifactConfirmation = false
+    @State private var showingClearLocalCacheConfirmation = false
+    @State private var showingForgetCredentialConfirmation = false
+    @State private var credentialStatus = ""
 
     init(model: PhoneDexAppModel) {
         self.model = model
@@ -1830,7 +2164,7 @@ private struct PhoneDexSettingsView: View {
         NavigationStack {
             Form {
                 Section {
-                    Text("On the hub, run `npm run pair:create`, then enter both values here. The grant expires and can be used once.")
+                    Text(PhoneDexCredentialCopy.pairingInstruction)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
 
@@ -1839,13 +2173,21 @@ private struct PhoneDexSettingsView: View {
                         .autocorrectionDisabled()
                         .privacySensitive()
 
-                    TextField("6-digit verification code", text: $pairingCode)
+                    TextField("Code", text: $pairingCode)
                         .keyboardType(.numberPad)
                         .textContentType(.oneTimeCode)
                         .privacySensitive()
+                        .accessibilityLabel("6-digit verification code")
 
-                    Button("Pair this iPhone", systemImage: "checkmark.shield") {
+                    Button {
                         Task { await redeemPairing() }
+                    } label: {
+                        Label("Pair", systemImage: "checkmark.shield")
+                            .fixedSize(horizontal: false, vertical: true)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .layoutPriority(1)
+                            .accessibilityLabel("Pair iPhone")
                     }
                     .disabled(isPairing || pairingGrant.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || pairingCode.count != 6)
 
@@ -1858,20 +2200,44 @@ private struct PhoneDexSettingsView: View {
                             .foregroundStyle(pairingStatus.hasPrefix("Paired") ? .green : .red)
                     }
                 } header: {
-                    Text("Secure pairing")
+                    Text(PhoneDexCredentialCopy.pairingHeader)
                 } footer: {
-                    Text("The PhoneDex app stores the resulting device credential in Keychain. It is not included in the pairing request.")
+                    Text(PhoneDexCredentialCopy.pairingFooter)
                 }
 
-                Section("Connection") {
+                Section(header: Text("Connection")) {
                     TextField("Bridge URL", text: $settings.bridgeURL)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .keyboardType(.URL)
 
-                    SecureField("Token", text: $settings.token)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
+                    Button("Forget stored credential", systemImage: "key.slash", role: .destructive) {
+                        showingForgetCredentialConfirmation = true
+                    }
+                    .disabled(settings.token.isEmpty)
+                    .accessibilityIdentifier("Forget stored credential")
+                    .accessibilityHint("Removes this iPhone's local bridge credential. The hub credential is not revoked.")
+
+                    if !settings.token.isEmpty {
+                        Label(PhoneDexCredentialCopy.storedCredential, systemImage: "checkmark.shield.fill")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .accessibilityElement(children: .combine)
+                    }
+
+                    PhoneDexLegacyCredentialDisclosure(token: $settings.token)
+
+                    if !credentialStatus.isEmpty {
+                        Label(
+                            credentialStatus,
+                            systemImage: credentialStatus.hasPrefix("Credential removed")
+                                ? "checkmark.circle.fill"
+                                : "exclamationmark.triangle.fill"
+                        )
+                            .font(.footnote)
+                            .foregroundStyle(credentialStatus.hasPrefix("Credential removed") ? .green : .red)
+                            .accessibilityElement(children: .combine)
+                    }
 
                     if let credentialStorageError = settings.credentialStorageError {
                         Label(credentialStorageError, systemImage: "lock.trianglebadge.exclamationmark")
@@ -1906,16 +2272,29 @@ private struct PhoneDexSettingsView: View {
                 }
 
                 Section("Notifications") {
-                    Button("Allow Notifications", systemImage: "bell.badge") {
-                        Task {
-                            do {
-                                let allowed = try await PhoneDexNotificationScheduler.requestAuthorization()
-                                notificationStatus = allowed ? "Notifications are enabled." : "Notifications are disabled."
-                            } catch {
-                                notificationStatus = error.localizedDescription
-                            }
+                    Picker("Lock-screen privacy", selection: $settings.notificationPrivacy) {
+                        ForEach(PhoneDexNotificationPrivacy.allCases) { privacy in
+                            Text(privacy.title).tag(privacy)
                         }
                     }
+                    .accessibilityIdentifier("Notification privacy")
+
+                    Text(settings.notificationPrivacy.explanation)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
+                    Label(notificationAuthorization.title, systemImage: notificationAuthorization.isEnabled ? "bell.fill" : "bell.slash")
+                        .accessibilityElement(children: .combine)
+
+                    Text(notificationAuthorization.explanation)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Button(notificationAuthorization.canOpenSettings ? "Open Notification Settings" : "Allow Notifications", systemImage: notificationAuthorization.canOpenSettings ? "gear" : "bell.badge") {
+                        Task { await handleNotificationPermissionAction() }
+                    }
+                    .accessibilityHint(notificationAuthorization.canOpenSettings ? "Opens iPhone Settings so notification permission can be changed." : "Requests permission for PhoneDex alerts.")
 
                     Button("Notify Latest Task", systemImage: "paperplane") {
                         Task { await notifyLatest() }
@@ -1927,6 +2306,7 @@ private struct PhoneDexSettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                .task { await refreshNotificationAuthorization() }
 
                 Section {
                     Button("Refresh Diagnostics", systemImage: "stethoscope") {
@@ -1940,8 +2320,35 @@ private struct PhoneDexSettingsView: View {
 
                     if let diagnostics = model.diagnostics {
                         LabeledContent("Generated", value: diagnostics.generatedAt)
-                        LabeledContent("Components", value: diagnostics.components.values.sorted().joined(separator: ", "))
+                        Label(diagnostics.overallHealth.title, systemImage: diagnostics.overallHealth.symbol)
+                            .foregroundStyle(diagnostics.overallHealth.isActionable ? .orange : .green)
+                            .accessibilityElement(children: .combine)
+
+                        ForEach(diagnostics.componentRows) { component in
+                            LabeledContent {
+                                Label(component.health.title, systemImage: component.health.symbol)
+                                    .foregroundStyle(component.health.isActionable ? .orange : .green)
+                            } label: {
+                                Text(component.title)
+                            }
+                            .accessibilityElement(children: .combine)
+                        }
+
                         LabeledContent("Requests", value: "\(diagnostics.metrics.requests) (\(diagnostics.metrics.failures) failures)")
+
+                        if !diagnostics.recentFailures.isEmpty {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Recent failures")
+                                    .font(.subheadline.weight(.semibold))
+                                ForEach(diagnostics.recentFailures) { request in
+                                    Label("HTTP \(request.status) · \(request.routeLabel)", systemImage: "exclamationmark.triangle")
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                        .accessibilityElement(children: .combine)
+                                }
+                            }
+                        }
+
                         ShareLink(item: diagnostics.shareText, preview: SharePreview("PhoneDex diagnostics")) {
                             Label("Share safe diagnostics", systemImage: "square.and.arrow.up")
                         }
@@ -1959,14 +2366,68 @@ private struct PhoneDexSettingsView: View {
                     Text("Diagnostics include component health, protocol versions, capabilities, and aggregate request metrics only. They never include task text, paths, credentials, or artifact bytes.")
                 }
 
+                Section {
+                    LabeledContent("Saved downloads", value: "\(model.cachedArtifacts.count)")
+                    LabeledContent("Storage used", value: ByteCountFormatter.string(fromByteCount: Int64(model.cachedArtifactBytes), countStyle: .file))
+                    Button("Clear saved downloads", role: .destructive) {
+                        showingClearArtifactConfirmation = true
+                    }
+                    .disabled(model.cachedArtifacts.isEmpty)
+
+                    Button("Clear local cache", systemImage: "trash", role: .destructive) {
+                        showingClearLocalCacheConfirmation = true
+                    }
+
+                    if let localCacheStatusMessage = model.localCacheStatusMessage {
+                        Label(
+                            localCacheStatusMessage,
+                            systemImage: localCacheStatusMessage.hasPrefix("Local task") ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
+                        )
+                        .font(.footnote)
+                        .foregroundStyle(localCacheStatusMessage.hasPrefix("Local task") ? .green : .red)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityElement(children: .combine)
+                    }
+                } header: {
+                    Text("Review storage")
+                } footer: {
+                    Text("Clear local cache removes conversations, drafts, receipts, and downloaded review data from this iPhone. It keeps the paired credential and does not delete anything from the hub.")
+                }
+
                 Section("About") {
-                    LabeledContent("Version", value: "0.1 development")
+                    LabeledContent("Version", value: PhoneDexReleaseIdentity(bundle: .main).displayValue)
                     if let projectURL = URL(string: "https://github.com/nash226/phonedex") {
                         Link("PhoneDex on GitHub", destination: projectURL)
                     }
                 }
             }
             .navigationTitle("Settings")
+            .confirmationDialog("Clear saved downloads?", isPresented: $showingClearArtifactConfirmation, titleVisibility: .visible) {
+                Button("Clear downloads", role: .destructive) { model.clearCachedArtifacts() }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("Downloaded artifacts will be removed from this iPhone. They can be downloaded again while the originating agent retains them.")
+            }
+            .confirmationDialog("Clear local cache?", isPresented: $showingClearLocalCacheConfirmation, titleVisibility: .visible) {
+                Button("Clear local cache", role: .destructive) {
+                    _ = model.clearLocalCache()
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("This removes cached conversations, drafts, receipts, offline actions, and downloaded review data from this iPhone. Your paired credential stays in Keychain, and hub data is not deleted.")
+            }
+            .confirmationDialog("Forget stored credential?", isPresented: $showingForgetCredentialConfirmation, titleVisibility: .visible) {
+                Button("Forget credential", role: .destructive) {
+                    if model.forgetCredential() {
+                        credentialStatus = "Credential removed. Pending replies cleared. Pair this iPhone again before connecting."
+                    } else {
+                        credentialStatus = settings.credentialStorageError ?? "Credential could not be removed. Try again."
+                    }
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("This removes only the credential stored on this iPhone and clears unsent local replies. It does not revoke the hub credential, delete task history, or change other paired devices.")
+            }
         }
     }
 
@@ -1986,11 +2447,35 @@ private struct PhoneDexSettingsView: View {
             }
             try await PhoneDexNotificationScheduler.scheduleTaskNotification(
                 task,
-                bridgeURL: bridgeURL
+                bridgeURL: bridgeURL,
+                privacy: settings.notificationPrivacy
             )
             notificationStatus = "Notification scheduled."
         } catch {
-            notificationStatus = error.localizedDescription
+            notificationStatus = error.phoneDexSafeMessage
+        }
+    }
+
+    private func refreshNotificationAuthorization() async {
+        notificationAuthorization = await PhoneDexNotificationScheduler.authorizationStatus()
+    }
+
+    private func handleNotificationPermissionAction() async {
+        if notificationAuthorization.canOpenSettings {
+            guard let url = URL(string: UIApplication.openSettingsURLString) else {
+                notificationStatus = "Open iPhone Settings to change notification permission."
+                return
+            }
+            openURL(url)
+            return
+        }
+
+        do {
+            _ = try await PhoneDexNotificationScheduler.requestAuthorization()
+            await refreshNotificationAuthorization()
+            notificationStatus = notificationAuthorization.explanation
+        } catch {
+            notificationStatus = error.phoneDexSafeMessage
         }
     }
 
@@ -2017,7 +2502,7 @@ private struct PhoneDexSettingsView: View {
             pairingStatus = "Paired as \(response.identity.name)."
             await model.refresh()
         } catch {
-            pairingStatus = error.localizedDescription
+            pairingStatus = error.phoneDexSafeMessage
         }
     }
 
@@ -2028,7 +2513,7 @@ private struct PhoneDexSettingsView: View {
             _ = try await model.fetchDiagnostics()
             diagnosticsStatus = "Diagnostics refreshed."
         } catch {
-            diagnosticsStatus = error.localizedDescription
+            diagnosticsStatus = error.phoneDexSafeMessage
         }
     }
 }

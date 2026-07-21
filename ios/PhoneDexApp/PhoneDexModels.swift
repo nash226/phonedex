@@ -1,5 +1,73 @@
 import Foundation
 
+enum PhoneDexNativeDecodeBounds {
+    static let id = 160
+    static let title = 240
+    static let taskText = 10_000
+    static let path = 400
+    static let workspaceName = 240
+    static let machineName = 160
+    static let source = 80
+    static let status = 64
+    static let branch = 240
+    static let repository = 400
+    static let message = 1_000
+    static let questionPrompt = 2_000
+    static let questionChoices = 32
+    static let captureSources = 16
+    static let lifecycleCapabilities = 32
+    static let evidenceItems = 100
+    static let patch = 600_000
+    static let eventData = 32
+    static let eventDataValue = 1_000
+    static let syncPageItems = 100
+
+    static func string(
+        _ value: String?,
+        maxLength: Int,
+        key: String,
+        decoder: Decoder
+    ) throws -> String? {
+        guard let value else { return nil }
+        guard value.count <= maxLength else {
+            throw DecodingError.dataCorrupted(.init(
+                codingPath: decoder.codingPath,
+                debugDescription: "\(key) exceeds the native display limit of \(maxLength) characters"
+            ))
+        }
+        return value
+    }
+
+    static func requiredString(
+        _ value: String?,
+        maxLength: Int,
+        key: String,
+        decoder: Decoder
+    ) throws -> String {
+        guard let value = try string(value, maxLength: maxLength, key: key, decoder: decoder) else {
+            throw DecodingError.dataCorrupted(.init(
+                codingPath: decoder.codingPath,
+                debugDescription: "\(key) must be present"
+            ))
+        }
+        return value
+    }
+
+    static func count(
+        _ value: Int,
+        max: Int,
+        key: String,
+        decoder: Decoder
+    ) throws {
+        guard value <= max else {
+            throw DecodingError.dataCorrupted(.init(
+                codingPath: decoder.codingPath,
+                debugDescription: "\(key) exceeds the native display limit of \(max) items"
+            ))
+        }
+    }
+}
+
 struct PhoneDexTask: Codable, Identifiable, Equatable {
     let id: String
     let at: String?
@@ -31,27 +99,34 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(String.self, forKey: .id)
+        id = try PhoneDexNativeDecodeBounds.requiredString(
+            try container.decode(String.self, forKey: .id),
+            maxLength: PhoneDexNativeDecodeBounds.id,
+            key: "task.id",
+            decoder: decoder
+        )
         at = try container.decodeIfPresent(String.self, forKey: .at)
         createdAt = try container.decodeIfPresent(String.self, forKey: .createdAt)
         updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt)
         version = try container.decodeIfPresent(Int.self, forKey: .version)
-        source = try container.decodeIfPresent(String.self, forKey: .source)
-        title = try container.decodeIfPresent(String.self, forKey: .title) ?? "Codex task"
-        text = try container.decodeIfPresent(String.self, forKey: .text) ?? ""
-        cwd = try container.decodeIfPresent(String.self, forKey: .cwd)
-        workspaceName = try container.decodeIfPresent(String.self, forKey: .workspaceName)
-        machineName = try container.decodeIfPresent(String.self, forKey: .machineName)
-        deviceId = try container.decodeIfPresent(String.self, forKey: .deviceId)
-        sessionId = try container.decodeIfPresent(String.self, forKey: .sessionId)
-        status = try container.decodeIfPresent(String.self, forKey: .status)
-        branch = try container.decodeIfPresent(String.self, forKey: .branch)
-        repository = try container.decodeIfPresent(String.self, forKey: .repository)
+        source = try PhoneDexNativeDecodeBounds.string(container.decodeIfPresent(String.self, forKey: .source), maxLength: PhoneDexNativeDecodeBounds.source, key: "task.source", decoder: decoder)
+        title = try PhoneDexNativeDecodeBounds.string(container.decodeIfPresent(String.self, forKey: .title), maxLength: PhoneDexNativeDecodeBounds.title, key: "task.title", decoder: decoder) ?? "Codex task"
+        text = try PhoneDexNativeDecodeBounds.string(container.decodeIfPresent(String.self, forKey: .text), maxLength: PhoneDexNativeDecodeBounds.taskText, key: "task.text", decoder: decoder) ?? ""
+        cwd = try PhoneDexNativeDecodeBounds.string(container.decodeIfPresent(String.self, forKey: .cwd), maxLength: PhoneDexNativeDecodeBounds.path, key: "task.cwd", decoder: decoder)
+        workspaceName = try PhoneDexNativeDecodeBounds.string(container.decodeIfPresent(String.self, forKey: .workspaceName), maxLength: PhoneDexNativeDecodeBounds.workspaceName, key: "task.workspaceName", decoder: decoder)
+        machineName = try PhoneDexNativeDecodeBounds.string(container.decodeIfPresent(String.self, forKey: .machineName), maxLength: PhoneDexNativeDecodeBounds.machineName, key: "task.machineName", decoder: decoder)
+        deviceId = try PhoneDexNativeDecodeBounds.string(container.decodeIfPresent(String.self, forKey: .deviceId), maxLength: PhoneDexNativeDecodeBounds.id, key: "task.deviceId", decoder: decoder)
+        sessionId = try PhoneDexNativeDecodeBounds.string(container.decodeIfPresent(String.self, forKey: .sessionId), maxLength: PhoneDexNativeDecodeBounds.id, key: "task.sessionId", decoder: decoder)
+        status = try PhoneDexNativeDecodeBounds.string(container.decodeIfPresent(String.self, forKey: .status), maxLength: PhoneDexNativeDecodeBounds.status, key: "task.status", decoder: decoder)
+        branch = try PhoneDexNativeDecodeBounds.string(container.decodeIfPresent(String.self, forKey: .branch), maxLength: PhoneDexNativeDecodeBounds.branch, key: "task.branch", decoder: decoder)
+        repository = try PhoneDexNativeDecodeBounds.string(container.decodeIfPresent(String.self, forKey: .repository), maxLength: PhoneDexNativeDecodeBounds.repository, key: "task.repository", decoder: decoder)
         question = try container.decodeIfPresent(PhoneDexTaskQuestion.self, forKey: .question)
         approvalRequest = try container.decodeIfPresent(PhoneDexApprovalRequest.self, forKey: .approvalRequest)
         captureSources = try container.decodeIfPresent([PhoneDexCaptureSource].self, forKey: .captureSources) ?? []
+        try PhoneDexNativeDecodeBounds.count(captureSources.count, max: PhoneDexNativeDecodeBounds.captureSources, key: "task.captureSources", decoder: decoder)
         evidence = try container.decodeIfPresent(PhoneDexTaskEvidence.self, forKey: .evidence)
         lifecycleCapabilities = try container.decodeIfPresent([String].self, forKey: .lifecycleCapabilities) ?? []
+        try PhoneDexNativeDecodeBounds.count(lifecycleCapabilities.count, max: PhoneDexNativeDecodeBounds.lifecycleCapabilities, key: "task.lifecycleCapabilities", decoder: decoder)
     }
 
     init(
@@ -122,16 +197,16 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
 
     var displayStatus: String {
         switch status {
-        case "needs_input": return "Needs your input"
-        case "awaiting_approval": return "Needs approval"
-        case "needs_review": return "Needs review"
-        case "queued": return "Queued"
-        case "running": return "Running"
-        case "failed": return "Failed"
-        case "canceling": return "Cancelling"
-        case "cancelled": return "Cancelled"
-        case "completed": return "Completed"
-        default: return "Recent"
+        case "needs_input": return Self.localized("task.status.needsInput", "Needs your input", "A task is waiting for the user's answer.")
+        case "awaiting_approval": return Self.localized("task.status.needsApproval", "Needs approval", "A task is waiting for an approval decision.")
+        case "needs_review": return Self.localized("task.status.needsReview", "Needs review", "A task has work ready for review.")
+        case "queued": return Self.localized("task.status.queued", "Queued", "A PhoneDex-managed task is queued.")
+        case "running": return Self.localized("task.status.running", "Running", "A task is currently running.")
+        case "failed": return Self.localized("task.status.failed", "Failed", "A task failed.")
+        case "canceling": return Self.localized("task.status.cancelling", "Cancelling", "A task cancellation is in progress.")
+        case "cancelled": return Self.localized("task.status.cancelled", "Cancelled", "A task was cancelled.")
+        case "completed": return Self.localized("task.status.completed", "Completed", "A task completed.")
+        default: return Self.localized("task.status.recent", "Recent", "A task with no current lifecycle status.")
         }
     }
 
@@ -151,11 +226,26 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
     }
 
     var displayDate: Date? {
-        date(from: at ?? createdAt)
+        date(from: at) ?? date(from: createdAt)
     }
 
     var lastUpdatedDate: Date? {
         date(from: updatedAt) ?? displayDate
+    }
+
+    var freshnessLabel: String {
+        if date(from: updatedAt) != nil {
+            return Self.localized("task.timestamp.updated", "Last updated", "The task's latest known update time.")
+        }
+        if displayDate != nil {
+            return Self.localized("task.timestamp.recorded", "Recorded", "The time PhoneDex recorded the task.")
+        }
+        return Self.localized("task.timestamp.unknown", "Update time unavailable", "The task has no valid timestamp.")
+    }
+
+    var freshnessAccessibilityValue: String {
+        guard let date = lastUpdatedDate else { return freshnessLabel }
+        return "\(freshnessLabel), \(date.formatted(date: .abbreviated, time: .shortened))"
     }
 
     var activity: [PhoneDexTaskActivity] {
@@ -163,8 +253,8 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
         if let date = displayDate {
             items.append(PhoneDexTaskActivity(
                 id: "created",
-                title: "Task recorded",
-                detail: "PhoneDex received this task from " + displaySource,
+                title: Self.localized("task.activity.recorded", "Task recorded", "The task was recorded by PhoneDex."),
+                detail: String.localizedStringWithFormat(Self.localized("task.activity.receivedFrom", "PhoneDex received this task from %@", "The task capture source."), displaySource),
                 symbol: "arrow.down.circle",
                 date: date
             ))
@@ -183,7 +273,7 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
             items.append(PhoneDexTaskActivity(
                 id: "updated",
                 title: displayStatus,
-                detail: "Latest known task state",
+                detail: Self.localized("task.activity.latestState", "Latest known task state", "The most recent task state available to PhoneDex."),
                 symbol: statusSymbol,
                 date: date
             ))
@@ -193,11 +283,16 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
 
     var displaySource: String {
         switch source {
-        case "stop-hook": return "Stop hook"
-        case "session-watcher": return "session watcher"
-        case "remote-agent": return "remote agent"
-        default: return source?.replacingOccurrences(of: "-", with: " ") ?? "bridge"
+        case "stop-hook": return Self.localized("task.source.stopHook", "Stop hook", "The Codex stop hook capture source.")
+        case "session-watcher": return Self.localized("task.source.sessionWatcher", "session watcher", "The local session watcher capture source.")
+        case "remote-agent": return Self.localized("task.source.remoteAgent", "remote agent", "A remote PhoneDex agent capture source.")
+        default: return source?.replacingOccurrences(of: "-", with: " ") ?? Self.localized("task.source.bridge", "bridge", "The PhoneDex bridge capture source.")
         }
+    }
+
+    private static func localized(_ key: String, _ fallback: String, _ comment: String) -> String {
+        _ = comment
+        return Bundle.main.localizedString(forKey: key, value: fallback, table: nil)
     }
 
     private func date(from value: String?) -> Date? {
@@ -325,6 +420,24 @@ struct PhoneDexTaskQuestion: Codable, Equatable {
     let prompt: String
     let choices: [PhoneDexTaskQuestionChoice]
     let allowsFreeText: Bool
+
+    init(id: String, prompt: String, choices: [PhoneDexTaskQuestionChoice], allowsFreeText: Bool) {
+        self.id = id
+        self.prompt = prompt
+        self.choices = choices
+        self.allowsFreeText = allowsFreeText
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try PhoneDexNativeDecodeBounds.requiredString(container.decode(String.self, forKey: .id), maxLength: PhoneDexNativeDecodeBounds.id, key: "question.id", decoder: decoder)
+        prompt = try PhoneDexNativeDecodeBounds.requiredString(container.decode(String.self, forKey: .prompt), maxLength: PhoneDexNativeDecodeBounds.questionPrompt, key: "question.prompt", decoder: decoder)
+        choices = try container.decode([PhoneDexTaskQuestionChoice].self, forKey: .choices)
+        try PhoneDexNativeDecodeBounds.count(choices.count, max: PhoneDexNativeDecodeBounds.questionChoices, key: "question.choices", decoder: decoder)
+        allowsFreeText = try container.decode(Bool.self, forKey: .allowsFreeText)
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, prompt, choices, allowsFreeText }
 }
 
 struct PhoneDexTaskQuestionChoice: Codable, Equatable, Identifiable {
@@ -419,6 +532,18 @@ struct PhoneDexTaskEvidence: Codable, Equatable {
     let artifacts: [PhoneDexArtifact]
     let validations: [PhoneDexValidationReceipt]
 
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        changedFiles = try container.decodeIfPresent([PhoneDexChangedFile].self, forKey: .changedFiles) ?? []
+        artifacts = try container.decodeIfPresent([PhoneDexArtifact].self, forKey: .artifacts) ?? []
+        validations = try container.decodeIfPresent([PhoneDexValidationReceipt].self, forKey: .validations) ?? []
+        try PhoneDexNativeDecodeBounds.count(changedFiles.count, max: PhoneDexNativeDecodeBounds.evidenceItems, key: "evidence.changedFiles", decoder: decoder)
+        try PhoneDexNativeDecodeBounds.count(artifacts.count, max: PhoneDexNativeDecodeBounds.evidenceItems, key: "evidence.artifacts", decoder: decoder)
+        try PhoneDexNativeDecodeBounds.count(validations.count, max: PhoneDexNativeDecodeBounds.evidenceItems, key: "evidence.validations", decoder: decoder)
+    }
+
+    private enum CodingKeys: String, CodingKey { case changedFiles, artifacts, validations }
+
     init(
         changedFiles: [PhoneDexChangedFile] = [],
         artifacts: [PhoneDexArtifact] = [],
@@ -448,6 +573,40 @@ struct PhoneDexChangedFile: Codable, Equatable, Identifiable {
     let patch: String?
     let patchTruncated: Bool?
 
+    init(
+        path: String,
+        status: String,
+        sourceRef: String? = nil,
+        summary: String? = nil,
+        additions: Int? = nil,
+        deletions: Int? = nil,
+        patch: String? = nil,
+        patchTruncated: Bool? = nil
+    ) {
+        self.path = path
+        self.status = status
+        self.sourceRef = sourceRef
+        self.summary = summary
+        self.additions = additions
+        self.deletions = deletions
+        self.patch = patch
+        self.patchTruncated = patchTruncated
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        path = try PhoneDexNativeDecodeBounds.requiredString(container.decode(String.self, forKey: .path), maxLength: PhoneDexNativeDecodeBounds.path, key: "changedFile.path", decoder: decoder)
+        status = try PhoneDexNativeDecodeBounds.requiredString(container.decode(String.self, forKey: .status), maxLength: PhoneDexNativeDecodeBounds.status, key: "changedFile.status", decoder: decoder)
+        sourceRef = try PhoneDexNativeDecodeBounds.string(container.decodeIfPresent(String.self, forKey: .sourceRef), maxLength: PhoneDexNativeDecodeBounds.path, key: "changedFile.sourceRef", decoder: decoder)
+        summary = try PhoneDexNativeDecodeBounds.string(container.decodeIfPresent(String.self, forKey: .summary), maxLength: 600, key: "changedFile.summary", decoder: decoder)
+        additions = try container.decodeIfPresent(Int.self, forKey: .additions)
+        deletions = try container.decodeIfPresent(Int.self, forKey: .deletions)
+        patch = try PhoneDexNativeDecodeBounds.string(container.decodeIfPresent(String.self, forKey: .patch), maxLength: PhoneDexNativeDecodeBounds.patch, key: "changedFile.patch", decoder: decoder)
+        patchTruncated = try container.decodeIfPresent(Bool.self, forKey: .patchTruncated)
+    }
+
+    private enum CodingKeys: String, CodingKey { case path, status, sourceRef, summary, additions, deletions, patch, patchTruncated }
+
     var id: String { path }
 
     var hasPatch: Bool {
@@ -456,7 +615,13 @@ struct PhoneDexChangedFile: Codable, Equatable, Identifiable {
     }
 
     var displayStatus: String {
-        status.capitalized
+        switch status {
+        case "added": return String(localized: "review.file.added", defaultValue: "Added", comment: "A file was added.")
+        case "modified": return String(localized: "review.file.modified", defaultValue: "Modified", comment: "A file was modified.")
+        case "deleted": return String(localized: "review.file.deleted", defaultValue: "Deleted", comment: "A file was deleted.")
+        case "renamed": return String(localized: "review.file.renamed", defaultValue: "Renamed", comment: "A file was renamed.")
+        default: return status.capitalized
+        }
     }
 }
 
@@ -491,11 +656,11 @@ struct PhoneDexValidationReceipt: Codable, Equatable, Identifiable {
 
     var displayStatus: String {
         switch status {
-        case "passed": return "Passed"
-        case "failed": return "Failed"
-        case "skipped": return "Skipped"
-        case "running": return "Running"
-        default: return "Unknown"
+        case "passed": return String(localized: "review.validation.passed", defaultValue: "Passed", comment: "A validation check passed.")
+        case "failed": return String(localized: "review.validation.failed", defaultValue: "Failed", comment: "A validation check failed.")
+        case "skipped": return String(localized: "review.validation.skipped", defaultValue: "Skipped", comment: "A validation check was skipped.")
+        case "running": return String(localized: "review.validation.running", defaultValue: "Running", comment: "A validation check is running.")
+        default: return String(localized: "review.validation.unknown", defaultValue: "Unknown", comment: "A validation check has an unknown status.")
         }
     }
 
@@ -559,6 +724,32 @@ struct PhoneDexEvent: Codable, Equatable, Identifiable {
         data["summary"]
     }
 
+    var displaySummary: String {
+        let normalizedSummary = summary?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return normalizedSummary.isEmpty ? displayTitle : normalizedSummary
+    }
+
+    /// Provides a stable order when a hub page contains events with the same sequence.
+    /// Sequence is authoritative; timestamp and id only break ties so projection order
+    /// cannot change the visible latest-progress event.
+    func isLater(than other: PhoneDexEvent) -> Bool {
+        if sequence != other.sequence { return sequence > other.sequence }
+
+        let date = displayDate ?? .distantPast
+        let otherDate = other.displayDate ?? .distantPast
+        if date != otherDate { return date > otherDate }
+        return id > other.id
+    }
+
+    func isEarlier(than other: PhoneDexEvent) -> Bool {
+        if sequence != other.sequence { return sequence < other.sequence }
+
+        let date = displayDate ?? .distantPast
+        let otherDate = other.displayDate ?? .distantPast
+        if date != otherDate { return date < otherDate }
+        return id < other.id
+    }
+
     init(
         id: String,
         taskId: String,
@@ -581,12 +772,32 @@ struct PhoneDexEvent: Codable, Equatable, Identifiable {
         taskId = try container.decode(String.self, forKey: .taskId)
         createdAt = try container.decode(String.self, forKey: .createdAt)
         sequence = try container.decode(Int.self, forKey: .sequence)
-        type = try container.decode(String.self, forKey: .type)
+        type = try PhoneDexNativeDecodeBounds.requiredString(container.decode(String.self, forKey: .type), maxLength: PhoneDexNativeDecodeBounds.status, key: "event.type", decoder: decoder)
         data = try container.decodeIfPresent([String: String].self, forKey: .data) ?? [:]
+        try PhoneDexNativeDecodeBounds.count(data.count, max: PhoneDexNativeDecodeBounds.eventData, key: "event.data", decoder: decoder)
+        for (key, value) in data {
+            try PhoneDexNativeDecodeBounds.string(key, maxLength: PhoneDexNativeDecodeBounds.id, key: "event.data.key", decoder: decoder)
+            try PhoneDexNativeDecodeBounds.string(value, maxLength: PhoneDexNativeDecodeBounds.eventDataValue, key: "event.data.value", decoder: decoder)
+        }
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, taskId, createdAt, sequence, type, data
+    }
+}
+
+enum PhoneDexLiveActivityPresentation {
+    static let collapsedLimit = 1
+
+    static func visibleEvents(_ events: [PhoneDexEvent], expanded: Bool) -> [PhoneDexEvent] {
+        expanded ? events : Array(events.suffix(collapsedLimit))
+    }
+
+    static func disclosureTitle(eventCount: Int, expanded: Bool) -> String? {
+        guard eventCount > collapsedLimit else { return nil }
+        if expanded { return "Show latest activity only" }
+        let olderCount = eventCount - collapsedLimit
+        return "Show \(olderCount) older event\(olderCount == 1 ? "" : "s")"
     }
 }
 
@@ -603,8 +814,8 @@ struct PhoneDexProject: Identifiable, Equatable {
     }
     var path: String? { paths.count == 1 ? paths[0] : nil }
 
-    init(tasks: [PhoneDexTask]) {
-        let first = tasks[0]
+    init?(tasks: [PhoneDexTask]) {
+        guard let first = tasks.first else { return nil }
         id = first.projectID
         name = first.displayWorkspace
         machineNames = Array(Set(tasks.map(\.displayMachine))).sorted {
@@ -620,6 +831,23 @@ struct PhoneDexProject: Identifiable, Equatable {
         self.tasks = PhoneDexTask.latestPerConversation(tasks).sorted {
             ($0.displayDate ?? .distantPast) > ($1.displayDate ?? .distantPast)
         }
+    }
+
+    func matchesSearch(_ query: String) -> Bool {
+        let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedQuery.isEmpty else { return true }
+
+        let searchableValues = [name] + machineNames + paths + tasks.flatMap { task in
+            [task.title, task.repository, task.branch, task.text]
+        }.compactMap { $0 }
+
+        return searchableValues.contains {
+            $0.localizedCaseInsensitiveContains(normalizedQuery)
+        }
+    }
+
+    static func filtered(_ projects: [PhoneDexProject], by query: String) -> [PhoneDexProject] {
+        projects.filter { $0.matchesSearch(query) }
     }
 }
 
@@ -665,23 +893,49 @@ enum PhoneDexChatScope: String, CaseIterable, Identifiable {
     }
 }
 
+enum PhoneDexPresentationFilter: String, CaseIterable, Identifiable {
+    case active
+    case archived
+    case muted
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .active: return "Active"
+        case .archived: return "Archived"
+        case .muted: return "Muted"
+        }
+    }
+}
+
 struct PhoneDexTaskFilter: Equatable {
     var scope: PhoneDexChatScope = .needsYou
     var searchText = ""
     var machineName: String?
     var workspaceName: String?
+    var presentation: PhoneDexPresentationFilter = .active
 
     var hasFilters: Bool {
         !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-            machineName != nil || workspaceName != nil
+            machineName != nil || workspaceName != nil || presentation != .active
     }
 
-    func filteredTasks(_ tasks: [PhoneDexTask]) -> [PhoneDexTask] {
+    func filteredTasks(_ tasks: [PhoneDexTask], archivedTaskIDs: Set<String> = [], mutedTaskIDs: Set<String> = []) -> [PhoneDexTask] {
         tasks.filter { task in
             scopeMatches(task) &&
+                presentationMatches(task, archivedTaskIDs: archivedTaskIDs, mutedTaskIDs: mutedTaskIDs) &&
                 (machineName == nil || task.displayMachine == machineName) &&
                 (workspaceName == nil || task.displayWorkspace == workspaceName) &&
                 searchMatches(task)
+        }
+    }
+
+    private func presentationMatches(_ task: PhoneDexTask, archivedTaskIDs: Set<String>, mutedTaskIDs: Set<String>) -> Bool {
+        switch presentation {
+        case .active: return !archivedTaskIDs.contains(task.id) && !mutedTaskIDs.contains(task.id)
+        case .archived: return archivedTaskIDs.contains(task.id)
+        case .muted: return !archivedTaskIDs.contains(task.id) && mutedTaskIDs.contains(task.id)
         }
     }
 
@@ -831,6 +1085,20 @@ struct PhoneDexDevice: Codable, Identifiable, Equatable {
         return machineName
     }
 
+    /// Matches synced work to this device without conflating same-named machines.
+    /// Older task records may not have a device identity, so they retain a
+    /// bounded machine-name fallback when both sides have a real name.
+    func owns(_ task: PhoneDexTask) -> Bool {
+        if let taskDeviceId = task.deviceId, !taskDeviceId.isEmpty {
+            return taskDeviceId == deviceId
+        }
+        guard let machineName, !machineName.isEmpty,
+              let taskMachineName = task.machineName, !taskMachineName.isEmpty else {
+            return false
+        }
+        return taskMachineName == machineName
+    }
+
     var isOnline: Bool { status == "online" }
 
     func supportsCapability(_ capability: String) -> Bool {
@@ -926,6 +1194,9 @@ struct PhoneDexSyncSnapshot: Decodable {
         tasks = try container.decodeIfPresent([PhoneDexTask].self, forKey: .tasks) ?? []
         devices = try container.decodeIfPresent([PhoneDexDevice].self, forKey: .devices) ?? []
         events = try container.decodeIfPresent([PhoneDexEvent].self, forKey: .events) ?? []
+        try PhoneDexNativeDecodeBounds.count(tasks.count, max: PhoneDexNativeDecodeBounds.syncPageItems, key: "sync.tasks", decoder: decoder)
+        try PhoneDexNativeDecodeBounds.count(devices.count, max: PhoneDexNativeDecodeBounds.syncPageItems, key: "sync.devices", decoder: decoder)
+        try PhoneDexNativeDecodeBounds.count(events.count, max: PhoneDexNativeDecodeBounds.syncPageItems, key: "sync.events", decoder: decoder)
     }
 }
 
@@ -970,9 +1241,10 @@ struct PhoneDexSyncChange: Decodable {
             device = nil
             event = try container.decode(PhoneDexEvent.self, forKey: .record)
         default:
-            task = nil
-            device = nil
-            event = nil
+            throw DecodingError.dataCorrupted(.init(
+                codingPath: decoder.codingPath,
+                debugDescription: "sync change has unsupported record kind: \(kind)"
+            ))
         }
     }
 }

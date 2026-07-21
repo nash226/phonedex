@@ -114,12 +114,36 @@ struct PhoneDexReviewSummary: Equatable {
     }
 }
 
+enum PhoneDexReviewAccessibility {
+    static func fileLabel(_ file: PhoneDexChangedFile) -> String {
+        var parts = [file.path, file.displayStatus]
+        parts.append("\(file.additions ?? 0) additions")
+        parts.append("\(file.deletions ?? 0) deletions")
+        parts.append(file.hasPatch ? "Diff available" : "Patch not exported")
+        if let summary = file.summary, !summary.isEmpty {
+            parts.append(summary)
+        }
+        return parts.joined(separator: ", ")
+    }
+
+    static func validationLabel(_ validation: PhoneDexValidationReceipt) -> String {
+        var parts = [validation.name, validation.displayStatus]
+        if let summary = validation.summary, !summary.isEmpty {
+            parts.append(summary)
+        }
+        if let durationMs = validation.durationMs {
+            parts.append("Completed in \(durationMs) milliseconds")
+        }
+        return parts.joined(separator: ", ")
+    }
+}
+
 struct PhoneDexReviewSummaryView: View {
     let task: PhoneDexTask
     @ObservedObject var model: PhoneDexAppModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var selectedDiffFile: PhoneDexChangedFile?
-    @State private var downloadedArtifacts: [String: Data] = [:]
     @State private var downloadingArtifactID: String?
     @State private var artifactError: String?
 
@@ -199,9 +223,24 @@ struct PhoneDexReviewSummaryView: View {
     }
 
     private var reviewMetrics: some View {
-        HStack(spacing: 10) {
-            metric(summary.fileCountLabel, summary.lineChangeLabel, symbol: "doc.text")
-            metric(summary.validationCountLabel, summary.validationBreakdown, symbol: "checkmark.shield")
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(spacing: 10) {
+                    metric(summary.fileCountLabel, summary.lineChangeLabel, symbol: "doc.text")
+                    metric(summary.validationCountLabel, summary.validationBreakdown, symbol: "checkmark.shield")
+                }
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 10) {
+                        metric(summary.fileCountLabel, summary.lineChangeLabel, symbol: "doc.text")
+                        metric(summary.validationCountLabel, summary.validationBreakdown, symbol: "checkmark.shield")
+                    }
+                    VStack(spacing: 10) {
+                        metric(summary.fileCountLabel, summary.lineChangeLabel, symbol: "doc.text")
+                        metric(summary.validationCountLabel, summary.validationBreakdown, symbol: "checkmark.shield")
+                    }
+                }
+            }
         }
     }
 
@@ -292,7 +331,7 @@ struct PhoneDexReviewSummaryView: View {
                 Text(artifact.name)
                     .font(.subheadline.weight(.medium))
                 Spacer(minLength: 0)
-                if let data = downloadedArtifacts[artifact.id] {
+                if let data = model.cachedArtifactData(for: artifact) {
                     ShareLink(item: data, preview: SharePreview(artifact.name)) {
                         Label("Share", systemImage: "square.and.arrow.up")
                     }
@@ -303,11 +342,11 @@ struct PhoneDexReviewSummaryView: View {
                         Task {
                             do {
                                 let data = try await model.downloadArtifact(artifact)
-                                downloadedArtifacts[artifact.id] = data
+                                _ = data
                                 downloadingArtifactID = nil
                             } catch {
                                 downloadingArtifactID = nil
-                                artifactError = error.localizedDescription
+                                artifactError = error.phoneDexSafeMessage
                             }
                         }
                     } label: {
@@ -405,9 +444,11 @@ struct PhoneDexReviewSummaryView: View {
                 content
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(PhoneDexReviewAccessibility.fileLabel(file))
             .accessibilityHint("Opens the exported patch for this file")
         } else {
             content
+                .accessibilityLabel(PhoneDexReviewAccessibility.fileLabel(file))
         }
     }
 
@@ -442,6 +483,7 @@ struct PhoneDexReviewSummaryView: View {
         .background(Color(uiColor: .secondarySystemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .accessibilityElement(children: .combine)
+        .accessibilityLabel(PhoneDexReviewAccessibility.validationLabel(validation))
     }
 
     private var privacyNote: some View {

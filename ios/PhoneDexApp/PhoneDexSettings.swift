@@ -1,5 +1,38 @@
 import Foundation
 
+enum PhoneDexCredentialCopy {
+    static let pairingHeader = "Secure pairing"
+    static let pairingInstruction = "On the hub, run `npm run pair:create`, then enter both values here. The grant expires and can be used once."
+    static let pairingFooter = "The PhoneDex app stores the resulting device credential in Keychain. It is not included in the pairing request."
+    static let legacyHeader = "Legacy token compatibility"
+    static let legacyWarning = "Use this only while migrating an older local hub. New installations should use secure pairing."
+    static let legacyFooter = "The token is stored in this iPhone's device-only Keychain. It is not placed in URLs, notifications, or support diagnostics."
+    static let storedCredential = "A bridge credential is stored securely in Keychain."
+}
+
+struct PhoneDexReleaseIdentity: Equatable {
+    let version: String
+    let build: String
+
+    var displayValue: String {
+        build.isEmpty ? version : "\(version) (\(build))"
+    }
+
+    init(version: String?, build: String?) {
+        let normalizedVersion = version?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let normalizedBuild = build?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        self.version = normalizedVersion.isEmpty ? "Development" : normalizedVersion
+        self.build = normalizedBuild
+    }
+
+    init(bundle: Bundle) {
+        self.init(
+            version: bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
+            build: bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+        )
+    }
+}
+
 @MainActor
 final class PhoneDexSettings: ObservableObject {
     @Published var bridgeURL: String {
@@ -7,15 +40,23 @@ final class PhoneDexSettings: ObservableObject {
     }
 
     @Published var token: String {
-        didSet { persistToken() }
+        didSet {
+            guard !suppressTokenPersistence else { return }
+            persistToken()
+        }
     }
 
     @Published var requireApprovalAuthentication: Bool {
         didSet { defaults.set(requireApprovalAuthentication, forKey: Keys.requireApprovalAuthentication) }
     }
 
+    @Published var notificationPrivacy: PhoneDexNotificationPrivacy {
+        didSet { defaults.set(notificationPrivacy.rawValue, forKey: Keys.notificationPrivacy) }
+    }
+
     private let defaults: UserDefaults
     private let tokenStore: any PhoneDexTokenStoring
+    private var suppressTokenPersistence = false
 
     @Published private(set) var credentialStorageError: String?
 
@@ -55,6 +96,9 @@ final class PhoneDexSettings: ObservableObject {
         self.bridgeURL = storedBridgeURL
         self.token = storedToken
         self.requireApprovalAuthentication = defaults.object(forKey: Keys.requireApprovalAuthentication) as? Bool ?? true
+        self.notificationPrivacy = PhoneDexNotificationPrivacy(
+            rawValue: defaults.string(forKey: Keys.notificationPrivacy) ?? ""
+        ) ?? .safeSummary
         self.credentialStorageError = storageError
     }
 
@@ -108,10 +152,28 @@ final class PhoneDexSettings: ObservableObject {
         return updated
     }
 
+    /// Removes the locally stored bridge credential only after Keychain removal succeeds.
+    /// The hub credential is not revoked by this local action; pairing can be repeated later.
+    @discardableResult
+    func forgetCredential() -> Bool {
+        do {
+            try tokenStore.removeToken()
+            suppressTokenPersistence = true
+            token = ""
+            suppressTokenPersistence = false
+            credentialStorageError = nil
+            return true
+        } catch {
+            credentialStorageError = Self.credentialStorageErrorMessage
+            return false
+        }
+    }
+
     private enum Keys {
         static let bridgeURL = "phonedex.bridgeURL"
         static let token = "phonedex.token"
         static let requireApprovalAuthentication = "phonedex.requireApprovalAuthentication"
+        static let notificationPrivacy = "phonedex.notificationPrivacy"
     }
 
     private static let credentialStorageErrorMessage =

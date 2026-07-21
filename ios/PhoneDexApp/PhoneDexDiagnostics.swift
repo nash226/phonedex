@@ -1,6 +1,11 @@
 import Foundation
 
 struct PhoneDexDiagnosticsSnapshot: Codable, Equatable {
+    static let maxComponents = 32
+    static let maxRouteMetrics = 64
+    static let maxRecentRequests = 50
+    static let maxCapabilities = 64
+
     struct RouteMetric: Codable, Equatable {
         let requests: Int
         let failures: Int
@@ -16,6 +21,14 @@ struct PhoneDexDiagnosticsSnapshot: Codable, Equatable {
         let errorClass: String?
 
         var id: String { "\(at)-\(correlationId)" }
+
+        var routeLabel: String {
+            let path = route.split(separator: "?", maxSplits: 1, omittingEmptySubsequences: true).first.map(String.init) ?? ""
+            guard !path.isEmpty, path.utf8.count <= 64, !path.contains(where: { $0.isWhitespace }) else {
+                return "Unknown endpoint"
+            }
+            return path
+        }
     }
 
     struct Capability: Codable, Equatable, Identifiable {
@@ -41,6 +54,132 @@ struct PhoneDexDiagnosticsSnapshot: Codable, Equatable {
     let metrics: Metrics
     let recentRequests: [Request]
     let capabilities: [Capability]
+
+    private enum CodingKeys: String, CodingKey {
+        case schema, generatedAt, startedAt, service, role, version, protocolVersion
+        case components, metrics, recentRequests, capabilities
+    }
+
+    private struct AnyCodingKey: CodingKey {
+        let stringValue: String
+        let intValue: Int?
+
+        init?(stringValue: String) {
+            self.stringValue = stringValue
+            intValue = nil
+        }
+
+        init?(intValue: Int) {
+            stringValue = String(intValue)
+            self.intValue = intValue
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        schema = try container.decode(String.self, forKey: .schema)
+        generatedAt = try container.decode(String.self, forKey: .generatedAt)
+        startedAt = try container.decode(String.self, forKey: .startedAt)
+        service = try container.decode(String.self, forKey: .service)
+        role = try container.decode(String.self, forKey: .role)
+        version = try container.decode(String.self, forKey: .version)
+        protocolVersion = try container.decode(Int.self, forKey: .protocolVersion)
+        components = try Self.decodeBoundedMap(String.self, from: container, forKey: .components, limit: Self.maxComponents)
+        metrics = try Self.decodeMetrics(from: container)
+        recentRequests = try Self.decodeBoundedArray(Request.self, from: container, forKey: .recentRequests, limit: Self.maxRecentRequests)
+        capabilities = try Self.decodeBoundedArray(Capability.self, from: container, forKey: .capabilities, limit: Self.maxCapabilities)
+    }
+
+    private static func decodeMetrics(from container: KeyedDecodingContainer<CodingKeys>) throws -> Metrics {
+        let decoder = try container.superDecoder(forKey: .metrics)
+        let metricsContainer = try decoder.container(keyedBy: MetricsCodingKeys.self)
+        return Metrics(
+            requests: try metricsContainer.decode(Int.self, forKey: .requests),
+            failures: try metricsContainer.decode(Int.self, forKey: .failures),
+            commands: try metricsContainer.decode(Int.self, forKey: .commands),
+            routes: try decodeBoundedMap(RouteMetric.self, from: metricsContainer, forKey: .routes, limit: Self.maxRouteMetrics)
+        )
+    }
+
+    private enum MetricsCodingKeys: String, CodingKey {
+        case requests, failures, commands, routes
+    }
+
+    private static func decodeBoundedMap<Value: Decodable, Key: CodingKey>(
+        _ type: Value.Type,
+        from container: KeyedDecodingContainer<Key>,
+        forKey key: Key,
+        limit: Int
+    ) throws -> [String: Value] {
+        let nested = try container.nestedContainer(keyedBy: AnyCodingKey.self, forKey: key)
+        guard nested.allKeys.count <= limit else {
+            throw DecodingError.dataCorruptedError(
+                forKey: key,
+                in: container,
+                debugDescription: "Diagnostics collection exceeds its \(limit)-entry limit."
+            )
+        }
+
+        var result = [String: Value](minimumCapacity: nested.allKeys.count)
+        for entryKey in nested.allKeys {
+            result[entryKey.stringValue] = try nested.decode(Value.self, forKey: entryKey)
+        }
+        return result
+    }
+
+    private static func decodeBoundedArray<Value: Decodable, Key: CodingKey>(
+        _ type: Value.Type,
+        from container: KeyedDecodingContainer<Key>,
+        forKey key: Key,
+        limit: Int
+    ) throws -> [Value] {
+        var nested = try container.nestedUnkeyedContainer(forKey: key)
+        guard let count = nested.count, count <= limit else {
+            throw DecodingError.dataCorruptedError(
+                forKey: key,
+                in: container,
+                debugDescription: "Diagnostics collection exceeds its \(limit)-entry limit."
+            )
+        }
+
+        var result = [Value]()
+        result.reserveCapacity(count)
+        while !nested.isAtEnd {
+            result.append(try nested.decode(Value.self))
+        }
+        return result
+    }
+
+    struct Component: Identifiable, Equatable {
+        let id: String
+        let health: PhoneDexComponentHealth
+
+        var title: String {
+            id.replacingOccurrences(of: "originTask", with: "Origin task")
+                .replacingOccurrences(of: "push", with: "Push")
+                .replacingOccurrences(of: "hub", with: "Hub")
+                .replacingOccurrences(of: "agent", with: "Agent")
+                .replacingOccurrences(of: "adapter", with: "Adapter")
+        }
+    }
+
+    var componentRows: [Component] {
+        components.keys.sorted().prefix(8).map { key in
+            Component(id: key, health: PhoneDexComponentHealth(status: components[key]))
+        }
+    }
+
+    var overallHealth: PhoneDexComponentHealth {
+        let health = components.values.map { PhoneDexComponentHealth(status: $0) }
+        if health.contains(.unhealthy) { return .unhealthy }
+        if health.contains(.degraded) { return .degraded }
+        if health.isEmpty || health.contains(.unknown) { return .unknown }
+        return .healthy
+    }
+
+    var recentFailures: [Request] {
+        recentRequests.filter { $0.status >= 400 }.suffix(5)
+    }
 
     var shareText: String {
         let componentSummary = components.keys.sorted().map { key in

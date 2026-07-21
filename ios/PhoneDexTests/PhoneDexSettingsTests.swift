@@ -4,6 +4,30 @@ import Security
 
 @MainActor
 final class PhoneDexSettingsTests: XCTestCase {
+    func testCredentialSettingsLeadWithPairingAndBoundLegacyCompatibilityCopy() {
+        XCTAssertEqual(PhoneDexCredentialCopy.pairingHeader, "Secure pairing")
+        XCTAssertEqual(PhoneDexCredentialCopy.legacyHeader, "Legacy token compatibility")
+        XCTAssertTrue(PhoneDexCredentialCopy.legacyWarning.contains("older local hub"))
+        XCTAssertTrue(PhoneDexCredentialCopy.legacyFooter.contains("Keychain"))
+        XCTAssertFalse(PhoneDexCredentialCopy.legacyFooter.contains("token is stored in URLs"))
+    }
+
+    func testReleaseIdentityDisplaysVersionAndBuild() {
+        let identity = PhoneDexReleaseIdentity(version: "1.2.3", build: "42")
+
+        XCTAssertEqual(identity.version, "1.2.3")
+        XCTAssertEqual(identity.build, "42")
+        XCTAssertEqual(identity.displayValue, "1.2.3 (42)")
+    }
+
+    func testReleaseIdentityUsesSafeFallbacksForMissingBundleValues() {
+        let identity = PhoneDexReleaseIdentity(version: " ", build: nil)
+
+        XCTAssertEqual(identity.version, "Development")
+        XCTAssertEqual(identity.build, "")
+        XCTAssertEqual(identity.displayValue, "Development")
+    }
+
     func testLegacyUserDefaultsTokenMigratesToSecureStoreAndIsRemoved() throws {
         let defaults = try makeDefaults()
         defaults.set("legacy-secret", forKey: "phonedex.token")
@@ -28,6 +52,174 @@ final class PhoneDexSettingsTests: XCTestCase {
         settings.token = "   "
         XCTAssertNil(store.token)
         XCTAssertNil(settings.credentialStorageError)
+    }
+
+    func testForgetCredentialRemovesKeychainValueBeforeClearingPublishedToken() throws {
+        let defaults = try makeDefaults()
+        let store = InMemoryTokenStore()
+        let settings = PhoneDexSettings(defaults: defaults, tokenStore: store)
+        settings.token = "paired-secret"
+
+        XCTAssertTrue(settings.forgetCredential())
+        XCTAssertTrue(settings.token.isEmpty)
+        XCTAssertNil(store.token)
+        XCTAssertNil(settings.credentialStorageError)
+    }
+
+    func testModelForgetCredentialClearsPendingRepliesButPreservesLocalReviewState() throws {
+        let defaults = try makeDefaults()
+        let settings = PhoneDexSettings(defaults: defaults, tokenStore: InMemoryTokenStore())
+        settings.token = "paired-secret"
+        let pending = PhoneDexPendingReply(
+            commandId: "command-1",
+            idempotencyKey: "key-1",
+            taskId: "task-1",
+            choice: "custom",
+            prompt: "Continue",
+            expectedTaskVersion: 3,
+            sessionId: "session-1",
+            machineName: "Mac",
+            createdAt: Date(timeIntervalSince1970: 1_750_000_000)
+        )
+        let task = PhoneDexTask(
+            id: "task-1", at: nil, source: "codex", title: "Completed task",
+            text: "Review me", cwd: "/work/project", workspaceName: "PhoneDex",
+            machineName: "Mac", sessionId: "session-1", status: "completed",
+            branch: "main", repository: "phonedex"
+        )
+        let cache = TestCache(state: PhoneDexCachedState(
+            cursor: "cursor-1", tasks: [task], devices: [],
+            lastSyncAt: Date(timeIntervalSince1970: 1_750_000_001),
+            pendingReplies: [pending]
+        ))
+        let model = PhoneDexAppModel(settings: settings, cache: cache)
+
+        XCTAssertTrue(model.forgetCredential())
+        XCTAssertTrue(model.pendingReplies.isEmpty)
+        XCTAssertTrue(model.tasks.contains(task))
+        XCTAssertEqual(cache.state?.cursor, "cursor-1")
+        XCTAssertTrue(cache.state?.pendingReplies.isEmpty == true)
+    }
+
+    func testModelRestorePersistsExpiredArtifactPruning() throws {
+        let defaults = try makeDefaults()
+        let settings = PhoneDexSettings(defaults: defaults, tokenStore: InMemoryTokenStore())
+        let now = Date()
+        let expired = PhoneDexCachedArtifact(
+            id: "expired",
+            name: "old.log",
+            mediaType: "text/plain",
+            data: Data("expired private bytes".utf8),
+            downloadedAt: now.addingTimeInterval(-PhoneDexCachedArtifactPolicy.retention - 1)
+        )
+        let recent = PhoneDexCachedArtifact(
+            id: "recent",
+            name: "current.log",
+            mediaType: "text/plain",
+            data: Data("recent private bytes".utf8),
+            downloadedAt: now
+        )
+        let cache = TestCache(state: PhoneDexCachedState(
+            cursor: "cursor",
+            tasks: [],
+            devices: [],
+            lastSyncAt: now,
+            cachedArtifacts: [expired, recent]
+        ))
+
+        let model = PhoneDexAppModel(settings: settings, cache: cache)
+
+        XCTAssertNil(model.cachedArtifacts[expired.id])
+        XCTAssertEqual(model.cachedArtifacts[recent.id], recent)
+        XCTAssertEqual(cache.state?.cachedArtifacts, [recent])
+    }
+
+    func testModelForgetCredentialFailurePreservesPendingReplies() throws {
+        let defaults = try makeDefaults()
+        let store = InMemoryTokenStore()
+        let settings = PhoneDexSettings(defaults: defaults, tokenStore: store)
+        settings.token = "paired-secret"
+        let pending = PhoneDexPendingReply(
+            commandId: "command-1", idempotencyKey: "key-1", taskId: "task-1",
+            choice: "custom", prompt: "Continue", expectedTaskVersion: 3,
+            sessionId: nil, machineName: nil, createdAt: Date()
+        )
+        let cache = TestCache(state: PhoneDexCachedState(
+            cursor: nil, tasks: [], devices: [], lastSyncAt: nil,
+            pendingReplies: [pending]
+        ))
+        let model = PhoneDexAppModel(settings: settings, cache: cache)
+        store.shouldFail = true
+
+        XCTAssertFalse(model.forgetCredential())
+        XCTAssertEqual(model.pendingReplies, [pending])
+        XCTAssertEqual(store.token, "paired-secret")
+    }
+
+    func testModelClearLocalCacheRemovesPrivateProjectionButKeepsCredential() throws {
+        let defaults = try makeDefaults()
+        let store = InMemoryTokenStore()
+        let settings = PhoneDexSettings(defaults: defaults, tokenStore: store)
+        settings.token = "paired-secret"
+        let task = PhoneDexTask(
+            id: "task-1", at: nil, source: "codex", title: "Private task",
+            text: "Private transcript", cwd: "/work/project", workspaceName: "PhoneDex",
+            machineName: "Mac", sessionId: "session-1", status: "completed",
+            branch: "main", repository: "phonedex"
+        )
+        let cache = TestCache(state: PhoneDexCachedState(
+            cursor: "cursor-1", tasks: [task], devices: [],
+            lastSyncAt: Date(), drafts: [task.id: "private draft"],
+            cachedArtifacts: [PhoneDexCachedArtifact(
+                id: "artifact-1", name: "private.log", mediaType: "text/plain",
+                data: Data("private bytes".utf8), downloadedAt: Date()
+            )]
+        ))
+        let model = PhoneDexAppModel(settings: settings, cache: cache)
+
+        XCTAssertTrue(model.clearLocalCache())
+        XCTAssertTrue(model.tasks.isEmpty)
+        XCTAssertTrue(model.drafts.isEmpty)
+        XCTAssertTrue(model.cachedArtifacts.isEmpty)
+        XCTAssertNil(cache.state?.cursor)
+        XCTAssertTrue(cache.state?.tasks.isEmpty == true)
+        XCTAssertEqual(store.token, "paired-secret")
+        XCTAssertTrue(model.localCacheStatusMessage?.contains("credential was kept") == true)
+    }
+
+    func testModelClearLocalCacheFailurePreservesTrustedProjection() throws {
+        let defaults = try makeDefaults()
+        let settings = PhoneDexSettings(defaults: defaults, tokenStore: InMemoryTokenStore())
+        let task = PhoneDexTask(
+            id: "task-1", at: nil, source: "codex", title: "Trusted task",
+            text: "Cached response", cwd: nil, workspaceName: nil,
+            machineName: nil, sessionId: nil, status: "completed",
+            branch: nil, repository: nil
+        )
+        let cache = TestCache(state: PhoneDexCachedState(
+            cursor: "cursor-1", tasks: [task], devices: [], lastSyncAt: Date()
+        ))
+        let model = PhoneDexAppModel(settings: settings, cache: cache)
+        cache.shouldFail = true
+
+        XCTAssertFalse(model.clearLocalCache())
+        XCTAssertEqual(model.tasks, [task])
+        XCTAssertEqual(cache.state?.cursor, "cursor-1")
+        XCTAssertEqual(model.localCacheStatusMessage, "Local data could not be cleared. Try again.")
+    }
+
+    func testForgetCredentialFailurePreservesTokenAndDoesNotLeakSecret() throws {
+        let defaults = try makeDefaults()
+        let store = InMemoryTokenStore()
+        let settings = PhoneDexSettings(defaults: defaults, tokenStore: store)
+        settings.token = "paired-secret"
+        store.shouldFail = true
+
+        XCTAssertFalse(settings.forgetCredential())
+        XCTAssertEqual(settings.token, "paired-secret")
+        XCTAssertEqual(store.token, "paired-secret")
+        XCTAssertEqual(settings.credentialStorageError, "Secure credential storage is unavailable. Try again.")
+        XCTAssertFalse(settings.credentialStorageError?.contains("paired-secret") == true)
     }
 
     func testApprovalAuthenticationIsEnabledByDefaultAndCanBeDisabled() throws {
@@ -120,6 +312,148 @@ final class PhoneDexSettingsTests: XCTestCase {
         XCTAssertFalse(metadata.values.contains { String(describing: $0).contains("secret") })
     }
 
+    func testNotificationThreadGroupsByBoundedWorkspaceAndMachineIdentity() {
+        let task = PhoneDexTask(
+            id: "task-1",
+            at: nil,
+            source: "stop-hook",
+            title: "Review",
+            text: "Done",
+            cwd: "/Users/example/PhoneDex",
+            workspaceName: "PhoneDex / Secrets",
+            machineName: "MacBook Pro #1",
+            sessionId: "session-1",
+            status: "completed",
+            branch: nil,
+            repository: nil
+        )
+
+        XCTAssertEqual(
+            PhoneDexNotificationScheduler.taskNotificationThreadIdentifier(task),
+            "phonedex.PhoneDexSecrets.MacBookPro1"
+        )
+    }
+
+    func testNotificationThreadSeparatesSameWorkspaceOnDifferentMachines() {
+        let makeTask: (String) -> PhoneDexTask = { machine in
+            PhoneDexTask(
+                id: "task-\(machine)",
+                at: nil,
+                source: "stop-hook",
+                title: "Review",
+                text: "Done",
+                cwd: nil,
+                workspaceName: "PhoneDex",
+                machineName: machine,
+                sessionId: nil,
+                status: "completed",
+                branch: nil,
+                repository: nil
+            )
+        }
+
+        XCTAssertNotEqual(
+            PhoneDexNotificationScheduler.taskNotificationThreadIdentifier(makeTask("MacBook")),
+            PhoneDexNotificationScheduler.taskNotificationThreadIdentifier(makeTask("Windows"))
+        )
+    }
+
+    func testNotificationCopyHasStableEnglishFallbacks() {
+        XCTAssertEqual(PhoneDexNotificationCopy.previewTitle, "Codex done: PR update")
+        XCTAssertEqual(PhoneDexNotificationCopy.previewSubtitle, "PhoneDex • MacBook Air")
+        XCTAssertEqual(PhoneDexNotificationCopy.okayWhatsNext, "Okay, what's next")
+        XCTAssertEqual(PhoneDexNotificationCopy.letsDoThat, "Let's do that")
+        XCTAssertEqual(PhoneDexNotificationCopy.customReply, "Custom reply")
+        XCTAssertEqual(PhoneDexNotificationCopy.sendReply, "Send")
+        XCTAssertEqual(PhoneDexNotificationCopy.replyPlaceholder, "Dictate or type your reply")
+        XCTAssertEqual(
+            PhoneDexNotificationError.credentialBearingBridgeURL.errorDescription,
+            "The bridge URL must not contain credentials or query parameters."
+        )
+    }
+
+    func testNotificationPrivacyDefaultsToSafeSummaryAndPersistsOptIn() throws {
+        let defaults = try makeDefaults()
+        let settings = PhoneDexSettings(defaults: defaults, tokenStore: InMemoryTokenStore())
+
+        XCTAssertEqual(settings.notificationPrivacy, .safeSummary)
+        settings.notificationPrivacy = .fullPreview
+
+        let restored = PhoneDexSettings(defaults: defaults, tokenStore: InMemoryTokenStore())
+        XCTAssertEqual(restored.notificationPrivacy, .fullPreview)
+        XCTAssertEqual(defaults.string(forKey: "phonedex.notificationPrivacy"), "fullPreview")
+    }
+
+    func testNotificationAuthorizationCopyExplainsDeniedRecovery() {
+        let denied = PhoneDexNotificationAuthorization.denied
+
+        XCTAssertEqual(denied.title, "Notifications are disabled")
+        XCTAssertTrue(denied.explanation.contains("Open iPhone Settings"))
+        XCTAssertTrue(denied.canOpenSettings)
+        XCTAssertFalse(denied.isEnabled)
+    }
+
+    func testNotificationAuthorizationCopyDistinguishesQuietAndFullDelivery() {
+        XCTAssertTrue(PhoneDexNotificationAuthorization.authorized.isEnabled)
+        XCTAssertTrue(PhoneDexNotificationAuthorization.provisional.isEnabled)
+        XCTAssertFalse(PhoneDexNotificationAuthorization.notDetermined.canOpenSettings)
+        XCTAssertTrue(PhoneDexNotificationAuthorization.restricted.canOpenSettings)
+    }
+
+    func testSafeNotificationSummaryExcludesTaskContent() {
+        let task = PhoneDexTask(
+            id: "task-privacy", at: nil, source: "stop-hook", title: "Private prompt",
+            text: "Secret source path and prompt", cwd: "/private/repo",
+            workspaceName: "PhoneDex", machineName: "Mac", sessionId: nil,
+            status: "completed", branch: nil, repository: nil
+        )
+
+        let presentation = PhoneDexNotificationScheduler.notificationPresentation(
+            for: task,
+            privacy: .safeSummary
+        )
+
+        XCTAssertFalse(presentation.title.contains("Private"))
+        XCTAssertFalse(presentation.body.contains("Secret"))
+        XCTAssertFalse(presentation.body.contains("/private/repo"))
+        XCTAssertEqual(presentation.body, PhoneDexNotificationCopy.safeSummaryBody)
+    }
+
+    func testFullNotificationPreviewIsExplicitlyOptIn() {
+        let task = PhoneDexTask(
+            id: "task-preview", at: nil, source: "stop-hook", title: "Private prompt",
+            text: "Secret result", cwd: nil, workspaceName: "PhoneDex",
+            machineName: "Mac", sessionId: nil, status: "completed", branch: nil,
+            repository: nil
+        )
+
+        let presentation = PhoneDexNotificationScheduler.notificationPresentation(
+            for: task,
+            privacy: .fullPreview
+        )
+
+        XCTAssertEqual(presentation.title, "Private prompt")
+        XCTAssertEqual(presentation.body, "Secret result")
+    }
+
+    func testFullNotificationPreviewIsBounded() {
+        let task = PhoneDexTask(
+            id: "task-long-preview", at: nil, source: "stop-hook", title: String(repeating: "T", count: 200),
+            text: String(repeating: "R", count: 600), cwd: nil, workspaceName: "PhoneDex",
+            machineName: "Mac", sessionId: nil, status: "completed", branch: nil, repository: nil
+        )
+
+        let presentation = PhoneDexNotificationScheduler.notificationPresentation(
+            for: task,
+            privacy: .fullPreview
+        )
+
+        XCTAssertEqual(presentation.title.count, 120)
+        XCTAssertEqual(presentation.body.count, 500)
+        XCTAssertTrue(presentation.title.hasSuffix("…"))
+        XCTAssertTrue(presentation.body.hasSuffix("…"))
+    }
+
     func testBridgePolicyRequiresHTTPSOutsideLoopback() throws {
         let defaults = try makeDefaults()
         let settings = PhoneDexSettings(defaults: defaults, tokenStore: InMemoryTokenStore())
@@ -181,5 +515,25 @@ private final class InMemoryTokenStore: PhoneDexTokenStoring {
         if shouldFail {
             throw PhoneDexKeychainError.keychain(-1)
         }
+    }
+}
+
+private final class TestCache: PhoneDexCacheStoring {
+    var state: PhoneDexCachedState?
+    var shouldFail = false
+
+    init(state: PhoneDexCachedState?) {
+        self.state = state
+    }
+
+    func load() throws -> PhoneDexCachedState? { state }
+
+    func save(_ state: PhoneDexCachedState) throws {
+        if shouldFail { throw PhoneDexCacheError.persistenceFailed }
+        self.state = state
+    }
+
+    func remove() throws {
+        state = nil
     }
 }

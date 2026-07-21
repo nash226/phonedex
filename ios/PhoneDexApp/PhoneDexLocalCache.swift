@@ -15,12 +15,18 @@ struct PhoneDexCachedState: Codable, Equatable {
     let lastSyncAt: Date?
     let drafts: [String: String]
     let readingPositions: [String: String]
+    let readAt: [String: Date]
+    let archivedAt: [String: Date]
+    let mutedAt: [String: Date]
     let pendingReplies: [PhoneDexPendingReply]
+    let pendingLifecycleCommands: [PhoneDexPendingLifecycleCommand]
     let replyReceipts: [PhoneDexReplyDeliveryRecord]
+    let lifecycleReceipts: [PhoneDexLifecycleDeliveryRecord]
     let handledNotificationResponses: [String: Date]
+    let cachedArtifacts: [PhoneDexCachedArtifact]
 
     private enum CodingKeys: String, CodingKey {
-        case schema, version, cursor, tasks, devices, events, lastSyncAt, drafts, readingPositions, pendingReplies, replyReceipts, handledNotificationResponses
+        case schema, version, cursor, tasks, devices, events, lastSyncAt, drafts, readingPositions, readAt, archivedAt, mutedAt, pendingReplies, pendingLifecycleCommands, replyReceipts, lifecycleReceipts, handledNotificationResponses, cachedArtifacts
     }
 
     init(
@@ -31,9 +37,15 @@ struct PhoneDexCachedState: Codable, Equatable {
         lastSyncAt: Date?,
         drafts: [String: String] = [:],
         readingPositions: [String: String] = [:],
+        readAt: [String: Date] = [:],
+        archivedAt: [String: Date] = [:],
+        mutedAt: [String: Date] = [:],
         pendingReplies: [PhoneDexPendingReply] = [],
+        pendingLifecycleCommands: [PhoneDexPendingLifecycleCommand] = [],
         replyReceipts: [PhoneDexReplyDeliveryRecord] = [],
+        lifecycleReceipts: [PhoneDexLifecycleDeliveryRecord] = [],
         handledNotificationResponses: [String: Date] = [:],
+        cachedArtifacts: [PhoneDexCachedArtifact] = [],
         schema: String = PhoneDexCachedState.currentSchema,
         version: Int = PhoneDexCachedState.currentVersion
     ) {
@@ -46,9 +58,15 @@ struct PhoneDexCachedState: Codable, Equatable {
         self.lastSyncAt = lastSyncAt
         self.drafts = drafts
         self.readingPositions = readingPositions
+        self.readAt = readAt
+        self.archivedAt = archivedAt
+        self.mutedAt = mutedAt
         self.pendingReplies = pendingReplies
+        self.pendingLifecycleCommands = pendingLifecycleCommands
         self.replyReceipts = replyReceipts
+        self.lifecycleReceipts = lifecycleReceipts
         self.handledNotificationResponses = handledNotificationResponses
+        self.cachedArtifacts = cachedArtifacts
     }
 
     init(from decoder: Decoder) throws {
@@ -62,9 +80,15 @@ struct PhoneDexCachedState: Codable, Equatable {
         lastSyncAt = try container.decodeIfPresent(Date.self, forKey: .lastSyncAt)
         drafts = try container.decodeIfPresent([String: String].self, forKey: .drafts) ?? [:]
         readingPositions = try container.decodeIfPresent([String: String].self, forKey: .readingPositions) ?? [:]
+        readAt = try container.decodeIfPresent([String: Date].self, forKey: .readAt) ?? [:]
+        archivedAt = try container.decodeIfPresent([String: Date].self, forKey: .archivedAt) ?? [:]
+        mutedAt = try container.decodeIfPresent([String: Date].self, forKey: .mutedAt) ?? [:]
         pendingReplies = try container.decodeIfPresent([PhoneDexPendingReply].self, forKey: .pendingReplies) ?? []
+        pendingLifecycleCommands = try container.decodeIfPresent([PhoneDexPendingLifecycleCommand].self, forKey: .pendingLifecycleCommands) ?? []
         replyReceipts = try container.decodeIfPresent([PhoneDexReplyDeliveryRecord].self, forKey: .replyReceipts) ?? []
+        lifecycleReceipts = try container.decodeIfPresent([PhoneDexLifecycleDeliveryRecord].self, forKey: .lifecycleReceipts) ?? []
         handledNotificationResponses = try container.decodeIfPresent([String: Date].self, forKey: .handledNotificationResponses) ?? [:]
+        cachedArtifacts = try container.decodeIfPresent([PhoneDexCachedArtifact].self, forKey: .cachedArtifacts) ?? []
     }
 
     func encode(to encoder: Encoder) throws {
@@ -78,9 +102,175 @@ struct PhoneDexCachedState: Codable, Equatable {
         try container.encodeIfPresent(lastSyncAt, forKey: .lastSyncAt)
         try container.encode(drafts, forKey: .drafts)
         try container.encode(readingPositions, forKey: .readingPositions)
+        try container.encode(readAt, forKey: .readAt)
+        try container.encode(archivedAt, forKey: .archivedAt)
+        try container.encode(mutedAt, forKey: .mutedAt)
         try container.encode(pendingReplies, forKey: .pendingReplies)
+        try container.encode(pendingLifecycleCommands, forKey: .pendingLifecycleCommands)
         try container.encode(replyReceipts, forKey: .replyReceipts)
+        try container.encode(lifecycleReceipts, forKey: .lifecycleReceipts)
         try container.encode(handledNotificationResponses, forKey: .handledNotificationResponses)
+        try container.encode(cachedArtifacts, forKey: .cachedArtifacts)
+    }
+
+    func replacingNotificationState(
+        pendingReplies: [PhoneDexPendingReply]? = nil,
+        pendingLifecycleCommands: [PhoneDexPendingLifecycleCommand]? = nil,
+        handledNotificationResponses: [String: Date]? = nil
+    ) -> PhoneDexCachedState {
+        PhoneDexCachedState(
+            cursor: cursor,
+            tasks: tasks,
+            devices: devices,
+            events: events,
+            lastSyncAt: lastSyncAt,
+            drafts: drafts,
+            readingPositions: readingPositions,
+            readAt: readAt,
+            archivedAt: archivedAt,
+            mutedAt: mutedAt,
+            pendingReplies: pendingReplies ?? self.pendingReplies,
+            pendingLifecycleCommands: pendingLifecycleCommands ?? self.pendingLifecycleCommands,
+            replyReceipts: replyReceipts,
+            lifecycleReceipts: lifecycleReceipts,
+            handledNotificationResponses: handledNotificationResponses ?? self.handledNotificationResponses,
+            cachedArtifacts: cachedArtifacts,
+            schema: schema,
+            version: version
+        )
+    }
+}
+
+struct PhoneDexPendingLifecycleCommand: Codable, Equatable, Identifiable {
+    let commandId: String
+    let idempotencyKey: String
+    let kind: String
+    let taskId: String
+    let expectedTaskVersion: Int
+    let createdAt: Date
+
+    var id: String { idempotencyKey }
+
+    var actionLabel: String {
+        switch kind {
+        case "cancel": return "Cancellation"
+        case "retry": return "Retry"
+        default: return "Offline action"
+        }
+    }
+
+    var queuedMessage: String {
+        "\(actionLabel) is queued until the hub reconnects."
+    }
+}
+
+struct PhoneDexLifecycleDeliveryRecord: Codable, Equatable, Identifiable {
+    let commandId: String
+    let idempotencyKey: String?
+    let kind: String
+    let taskId: String
+    let state: String
+    let message: String?
+    let taskVersion: Int?
+    let serverCreatedAt: String?
+    let recordedAt: Date
+
+    var id: String { commandId }
+
+    var isSuccessful: Bool {
+        ["accepted", "completed", "duplicate"].contains(state)
+    }
+
+    var displayState: String {
+        switch state {
+        case "accepted": return "Accepted by hub"
+        case "completed": return "Delivered to agent"
+        case "duplicate": return "Already delivered"
+        case "rejected": return "Rejected by agent"
+        case "expired": return "Expired"
+        case "stale": return "Stale task version"
+        default: return state.replacingOccurrences(of: "_", with: " ").capitalized
+        }
+    }
+
+    var actionLabel: String {
+        switch kind {
+        case "cancel": return "Cancellation"
+        case "retry": return "Retry"
+        case "approve": return "Approval"
+        case "reject": return "Rejection"
+        case "handoff": return "Desktop handoff"
+        case "create": return "Task creation"
+        default: return "Managed action"
+        }
+    }
+
+    /// A receipt is current only when its task-version evidence matches the
+    /// task currently shown. Versioned receipts must never be presented as the
+    /// outcome of a newer task projection.
+    func matchesCurrentTaskVersion(_ currentTaskVersion: Int?) -> Bool {
+        taskVersion == currentTaskVersion
+    }
+
+    init(receipt: PhoneDexReplyReceipt, kind: String, taskId: String, recordedAt: Date = Date()) {
+        commandId = receipt.commandId
+        idempotencyKey = receipt.idempotencyKey
+        self.kind = kind
+        self.taskId = receipt.taskId ?? taskId
+        state = receipt.state
+        message = receipt.message
+        taskVersion = receipt.taskVersion
+        serverCreatedAt = receipt.createdAt
+        self.recordedAt = recordedAt
+    }
+}
+
+enum PhoneDexPendingLifecycleCommandPolicy {
+    static let retention: TimeInterval = 7 * 24 * 60 * 60
+    static let limit = 10
+    static let supportedKinds: Set<String> = ["cancel", "retry"]
+
+    static func prune(_ commands: [PhoneDexPendingLifecycleCommand], now: Date) -> [PhoneDexPendingLifecycleCommand] {
+        commands
+            .filter { supportedKinds.contains($0.kind) && now.timeIntervalSince($0.createdAt) < retention }
+            .sorted { $0.createdAt > $1.createdAt }
+            .prefix(limit)
+            .map { $0 }
+    }
+}
+
+struct PhoneDexCachedArtifact: Codable, Equatable, Identifiable {
+    let id: String
+    let name: String
+    let mediaType: String?
+    let data: Data
+    let downloadedAt: Date
+
+    var byteCount: Int { data.count }
+}
+
+enum PhoneDexCachedArtifactPolicy {
+    static let retention: TimeInterval = 30 * 24 * 60 * 60
+    static let limit = 20
+    static let bytesLimit = 25 * 1024 * 1024
+
+    static func index(_ artifacts: [PhoneDexCachedArtifact]) -> [String: PhoneDexCachedArtifact] {
+        Dictionary(
+            artifacts.map { ($0.id, $0) },
+            uniquingKeysWith: { _, latest in latest }
+        )
+    }
+
+    static func prune(_ artifacts: [PhoneDexCachedArtifact], now: Date) -> [PhoneDexCachedArtifact] {
+        let recent = artifacts.filter { now.timeIntervalSince($0.downloadedAt) < retention }
+        var retained = [PhoneDexCachedArtifact]()
+        var totalBytes = 0
+        for artifact in recent.sorted(by: { $0.downloadedAt > $1.downloadedAt }) where retained.count < limit {
+            guard totalBytes + artifact.byteCount <= bytesLimit else { continue }
+            retained.append(artifact)
+            totalBytes += artifact.byteCount
+        }
+        return retained
     }
 }
 
@@ -203,10 +393,46 @@ struct PhoneDexPendingReply: Codable, Equatable, Identifiable {
     var id: String { idempotencyKey }
 }
 
+enum PhoneDexPendingReplyPolicy {
+    static let retention: TimeInterval = 7 * 24 * 60 * 60
+    static let limit = 20
+    static let promptBytesLimit = 64 * 1024
+    static let bytesLimit = 256 * 1024
+
+    static func promptByteCount(_ pending: PhoneDexPendingReply) -> Int {
+        pending.prompt.utf8.count
+    }
+
+    static func isAcceptable(_ pending: PhoneDexPendingReply) -> Bool {
+        promptByteCount(pending) <= promptBytesLimit
+    }
+
+    static func prune(_ pendingReplies: [PhoneDexPendingReply], now: Date) -> [PhoneDexPendingReply] {
+        let recent = pendingReplies.filter {
+            now.timeIntervalSince($0.createdAt) < retention && isAcceptable($0)
+        }
+        var retained = [PhoneDexPendingReply]()
+        var totalBytes = 0
+        for pending in recent.sorted(by: { $0.createdAt > $1.createdAt }) where retained.count < limit {
+            let bytes = promptByteCount(pending)
+            guard totalBytes + bytes <= bytesLimit else { continue }
+            retained.append(pending)
+            totalBytes += bytes
+        }
+        return retained
+    }
+}
+
 protocol PhoneDexCacheStoring {
     func load() throws -> PhoneDexCachedState?
     func save(_ state: PhoneDexCachedState) throws
     func remove() throws
+    func quarantine() throws
+}
+
+extension PhoneDexCacheStoring {
+    /// Test doubles and non-file stores have nothing to quarantine.
+    func quarantine() throws {}
 }
 
 protocol PhoneDexCacheKeyStoring {
@@ -220,7 +446,7 @@ struct PhoneDexEncryptedCache: PhoneDexCacheStoring {
     private let keyStore: any PhoneDexCacheKeyStoring
 
     init(
-        fileURL: URL = PhoneDexEncryptedCache.defaultFileURL,
+        fileURL: URL = PhoneDexEncryptedCache.defaultFileURL(),
         keyStore: any PhoneDexCacheKeyStoring = PhoneDexKeychainCacheKeyStore()
     ) {
         self.fileURL = fileURL
@@ -297,6 +523,19 @@ struct PhoneDexEncryptedCache: PhoneDexCacheStoring {
         }
     }
 
+    func quarantine() throws {
+        guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
+
+        let quarantineURL = fileURL
+            .deletingLastPathComponent()
+            .appendingPathComponent("\(fileURL.deletingPathExtension().lastPathComponent).corrupt-\(UUID().uuidString).\(fileURL.pathExtension)")
+        do {
+            try FileManager.default.moveItem(at: fileURL, to: quarantineURL)
+        } catch {
+            throw PhoneDexCacheError.persistenceFailed
+        }
+    }
+
     private func encryptionKey() throws -> SymmetricKey {
         if let storedKey = try keyStore.readKey() {
             guard storedKey.count == 32 else { throw PhoneDexCacheError.invalidKey }
@@ -309,8 +548,9 @@ struct PhoneDexEncryptedCache: PhoneDexCacheStoring {
         return key
     }
 
-    private static var defaultFileURL: URL {
-        let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+    static func defaultFileURL(fileManager: FileManager = .default) -> URL {
+        let directory = (fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? fileManager.temporaryDirectory)
             .appendingPathComponent("PhoneDex", isDirectory: true)
         return directory.appendingPathComponent("sync-cache.bin")
     }

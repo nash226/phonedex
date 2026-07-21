@@ -537,11 +537,14 @@ CODEX_APP_SERVER_BIN=/Users/YOUR_USER/.local/bin/codex
   the fallback watcher.
 - `/reply` rejects requests with an invalid token when `WATCH_BRIDGE_TOKEN` is
   set. Native PhoneDex clients send the token in the `Authorization: Bearer`
-  header; body-token authentication remains only for legacy clients.
+  header; legacy form-body token authentication is disabled by default.
+  Set `PHONEDEX_ENABLE_LEGACY_BODY_TOKENS=true` only for a time-bounded
+  migration of older local clients.
 - `POST /tasks`, `/devices`, `/tasks`, and `/replies` also require
   `WATCH_BRIDGE_TOKEN` when it is set.
   Native app clients should send it as `Authorization: Bearer ...`; query
-  tokens remain a legacy setup path and should not be embedded in app URLs.
+  and body tokens remain explicit migration paths and should not be embedded
+  in app URLs or ordinary requests.
 
 The authenticated privacy endpoints are available to Mac/Windows
 administration tooling and future native settings surfaces:

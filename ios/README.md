@@ -47,6 +47,10 @@ The iOS app scaffold includes:
   and workspace filters. Unknown legacy task statuses remain visible in Recent.
 - A native WebKit browser for documentation, pull requests, and research
   without leaving PhoneDex.
+- Settings can clear the encrypted local task/review projection, including
+  drafts, receipts, offline commands, diagnostics, and downloaded artifacts,
+  while preserving the paired bridge credential in Keychain. This is a local
+  reset only and does not delete hub history or revoke the pairing.
 
 ## Generate The Xcode Project
 
@@ -115,6 +119,13 @@ fail before release. Xcode 26.3 currently emits contrast and Dynamic Type audit
 findings for SwiftUI's system Form/search surfaces in this shell; those known
 SDK-owned findings are filtered by their stable descriptions while clipping and
 all other audit findings still fail the test.
+
+The notification extension uses stable localization keys for its empty-content
+fallbacks and scales its header, title, and body with the user's Dynamic Type
+setting. Its rendered title and body are also exposed as separate accessibility
+labels. `npm run test:ios-notification-extension-contract` guards this boundary
+without treating source-level checks as a substitute for real-device
+Notification Center and VoiceOver validation.
 
 Run the `PhoneDex` iOS app on a device or simulator, allow notifications, and
 tap `Send Preview Notification`. Expand the delivered notification to test the

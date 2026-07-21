@@ -2,6 +2,76 @@ import XCTest
 @testable import PhoneDex
 
 final class PhoneDexChatFilteringTests: XCTestCase {
+    func testLatestEventUsesSequenceOrderAndProvidesSafeFallbackSummary() {
+        let events = [
+            PhoneDexEvent(
+                id: "progress-2",
+                taskId: "running",
+                createdAt: "2026-07-15T12:02:00.000Z",
+                sequence: 2,
+                type: "progress",
+                data: [:]
+            ),
+            PhoneDexEvent(
+                id: "progress-1",
+                taskId: "running",
+                createdAt: "2026-07-15T12:01:00.000Z",
+                sequence: 1,
+                type: "progress",
+                data: ["summary": "Running focused tests"]
+            )
+        ]
+
+        let latest = events.sorted { $0.sequence < $1.sequence }.last
+
+        XCTAssertEqual(latest?.id, "progress-2")
+        XCTAssertEqual(latest?.displaySummary, "Progress")
+        XCTAssertEqual(events[1].displaySummary, "Running focused tests")
+    }
+
+    func testLatestEventUsesTimestampAndIDToBreakSequenceTies() {
+        let events = [
+            PhoneDexEvent(
+                id: "progress-a",
+                taskId: "running",
+                createdAt: "2026-07-15T12:02:00.000Z",
+                sequence: 4,
+                type: "progress",
+                data: ["summary": "First page copy"]
+            ),
+            PhoneDexEvent(
+                id: "progress-b",
+                taskId: "running",
+                createdAt: "2026-07-15T12:03:00.000Z",
+                sequence: 4,
+                type: "progress",
+                data: ["summary": "Latest progress"]
+            )
+        ]
+
+        XCTAssertEqual(events.sorted { $0.isEarlier(than: $1) }.last?.id, "progress-b")
+    }
+
+    func testLatestEventUsesIDWhenSequenceAndTimestampTie() {
+        let first = PhoneDexEvent(
+            id: "progress-a",
+            taskId: "running",
+            createdAt: "not-a-date",
+            sequence: 4,
+            type: "progress"
+        )
+        let second = PhoneDexEvent(
+            id: "progress-b",
+            taskId: "running",
+            createdAt: "not-a-date",
+            sequence: 4,
+            type: "progress"
+        )
+
+        XCTAssertTrue(first.isLater(than: second) == false)
+        XCTAssertTrue(second.isLater(than: first))
+    }
+
     func testScopesSeparateActionableRunningAndRecentWork() {
         let tasks = [
             task("question", status: "needs_input"),
@@ -101,9 +171,136 @@ final class PhoneDexChatFilteringTests: XCTestCase {
         XCTAssertEqual(conversations.count, 2)
     }
 
+    func testWorkspaceSearchCoversMachinePathAndCachedTaskContext() {
+        let project = PhoneDexProject(tasks: [
+            task(
+                "workspace-task",
+                status: "completed",
+                title: "Review sync boundary",
+                text: "The iOS reconciliation tests passed.",
+                cwd: "/work/PhoneDex",
+                machineName: "Build Mac",
+                branch: "codex/sync-hardening",
+                repository: "nash226/phonedex"
+            )
+        ])!
+
+        XCTAssertTrue(project.matchesSearch("Build Mac"))
+        XCTAssertTrue(project.matchesSearch("/work/PhoneDex"))
+        XCTAssertTrue(project.matchesSearch("sync-hardening"))
+        XCTAssertTrue(project.matchesSearch("reconciliation tests"))
+        XCTAssertFalse(project.matchesSearch("unrelated workspace"))
+    }
+
+    func testWorkspaceSearchTrimsWhitespaceAndPreservesProjectOrder() {
+        let first = PhoneDexProject(tasks: [task("first", status: "completed", cwd: "/work/Alpha")])!
+        let second = PhoneDexProject(tasks: [task("second", status: "completed", cwd: "/work/Beta")])!
+
+        XCTAssertEqual(
+            PhoneDexProject.filtered([first, second], by: "  beta ").map(\.id),
+            [second.id]
+        )
+        XCTAssertEqual(PhoneDexProject.filtered([first, second], by: "   ").map(\.id), [first.id, second.id])
+    }
+
+    func testTaskAndReviewStatusCopyUsesStableEnglishFallbacks() {
+        let task = task("running", status: "running", source: "stop-hook")
+        XCTAssertEqual(task.displayStatus, "Running")
+        XCTAssertEqual(task.displaySource, "Stop hook")
+
+        let file = PhoneDexChangedFile(path: "Sources/App.swift", status: "modified", sourceRef: nil, summary: nil, additions: 2, deletions: 1, patch: nil, patchTruncated: nil)
+        XCTAssertEqual(file.displayStatus, "Modified")
+
+        let validation = PhoneDexValidationReceipt(id: "tests", name: "Tests", status: "passed", summary: nil, durationMs: 120, completedAt: nil)
+        XCTAssertEqual(validation.displayStatus, "Passed")
+    }
+
+    func testReadPresentationStateBecomesUnreadWhenTaskUpdates() throws {
+        let task = task("conversation", status: "completed", at: "2026-07-15T12:00:00.000Z")
+        let taskDate = try XCTUnwrap(task.displayDate)
+        let readAt = taskDate.addingTimeInterval(60)
+        XCTAssertGreaterThanOrEqual(readAt, taskDate)
+
+        let updated = PhoneDexTask(
+            id: task.id,
+            at: task.at,
+            source: task.source,
+            title: task.title,
+            text: task.text,
+            cwd: task.cwd,
+            workspaceName: task.workspaceName,
+            machineName: task.machineName,
+            sessionId: task.sessionId,
+            status: task.status,
+            branch: task.branch,
+            repository: task.repository,
+            updatedAt: "2026-07-15T12:02:00.000Z"
+        )
+
+        XCTAssertTrue(readAt >= taskDate)
+        XCTAssertLessThan(readAt, try XCTUnwrap(updated.lastUpdatedDate))
+    }
+
+    func testTaskFreshnessFallsBackFromMalformedCaptureTimeToCreationTime() throws {
+        let task = task(
+            "freshness",
+            status: "completed",
+            at: "not-a-date",
+            createdAt: "2026-07-15T12:00:00.000Z"
+        )
+
+        let expectedDateFormatter = ISO8601DateFormatter()
+        expectedDateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        XCTAssertEqual(task.displayDate, expectedDateFormatter.date(from: "2026-07-15T12:00:00.000Z"))
+        XCTAssertEqual(task.freshnessLabel, "Recorded")
+        XCTAssertTrue(task.freshnessAccessibilityValue.hasPrefix("Recorded,"))
+    }
+
+    func testTaskFreshnessUsesLastUpdatedWhenItIsValid() {
+        let task = task(
+            "freshness",
+            status: "running",
+            createdAt: "2026-07-15T12:00:00.000Z",
+            updatedAt: "2026-07-15T12:05:00.000Z"
+        )
+
+        XCTAssertEqual(task.freshnessLabel, "Last updated")
+        XCTAssertTrue(task.freshnessAccessibilityValue.contains("Last updated"))
+    }
+
+    func testTaskFreshnessFailsClosedWhenAllTimestampsAreMalformed() {
+        let task = task("freshness", status: "completed", at: "bad", createdAt: "also-bad", updatedAt: "still-bad")
+
+        XCTAssertNil(task.displayDate)
+        XCTAssertNil(task.lastUpdatedDate)
+        XCTAssertEqual(task.freshnessLabel, "Update time unavailable")
+        XCTAssertEqual(task.freshnessAccessibilityValue, "Update time unavailable")
+    }
+
+    func testPresentationFiltersKeepArchivedAndMutedOutOfActiveTriage() {
+        let tasks = [
+            task("active", status: "completed"),
+            task("archived", status: "completed"),
+            task("muted", status: "completed")
+        ]
+        let archived = Set(["archived"])
+        let muted = Set(["muted"])
+
+        XCTAssertEqual(PhoneDexTaskFilter(scope: .recent).filteredTasks(tasks, archivedTaskIDs: archived, mutedTaskIDs: muted).map(\.id), ["active"])
+
+        var filter = PhoneDexTaskFilter(scope: .recent)
+        filter.presentation = .archived
+        XCTAssertEqual(filter.filteredTasks(tasks, archivedTaskIDs: archived, mutedTaskIDs: muted).map(\.id), ["archived"])
+
+        filter.presentation = .muted
+        XCTAssertEqual(filter.filteredTasks(tasks, archivedTaskIDs: archived, mutedTaskIDs: muted).map(\.id), ["muted"])
+        XCTAssertTrue(filter.hasFilters)
+    }
+
     private func task(
         _ id: String,
         status: String?,
+        source: String = "codex",
         title: String? = nil,
         text: String = "Codex result",
         cwd: String = "/work/project",
@@ -111,12 +308,14 @@ final class PhoneDexChatFilteringTests: XCTestCase {
         branch: String? = nil,
         repository: String? = nil,
         sessionId: String? = nil,
-        at: String = "2026-07-15T12:00:00.000Z"
+        at: String? = "2026-07-15T12:00:00.000Z",
+        createdAt: String? = nil,
+        updatedAt: String? = nil
     ) -> PhoneDexTask {
         PhoneDexTask(
             id: id,
             at: at,
-            source: "codex",
+            source: source,
             title: title ?? id,
             text: text,
             cwd: cwd,
@@ -125,7 +324,9 @@ final class PhoneDexChatFilteringTests: XCTestCase {
             sessionId: sessionId,
             status: status,
             branch: branch,
-            repository: repository
+            repository: repository,
+            createdAt: createdAt,
+            updatedAt: updatedAt
         )
     }
 }

@@ -216,7 +216,8 @@ device-only Keychain generic-password item with
 the legacy `phonedex.token` UserDefaults value once, removes the legacy value,
 and exposes a generic, non-secret error when secure storage fails.
 `ios/PhoneDexTests/PhoneDexSettingsTests.swift` covers migration, updates,
-clearing, failure redaction, and Keychain round trips; the concrete Keychain
+clearing, explicit credential forgetting, failure redaction, and Keychain round
+trips; the concrete Keychain
 round trip is skipped only when an unsigned simulator reports its expected
 missing entitlement. Notification payload credential removal is now covered by
 the native notification metadata builder and bridge reply integration fixture;
@@ -304,6 +305,21 @@ shows an actionable Settings message when the configured URL is invalid.
 `PhoneDexSettingsTests` covers HTTPS acceptance, non-loopback HTTP rejection,
 and loopback HTTP compatibility. Hub and agent TLS termination, certificate
 deployment, and legacy query-token removal remain separate release work.
+
+Verification evidence for the legacy query-token boundary: URL query-token
+authentication is now disabled by default across the shared Mac/Windows hub
+routes, task pages, and standard agent-bootstrap URLs. Header-authenticated
+requests continue to work, short-lived invite URLs remain supported, and older
+form-body clients are disabled by default. Setting
+`PHONEDEX_ENABLE_LEGACY_QUERY_TOKENS=true` explicitly restores the old URL
+compatibility path, while `PHONEDEX_ENABLE_LEGACY_BODY_TOKENS=true` explicitly
+restores form-body token authentication, each for a bounded local migration.
+When `NODE_ENV=production` or `PHONEDEX_PRODUCTION=true`, enabling either
+compatibility flag fails closed during startup, so a production deployment
+cannot accidentally restore credential-bearing URL or form-body authentication.
+`scripts/test-query-token-boundary.js` proves default fail-closed behavior,
+explicit compatibility, production startup rejection, and retained header
+authentication without putting credentials in generated support URLs.
 
 Verification evidence for the completed Chats scope slice: the native SwiftUI
 Chats surface in `ios/PhoneDexApp/ContentView.swift` provides Needs You,
@@ -420,6 +436,14 @@ build and the scheme's unit/UI test action. On 2026-07-15, Xcode 26.3 passed
 the two UI tests and the full scheme test action on an iPhone 17 iOS 26.3.1
 simulator without signing credentials.
 
+Verification evidence for the device attribution reliability slice:
+`PhoneDexDevice.owns(_:)` matches tasks with a stable `deviceId` before using a
+non-empty machine-name fallback for legacy records. Native device detail no
+longer groups same-named Mac and Windows agents together, and records without
+either identity are excluded rather than being assigned to every “Unknown
+device”. `PhoneDexDiagnosticsTests` covers same-name collision, identity match,
+and the legacy fallback boundary.
+
 ## M4: Supported Codex Control Adapters
 
 Status: **Current**
@@ -430,6 +454,8 @@ across Mac and Windows.
 - [x] Define the adapter boundary and capability test suite.
 - [x] Implement structured task reply and question-response commands.
 - [x] Implement task create, cancel, and retry where supported.
+- [x] Queue supported cancel and retry commands offline with encrypted,
+  bounded retention and task-version/idempotency replay protection.
 - [x] Export live lifecycle events without parsing desktop UI.
 - [x] Export changed files, source-linked patches, artifacts, and validation
   receipts.
@@ -693,6 +719,32 @@ the user should reopen PhoneDex for current task context. This is local
 notification correctness only; APNs provider choice, remote registration, and
 real-device background validation remain human-gated release work.
 
+Local notification permission recovery evidence: Settings now reads the current
+authorization state, distinguishes full, quiet, denied, restricted, and
+not-yet-requested delivery, and sends denied or restricted users to the system
+notification settings instead of repeatedly presenting an ineffective prompt.
+The surface keeps the foreground-refresh fallback explicit, uses generic
+permission copy, and is covered by `PhoneDexSettingsTests` for enabled and
+denied-state semantics. This improves local permission recovery only; APNs,
+background execution, and real-device Focus/permission validation remain
+release-owner gates.
+
+Local notification grouping evidence: task alerts now use a bounded,
+deterministic thread identifier derived only from the display workspace and
+machine identity. Related alerts stay together in Notification Center while
+task text, local paths, credentials, and query values remain outside the
+grouping metadata. `PhoneDexSettingsTests` covers sanitization and separation
+of identical workspaces on different machines. Per-workspace delivery policy,
+remote registration, and background delivery remain human-gated release work.
+
+Local notification privacy evidence: task alerts default to a Safe Summary that
+keeps prompts, task text, paths, and diffs off the lock screen. Settings offers
+an explicit Full Preview opt-in and persists only that non-secret preference;
+the Settings and deep-link scheduling paths use the same policy. Native tests
+cover the safe default, persistence, and content-free presentation. This is
+local notification privacy only; remote APNs payload policy and real-device
+lock-screen validation remain human-gated release work.
+
 ## M7: Mobile Review Experience
 
 Status: **Current**
@@ -704,8 +756,8 @@ Outcome: let users evaluate completed work without returning to a computer.
   context expansion, copy, and share.
 - [x] Add integrity-checked artifact metadata and explicit downloads.
 - [x] Enforce retention and export policy for sensitive review content.
-- [x] Add a native metadata-only artifact library across synced conversations;
-  downloads remain integrity-checked and session-scoped.
+- [x] Add a native metadata-first artifact library across synced conversations;
+  verified downloads persist in the encrypted iOS cache with bounded retention.
 - [x] Meet the 5,000-line diff performance target on the oldest supported
   iPhone.
 
@@ -796,16 +848,132 @@ surfaces from regression. This is implementation evidence only; the release
 owner still must approve the final privacy policy, disclosures, and real-device
 validation gates.
 
+Local cache-reset verification: Settings provides a confirmation-gated local
+cache reset that atomically writes an empty encrypted projection before
+clearing the in-memory tasks, drafts, receipts, offline commands, diagnostics,
+and downloaded artifacts. It preserves the paired bridge credential in the
+device-only Keychain, invalidates an in-flight foreground refresh, reports
+success or persistence failure without exposing server detail, and never
+deletes hub history or implies remote credential revocation.
+`PhoneDexSettingsTests` covers successful reset, credential preservation, and
+failure-safe retention of the trusted projection. This is a local privacy and
+recovery control; hub deletion, credential revocation, and real-device privacy
+validation remain separate release-owner responsibilities.
+
 Exit gate: the release owner records a go decision with known limitations,
 metrics, rollback plan, and verification evidence.
 
 Accessibility verification for the in-progress release-readiness slice:
 `PhoneDexShellUITests.testShellPassesSystemAccessibilityAudit` runs Xcode's
-system audit at the largest Dynamic Type size with Reduce Motion and dark
-appearance enabled. The shell fixes keep validation guidance readable, remove
-the fixed-size composer icon, and allow long branch labels to wrap instead of
-clipping. This is evidence for the accessibility portion of the combined M8
-gate; performance, battery, localization, and crash validation remain open.
+PhoneDex-owned audit categories (contrast, hit region, descriptions, Dynamic
+Type, clipping, and traits) at the largest Dynamic Type size with Reduce Motion
+and dark appearance enabled. The element-detection category is intentionally
+excluded: on an offline simulator it can wait indefinitely while the app's
+initial bridge refresh settles, making the CI gate flaky without adding
+actionable signal about PhoneDex UI. The shell fixes keep validation guidance
+readable, remove the fixed-size composer icon, and allow long branch labels to
+wrap instead of clipping. Chats keeps its refresh action in the content
+hierarchy, including the loading/degraded empty-state action, so toolbar
+compression cannot hide the recovery path at accessibility sizes.
+`PhoneDexShellUITests.testPrimaryDestinationsRemainAccessibleAtLargestDynamicType`
+selects Chats explicitly before asserting the stable `refresh-conversations`
+identifier, making the check deterministic when tab restoration has persisted
+another last-used tab. This is evidence for the accessibility portion of the
+combined M8 gate; performance, battery, localization, and crash validation
+remain open.
+
+Review accessibility verification: `PhoneDexReviewSummaryView` stacks its
+summary metrics at accessibility Dynamic Type sizes so file and validation
+counts remain readable instead of compressing into clipped cards. Changed-file
+and validation rows expose one concise VoiceOver summary containing status,
+counts, patch availability, and reported validation timing. The pure label
+contract is covered by `PhoneDexReviewSummaryTests`; real-device review
+navigation and accessibility audit evidence remain release-owner gates.
+
+Localization verification for the in-progress release-readiness slice:
+`PhoneDexTask`, `PhoneDexChangedFile`, and `PhoneDexValidationReceipt` now use
+stable localization keys with English fallbacks for task, capture-source, file,
+and validation status copy. The copy is shared by Chats, task detail, activity,
+and review surfaces, so future translations do not need to duplicate lifecycle
+semantics across views. `PhoneDexChatFilteringTests.testTaskAndReviewStatusCopyUsesStableEnglishFallbacks`
+covers the fallback contract. This is localization readiness only; translated
+catalogs and locale-specific real-device QA remain release gates.
+
+Notification localization verification for the in-progress release-readiness
+slice: `PhoneDexNotificationCopy` gives the local preview, quick actions,
+custom-reply placeholder, and unsafe-bridge error stable localization keys with
+English fallbacks. The same copy is used by the notification category and
+scheduled content, so action labels cannot drift between the notification UI and
+its reply contract. `PhoneDexSettingsTests.testNotificationCopyHasStableEnglishFallbacks`
+covers the fallback contract. This is localization readiness only; translated
+catalogs and locale-specific notification QA remain release gates.
+
+Duplicate notification-action verification: `NotificationReplyResult` preserves
+the explicit duplicate outcome when the notification extension or app records
+it, and the native model presents it as a neutral already-handled status after
+relaunch instead of mislabeling it as a failed reply. `PhoneDexSmokeTests` covers
+the persisted state mapping. This keeps local duplicate suppression honest
+without claiming APNs delivery or background execution support.
+
+Notification result freshness verification: the native model ignores persisted
+notification-action status older than 24 hours, future-dated, malformed, or
+otherwise invalid timestamps. A relaunch therefore cannot present an old sent,
+failed, or duplicate message as the result of current task context. The status
+remains local presentation state and is not treated as durable command truth;
+`PhoneDexSmokeTests` covers expiry and fail-closed timestamp handling.
+
+Credential presentation verification for the in-progress release-readiness
+slice: native Settings leads with the one-time secure pairing grant flow and
+places the older token entry behind an explicitly labeled compatibility
+disclosure. Existing migrated credentials remain in the device-only Keychain,
+while the disclosure explains that legacy tokens are for local migration only
+and are never placed in URLs, notifications, or support diagnostics.
+`PhoneDexShellUITests.testSettingsControlsRemainReachableInDarkAppearance`
+covers the pairing-first surface and verifies the legacy field is hidden until
+requested; `PhoneDexSettingsTests` covers the bounded copy contract. This is a
+native presentation boundary only: hub-side legacy compatibility remains
+disabled by default in production and secure pairing remains the supported
+release path.
+
+Privacy snapshot verification for the in-progress release-readiness slice:
+`PhoneDexApp` places a root-level privacy shield over the native shell whenever
+the scene is inactive or backgrounded. The shield uses generic copy, blocks
+interaction, and disables transitions at the lifecycle boundary so app-switcher
+and system snapshot capture cannot briefly reveal task text, paths, or review
+content. `PhoneDexSmokeTests.testPrivacyShieldCoversInactiveAndBackgroundSnapshots`
+covers the lifecycle policy. This is implementation protection only; release
+owner review of privacy disclosures and real-device snapshot behavior remains
+required.
+
+Notification cache-preservation verification for the in-progress
+release-readiness slice: notification actions now replace only their pending
+reply or handled-response projection inside the encrypted cache. The shared
+mutation preserves the cursor, synced tasks and devices, lifecycle events,
+drafts, reading positions, reply receipts, and verified artifact bytes, so a
+background notification response cannot erase locally available review state.
+`PhoneDexLocalCacheTests.testNotificationStateReplacementPreservesLocalReviewAndSyncState`
+covers both notification mutation fields and the preserved local-first state.
+
+Quality-gate evidence verification for the in-progress release-readiness slice:
+`lib/phonedex-quality-gates.js` defines the content-free
+`phonedex.quality-gates.v1` report for performance, battery, accessibility,
+localization, and crash evidence. `scripts/quality-gates.js` rejects missing,
+duplicate, stale, future-dated, unsupported, or over-broad platform evidence
+and extra fields, and accepts only bounded gate ids, platform names,
+timestamps, statuses, and evidence ids.
+`scripts/test-quality-gates.js` covers complete evidence, missing and failed
+gates, stale timestamps, unsupported platforms, and attempts to include task
+text. This makes the combined M8 gate auditable without claiming simulator
+checks replace real-device measurements, signing, TestFlight, APNs, or release
+owner approval.
+
+The quality and acceptance evidence CLIs also accept `--output` and persist the
+same normalized, content-free report they print. Passing and failing reports
+are both retained for CI review, with restrictive local file permissions and a
+non-zero exit code preserved for failed validation. `scripts/test-evidence-
+report-cli.js` covers both validators, output parity, and failed-report
+persistence; this improves evidence handoff without marking any real-device or
+release-owner gate complete.
 
 Performance verification for the in-progress release-readiness slice:
 `PhoneDexDiffTests.testFiveThousandLineReviewPathStaysWithinInteractiveOpenBudget`
@@ -831,6 +999,14 @@ covers the Low Power Mode ceiling, failure backoff, jitter, and no-refresh
 window. This is a deterministic policy guard; battery impact on oldest
 supported devices remains a real-device/TestFlight release gate.
 
+Crash-gate verification for the in-progress release-readiness slice:
+`scripts/test-ios-crash-recovery.js` guards the native cold-start recovery
+contract: cache restore is isolated from app launch, corrupt encrypted state is
+quarantined with an opaque generated filename, and the user receives generic
+recovery-safe guidance before a fresh sync. This is a source-level regression
+guard for simulator and CI changes; it does not claim real-device crash or
+launch-cycle coverage, which remains a release-owner gate.
+
 Observability verification for the completed release-readiness slice:
 `lib/phonedex-observability.js` defines the content-free
 `phonedex.diagnostics.v1` projection with component health, route-level
@@ -840,6 +1016,26 @@ an opaque `X-PhoneDex-Correlation-ID` on every HTTP response; credentials,
 task text, paths, and request headers are never persisted in the projection.
 `scripts/test-observability.js` covers correlation-id validation, diagnostics
 redaction, request metrics, component states, and authorization.
+
+Native support-diagnostics verification for the in-progress release-readiness
+slice: Settings now summarizes the bounded component-health projection with a
+single overall state, caps rendered component rows, and shows only generic HTTP
+status plus a query-free endpoint path for recent failures. Unknown or
+malformed endpoint values fall back to `Unknown endpoint`, so a compromised or
+future hub cannot turn support UI into a credential or content display surface.
+`PhoneDexDiagnosticsTests` covers degraded/unhealthy aggregation, row bounds,
+and query/whitespace redaction. This improves support recovery on Mac and
+Windows hub outages without claiming that task content, source paths, or
+credentials are included in diagnostics; the existing real-device outage and
+privacy matrix remains the release-owner gate.
+
+Diagnostics resource-bound verification for the in-progress release-readiness
+slice: `PhoneDexDiagnosticsSnapshot` rejects component, route, recent-request,
+and capability collections above explicit client limits before materializing
+them. `PhoneDexDiagnosticsTests` covers the fail-closed oversized-component
+boundary. This protects native support recovery from malformed or unexpectedly
+large Mac or Windows hub projections without changing the content-free
+diagnostics contract or claiming real-device performance evidence.
 
 Battery verification for the in-progress release-readiness slice:
 `PhoneDexRefreshPolicy` limits automatic refreshes triggered by app launch and
@@ -853,13 +1049,118 @@ foreground network and parsing work without pretending that a background
 refresh or APNs provider exists; real-device battery profiling remains required
 before the M8 battery gate can be checked off.
 
+Network reliability verification for the in-progress release-readiness slice:
+all native bridge operations, including authenticated reply delivery, use the
+same bounded 15-second request timeout. This prevents a stalled Mac or Windows
+hub from leaving a foreground action indeterminate while preserving the
+existing encrypted outbox and idempotency-key retry path. The shared budget is
+asserted by `PhoneDexBridgeClientTests`; timeout classification and real-device
+poor-connectivity behavior remain part of the release-owner validation gate.
+
+Browser recovery verification for the in-progress release-readiness slice:
+`PhoneDexBrowserModel` now exposes a generic, retryable error state when a
+WebKit navigation fails or an address cannot be opened. The native surface keeps
+the recovery action in the accessibility hierarchy and avoids presenting raw
+navigation errors or an unexplained blank page; `PhoneDexBrowserTests` covers
+safe failure copy, loading-state reset, and clearing the failure on a new valid
+address. This is local UI resilience evidence only; real-device network and
+offline behavior remain part of the release-owner matrix.
+
+Offline reply-outbox verification for the in-progress release-readiness slice:
+`PhoneDexPendingReplyPolicy` expires queued replies after seven days, keeps at
+most 20 commands, rejects prompts larger than 64 KiB, and caps retained prompt
+text at 256 KiB. The app applies the policy when adding, restoring, and flushing
+the encrypted outbox, and shows generic recovery guidance when older queued
+commands are removed. `PhoneDexLocalCacheTests` covers expiry, count, prompt
+size, and byte-budget pruning. This bounds sensitive local retention without
+changing command idempotency or claiming delivery after a pruned command;
+offline retry remains available for retained commands and the hub remains the
+source of truth for command receipt state.
+
+Offline lifecycle queue visibility verification for the in-progress
+release-readiness slice: task detail now reads the encrypted pending cancel or
+retry projection and shows the action, creation age, retry condition, and
+non-optimistic state after relaunch. This keeps a durable offline action
+discoverable while it waits for a successful sync; approval, handoff, and task
+creation remain immediate-only and no unsupported lifecycle command is added.
+`PhoneDexLocalCacheTests` covers the bounded, content-free queue copy used by
+the native surface.
+
+Cross-surface sync-state verification for the in-progress release-readiness
+slice: the populated Projects and Devices destinations now keep the same
+connection header used by Chats and Settings visible above cached Mac and
+Windows projections. Stale, offline, partial, revoked, incompatible, and
+failed states therefore remain explicit even when those lists contain trusted
+local data, while pull-to-refresh remains available. The status copy contains
+only bounded sync timing and generic recovery guidance; it does not infer agent
+reachability, expose task content, or imply background delivery. Shell UI
+coverage checks that both status surfaces remain discoverable at the largest
+Dynamic Type size and with reduced motion enabled.
+
+Crash recovery verification for the in-progress release-readiness slice:
+`PhoneDexEncryptedCache.quarantine()` moves an unreadable encrypted cache aside
+under a generated, non-sensitive filename while preserving the device-only
+encryption key. `PhoneDexAppModel` invokes that boundary after a failed restore,
+continues with an empty trusted projection, and shows an actionable recovery
+message so a fresh hub sync can recover without a crash or an endless retry of
+the same corrupt file. `PhoneDexLocalCacheTests` covers fail-closed tamper
+detection, quarantine, fresh-load behavior, and key preservation. This does not
+claim crash-free real-device behavior; corrupted-cache recovery, notification
+actions, and cold relaunch remain part of the release-owner crash gate.
+
+Transient transport verification for the in-progress release-readiness slice:
+the native client classifies DNS lookup, host reachability, interrupted
+connections, unavailable network resources, active-call, roaming, and timeout
+failures as offline. The existing cached projection and encrypted reply outbox
+therefore remain available for temporary Mac or Windows hub connectivity loss,
+while HTTP authentication failures and TLS negotiation failures stay explicit
+errors instead of being misreported as offline. `PhoneDexBridgeClientTests`
+covers the allowlist and fail-closed security boundary; real-device poor-
+connectivity behavior remains a release-owner validation gate.
+
+Artifact-library verification for the in-progress release-readiness slice:
+verified downloads now persist in the encrypted iOS cache and remain available
+to the native artifact library and task review after relaunch. The app expires
+saved bytes after 30 days, keeps at most 20 downloads and 25 MB, and provides
+an explicit Settings action to clear them. `PhoneDexLocalCacheTests` covers
+encrypted artifact round trips, legacy cache decoding, tamper rejection, and
+retention bounds. This is local iPhone retention only; the hub remains the
+source of truth and remote artifact retention remains governed by hub policy.
+
+Restore-time retention verification: `PhoneDexAppModel` rewrites the encrypted
+cache when launch-time pruning removes expired downloaded artifacts. This keeps
+the documented 30-day local retention boundary effective on disk even when the
+user does not perform another app mutation after relaunch. The
+`PhoneDexSettingsTests.testModelRestorePersistsExpiredArtifactPruning` regression
+test verifies expired bytes are removed while recent review artifacts remain.
+
 Crash verification for the in-progress release-readiness slice:
 Settings and the embedded browser no longer force-unwrap user-visible sharing
 URLs. Invalid browser addresses now hide the share action instead of falling
 back through another force unwrap, and `PhoneDexBrowserTests` covers both valid
 and malformed addresses. This removes two production crash paths; crash-free
 session measurement and real-device validation remain required before the
-combined M8 release-readiness gate can be checked off.
+combined M8 release-readiness gate can be checked off. Cache and sync
+reconciliation now use deterministic duplicate-ID resolution instead of
+`Dictionary(uniqueKeysWithValues:)` traps; `PhoneDexLocalCacheTests` and
+`PhoneDexBridgeClientTests` cover malformed duplicate records and keep the
+latest record without exposing partial state.
+
+Native model decoding verification for the in-progress release-readiness
+slice: required bounded strings now use a throwing decoder boundary instead of
+force-unwrapping an optional result. Oversized task, question, changed-file,
+and lifecycle-event fields therefore fail as safe decoding errors rather than
+crashing the iPhone process. `PhoneDexSmokeTests` covers all four required
+field families. This hardens malformed hub-projection recovery without
+weakening the existing size limits or claiming crash-free real-device
+behavior.
+
+The native workspace projection now rejects an empty task group before reading
+its first element. `PhoneDexSmokeTests.testEmptyProjectInputIsRejectedWithoutIndexingACollection`
+covers the malformed/empty projection boundary, while the app model drops any
+empty group before presenting Projects. This keeps cache or bridge data
+corruption from becoming an iOS index-out-of-range crash; crash-free session
+measurement and real-device validation remain release-owner gates.
 
 Deep-link privacy verification for the in-progress release-readiness slice:
 Unsupported `phonedex://` URLs now record only their scheme, host, and path in
@@ -869,6 +1170,75 @@ configuration links cannot persist bridge credentials or other URL secrets in
 covers the redaction boundary. This is implementation evidence only; final
 privacy disclosures and real-device release validation remain release-owner
 gates.
+
+Task deep-link routing verification for the in-progress native-shell slice:
+`phonedex://task/<task-id>` accepts only a bounded opaque path identifier with
+no query or fragment data, selects the matching locally cached conversation,
+and returns to Chats without changing lifecycle state or contacting a private
+Codex API. A task absent from the trusted local projection stays pending across
+refresh and shows generic recovery guidance rather than guessing or displaying
+remote task content. `PhoneDexSmokeTests` covers valid, utility-route, query,
+unsafe-identifier, and oversized-identifier cases. Universal-link association,
+remote task discovery, and real-device routing remain release-owner work.
+
+Task freshness verification for the native detail surface: `PhoneDexTask`
+falls back from a malformed capture timestamp to a valid creation timestamp,
+uses a valid task update timestamp when available, and otherwise exposes an
+explicit unavailable state. The detail header labels the timestamp as
+Recorded or Last updated and combines the same context into one VoiceOver
+value, so a relative date cannot be mistaken for a live sync guarantee.
+`PhoneDexChatFilteringTests` covers valid fallback, updated-time precedence,
+and the all-malformed fail-closed path. The hub remains the source of truth;
+this is local presentation and accessibility context only.
+
+Credential-forget verification for the in-progress security and privacy
+slice: `PhoneDexAppModel.forgetCredential()` clears encrypted pending reply
+commands only after Keychain removal succeeds, then persists the remaining
+task history, receipts, reading positions, and verified artifacts. A later
+pairing therefore cannot retry a reply created under the forgotten credential,
+while local review context remains available. `PhoneDexSettingsTests` covers
+successful clearing and failed Keychain removal; hub-side revocation remains a
+separate pairing and release-owner operation.
+
+Cache-path resilience verification for the in-progress release-readiness
+slice: `PhoneDexEncryptedCache` no longer force-indexes the application-support
+directory list. It uses the first supported application-support URL and falls
+back to the process temporary directory if the system returns no application-
+support location, preventing a launch-time crash while preserving encrypted,
+device-local cache behavior. `PhoneDexLocalCacheTests` covers the default path
+shape; persistence, tamper rejection, retention bounds, and Keychain behavior
+remain covered by the existing cache tests. This is simulator evidence only;
+real-device cache and crash-free validation remain release-owner gates.
+
+Transport security verification for the in-progress release-readiness slice:
+`lib/phonedex-transport.js` validates the bridge's public URL and TLS
+configuration before startup. `PHONEDEX_REQUIRE_TLS=true` fails closed unless
+the hub or agent has an HTTPS public URL and a matching certificate/key pair;
+when configured, the bridge validates that both materials are non-empty,
+readable regular files before serving HTTPS and reports the protocol and TLS
+state through `/health`. Loopback HTTP remains an explicit development path.
+`scripts/test-transport.js` covers the safe loopback default, complete TLS
+configuration, missing or unreadable materials, and mixed HTTP/TLS settings.
+Certificate provisioning and rotation remain release-owner deployment work.
+
+Native response-bound verification for the in-progress release-readiness
+slice: `PhoneDexBridgeClient` rejects structured responses larger than 2 MiB,
+legacy task responses larger than 4 MiB, and artifact responses larger than the
+encrypted local artifact budget of 25 MiB before decoding or sharing them.
+`PhoneDexBridgeClientTests` covers the sync rejection and keeps the artifact
+limit aligned with `PhoneDexCachedArtifactPolicy`. The caps bound native
+decoding and sharing behavior without claiming that `URLSession` never
+allocates transport bytes; hub-side pagination and artifact limits remain the
+primary defense, and real-device memory profiling remains a release gate.
+
+Safe error-surface verification for the in-progress release-readiness slice:
+native UI, notification-action, and deep-link diagnostics paths now use a bounded
+`Error.phoneDexSafeMessage` projection instead of raw localized error text. The
+projection removes server-provided pairing/protocol detail, URL/userinfo, and
+transport diagnostics while preserving actionable offline, revoked, protocol, and
+artifact guidance. `PhoneDexBridgeClientTests.testUserFacingErrorMessagesNeverExposeServerOrURLDetails`
+covers server, HTTP, and URL error inputs. This protects local privacy and support
+output; hub logs and real-device release validation remain separate gates.
 
 Verification evidence for the completed migration and recovery slice:
 `scripts/test-recovery.js` exercises legacy JSONL import, current-schema
@@ -887,6 +1257,12 @@ and supported build matrix, and excludes credentials, local paths, and task
 content. Node CI runs `npm run release:verify`; signing, entitlements,
 TestFlight, and real-device validation remain release-owner gates.
 
+The native Settings About section now reads the app bundle's
+`CFBundleShortVersionString` and `CFBundleVersion`, so user-visible release
+identity cannot drift from the generated Xcode project. `PhoneDexSettingsTests`
+covers the version/build presentation and its safe development fallback. This
+does not provide signing or TestFlight evidence.
+
 Verification evidence for the completed App Review and support-runbook slice:
 `docs/APP_REVIEW.md` provides a release-owner checklist and truthful App Review
 explanation for local-network use, notification privacy, supported Mac/Windows
@@ -897,6 +1273,27 @@ support record template. Neither document requests secrets or claims private
 Codex Desktop API parity; provider, signing, and real-device release decisions
 remain explicit human gates.
 
+Verification evidence for the real-device validation slice:
+`docs/REAL_DEVICE_VALIDATION.md` defines the content-free evidence boundary,
+real-iPhone pairing, offline, notification-action, approval, review, privacy,
+recovery, accessibility, Mac, and Windows scenarios, plus the release-owner
+gates that unsigned simulator CI cannot prove. It keeps signing, TestFlight,
+APNs, legal privacy approval, and real-device measurements as explicit gates;
+the runbook does not claim them complete.
+
+Verification evidence for the acceptance-evidence contract:
+`lib/phonedex-acceptance.js` defines the bounded
+`phonedex.acceptance-evidence.v1` report for all 15 product acceptance
+scenarios. `scripts/acceptance-evidence.js` rejects missing, duplicate,
+unknown, stale, future-dated, unsupported-platform, duplicate-platform,
+over-broad-platform, and oversized reports, while
+`scripts/test-acceptance-evidence.js` covers a complete report and the main
+failure paths. The validator fails closed instead of silently deduplicating or
+truncating platform claims, so a passing report cannot overstate which device
+matrices were validated. The contract is intentionally content-free and
+reports evidence readiness only; real-device execution and release-owner
+decisions remain open M8 gates.
+
 Verification evidence for the completed native diagnostics export slice:
 `PhoneDexBridgeClient.fetchDiagnostics()` consumes the authenticated
 `phonedex.diagnostics.v1` projection, while Settings exposes loading, success,
@@ -905,6 +1302,102 @@ component health, protocol version, and capability identifiers. The native
 diagnostics test decodes the contract and guards against paths and credential
 text entering the shared summary. This improves content-free S2 support
 intake without adding a hosted relay, background push, or private Codex API.
+
+Workspace discovery verification evidence: the native Projects destination now
+offers bounded local search across workspace names, participating machines,
+working directories, repository and branch metadata, and cached task context.
+Search is applied only to the already-synced local projection, preserves the
+existing project ordering, and distinguishes no projects from no search
+matches. `PhoneDexChatFilteringTests` covers machine, path, branch, task
+context, whitespace, and ordering behavior; no server-side history or private
+Codex API is introduced.
+
+Inbox presentation-state verification: the native Chats list now stores a
+per-task read timestamp in the encrypted local cache and exposes reversible
+swipe actions for marking a conversation read or unread. Read state is local
+presentation metadata: it never changes lifecycle state or sends a hub command,
+and a task whose latest update is newer than its read timestamp is shown as
+unread again. `PhoneDexLocalCacheTests` covers encrypted round-trip and legacy
+cache decoding, while `PhoneDexChatFilteringTests` covers the timestamp rule.
+This keeps Needs You focused on actionable lifecycle state while giving users
+the triage affordance required by TASK-05; cross-device read synchronization
+remains intentionally out of scope.
+
+Local archive and mute verification: Chats now persists per-task archive and
+mute timestamps in the encrypted local cache, excludes both states from the
+default Active presentation, and offers explicit Archived and Muted recovery
+views with reversible swipe actions. These choices are presentation metadata
+only: they never alter task lifecycle, command history, sync cursors, or hub
+state. `PhoneDexLocalCacheTests` covers encrypted round-trip and legacy decoding,
+while `PhoneDexChatFilteringTests` covers stable active, archived, and muted
+partitions. Notification delivery policy remains separate and APNs-gated;
+muting is currently a local triage affordance rather than a claim about remote
+push suppression.
+
+Native model-boundary verification evidence: `PhoneDexNativeDecodeBounds` keeps
+synced task metadata, question choices, capture sources, lifecycle capabilities,
+evidence collections, patches, event payloads, and snapshot pages within the
+same limits enforced by the local bridge contracts. `PhoneDexTaskEvidence`,
+`PhoneDexChangedFile`, `PhoneDexTaskQuestion`, `PhoneDexEvent`, and
+`PhoneDexSyncSnapshot` fail closed with a decoding error when malformed cache or
+hub data exceeds those limits instead of allowing unbounded native display or
+review work. `PhoneDexSmokeTests` covers overlong task text, oversized patches,
+and oversized evidence collections. This bounds native decoding without
+truncating source-linked review content or changing the local-first transport.
+
+Native sync compatibility verification: `PhoneDexSyncChange` now rejects an
+unknown record kind with an explicit decoding error instead of silently
+advancing the opaque cursor while dropping state. `PhoneDexSmokeTests` covers a
+future record kind and verifies the fail-closed boundary. Additive unknown JSON
+fields remain compatible; unsupported required record kinds surface through the
+existing refresh error path and preserve the last trusted local projection.
+
+Foreground refresh ordering verification for the in-progress release-readiness
+slice: `PhoneDexRefreshCoordinator` assigns each refresh a monotonic request id
+and accepts only the newest response. When an automatic refresh overlaps a
+manual retry or another lifecycle-triggered refresh, an older network response
+can no longer overwrite newer tasks, devices, events, cursor, or connection
+state. The guard preserves the last trusted local projection when an obsolete
+request completes and is covered by `PhoneDexRefreshPolicyTests`. The native
+model now cancels the previous refresh task before starting a newer one and
+checks cancellation before applying sync state or flushing offline commands,
+so superseded multi-page sync work cannot continue needlessly or mutate local
+state after cancellation. This remains foreground, durable-sync behavior and
+does not claim background push delivery or real-device network timing evidence.
+
+Managed lifecycle action guard verification for the in-progress
+release-readiness slice: `PhoneDexAppModel` rejects a second cancel, retry,
+approval, handoff, or workspace task-create request while a managed action is
+already sending. The native task-detail menu and approval confirmation controls
+disable during that interval, keeping one user intent and one idempotency
+identity in flight across the Mac or Windows adapter boundary. Queued, accepted,
+failed, and idle states remain actionable; this is a client-side interaction
+guard and does not replace server-side idempotency, task-version checks, or
+real-device adapter validation. `PhoneDexLifecycleStateTests` covers the
+fail-closed sending state.
+
+Verification evidence for the bounded live-progress presentation slice:
+`PhoneDexAppModel.latestEvent(for:)` selects the highest-sequence structured
+lifecycle event for a task, and the native Chats row presents its bounded
+summary for queued and running work while retaining the last task response for
+completed or legacy records. Empty event summaries fall back to the localized
+event title, and `PhoneDexChatFilteringTests` covers sequence ordering and the
+fallback. Same-sequence events now use their parsed timestamp and then bounded
+event id as deterministic tie-breakers, so page arrival order cannot change the
+visible latest event. `PhoneDexChatFilteringTests` covers both tie-breakers.
+This is foreground, durable-sync presentation only; it does not
+claim continuous background delivery or infer progress from desktop UI.
+
+Verification evidence for the primary-tab restoration slice:
+`PhoneDexPrimaryTab` gives the five stable native destinations explicit,
+version-independent identifiers. `ContentView` persists only the selected tab
+identifier in `UserDefaults`, restores it before the first foreground sync, and
+falls back to Chats when a value is missing or unknown so a future tab cannot
+leave the shell without a valid selection. `PhoneDexSmokeTests` covers known,
+missing, and future values and confirms that the stored key contains no task
+context. This restores navigation context without persisting transcripts,
+credentials, or desktop paths; notification and universal-link routing remain
+responsible for selecting a specific task inside the stable shell.
 
 ## Human-Decision Queue
 
@@ -936,3 +1429,41 @@ A roadmap slice is done only when:
    reviewed in proportion to the change.
 5. The pull request includes validation evidence and no unrelated churn.
 6. Required CI is green and the PR is safely merged under `AGENTS.md`.
+
+Native crash-recovery runtime evidence: `PhoneDexAppModelRecoveryTests` injects
+a failing encrypted-cache load and verifies that the model quarantines the
+corrupt cache, starts with no untrusted tasks, devices, or events, and remains
+ready for a fresh foreground sync. This complements the source-level
+`scripts/test-ios-crash-recovery.js` contract check; real-device disk failure
+and crash validation remain release-owner work.
+
+Lifecycle receipt persistence verification for the in-progress release-readiness
+slice: supported native cancel, retry, approval, handoff, and task-create
+commands now retain their bounded command receipt in the encrypted local cache.
+Task detail restores the action kind, hub/agent outcome, safe message, and
+recorded time after relaunch, while rejected receipts remain visible and are
+not treated as successful. `PhoneDexLifecycleStateTests` and
+`PhoneDexLocalCacheTests` cover identity, state labels, encrypted round-trip,
+and legacy caches without lifecycle receipts. This preserves command outcome
+visibility without claiming delivery beyond the receipt returned by the
+user-owned hub or adapter.
+
+Native lifecycle receipt freshness verification: task detail only presents a
+restored receipt when its task-version evidence matches the currently synced
+task (or both are versionless legacy records). A receipt from an older task
+projection remains retained in the encrypted cache but cannot be mistaken for
+the outcome of a newer task update. `PhoneDexLifecycleStateTests` covers the
+match and fail-closed mismatch cases.
+
+Live-activity density verification for the in-progress native polish slice:
+task detail keeps the latest structured lifecycle event visible while collapsing
+older events behind an accessible, animated disclosure control. Expanding the
+control restores the complete source-ordered event list without changing the
+hub projection, task freshness, or reading-position behavior. The latest event
+remains visible for long-running Mac and Windows tasks, so current progress is
+scannable without pushing the response and evidence sections below the fold;
+`PhoneDexSmokeTests.testLiveActivityKeepsLatestEventVisibleUntilExpanded`
+covers the ordered presentation helper, while the view exposes a stable
+accessibility identifier for UI automation. This is a native presentation
+boundary only and does not imply continuous background delivery or private
+Codex Desktop event access.

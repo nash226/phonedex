@@ -4,6 +4,8 @@ import UserNotifications
 @main
 struct PhoneDexApp: App {
     @StateObject private var settings = PhoneDexSettings()
+    @StateObject private var deepLinkRouter = PhoneDexDeepLinkRouter()
+    @Environment(\.scenePhase) private var scenePhase
 
     private let notificationDelegate = PhoneDexNotificationDelegate()
 
@@ -14,12 +16,18 @@ struct PhoneDexApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView(settings: settings)
-                .onOpenURL { url in
-                    Task {
-                        await handle(url)
+            ZStack {
+                ContentView(settings: settings, deepLinkRouter: deepLinkRouter)
+                    .onOpenURL { url in
+                        Task {
+                            await handle(url)
+                        }
                     }
+                if PhoneDexPrivacyShieldPolicy.shouldShield(scenePhase) {
+                    PhoneDexPrivacyShield()
                 }
+            }
+            .animation(nil, value: scenePhase)
         }
     }
 
@@ -34,14 +42,17 @@ struct PhoneDexApp: App {
             return
         }
 
-        switch url.host?.lowercased() {
-        case "preview":
+        switch PhoneDexDeepLinkRoute(url: url) {
+        case .task(let taskID):
+            deepLinkRouter.openTask(taskID)
+            await recordDeepLinkResult(action: "task")
+        case .preview:
             await requestAndSchedulePreview()
-        case "notify-latest":
+        case .notifyLatest:
             await requestAndScheduleLatestTask()
-        case "status":
+        case .status:
             await recordDeepLinkResult(action: "status")
-        default:
+        case nil:
             await recordDeepLinkResult(
                 action: "ignored",
                 error: "Unsupported PhoneDex URL: \(PhoneDexDeepLinkDiagnostics.redactedDescription(for: url))"
@@ -64,7 +75,7 @@ struct PhoneDexApp: App {
             try await PhoneDexNotificationScheduler.schedulePreviewNotification()
             await recordDeepLinkResult(action: "preview")
         } catch {
-            await recordDeepLinkResult(action: "preview", error: error.localizedDescription)
+            await recordDeepLinkResult(action: "preview", error: error.phoneDexSafeMessage)
         }
     }
 
@@ -99,11 +110,12 @@ struct PhoneDexApp: App {
 
             try await PhoneDexNotificationScheduler.scheduleTaskNotification(
                 task,
-                bridgeURL: bridgeURL
+                bridgeURL: bridgeURL,
+                privacy: settings.notificationPrivacy
             )
             await recordDeepLinkResult(action: "notify-latest")
         } catch {
-            await recordDeepLinkResult(action: "notify-latest", error: error.localizedDescription)
+            await recordDeepLinkResult(action: "notify-latest", error: error.phoneDexSafeMessage)
         }
     }
 
@@ -126,6 +138,90 @@ struct PhoneDexApp: App {
         static let authorizationStatus = "phonedex.lastNotificationAuthorizationStatus"
         static let updatedAt = "phonedex.lastDeepLinkUpdatedAt"
         static let error = "phonedex.lastDeepLinkError"
+    }
+}
+
+@MainActor
+final class PhoneDexDeepLinkRouter: ObservableObject {
+    @Published private(set) var pendingTaskID: String?
+
+    func openTask(_ taskID: String) {
+        pendingTaskID = taskID
+    }
+
+    func clearPendingTask() {
+        pendingTaskID = nil
+    }
+}
+
+enum PhoneDexDeepLinkRoute: Equatable {
+    case task(String)
+    case preview
+    case notifyLatest
+    case status
+
+    init?(url: URL) {
+        guard url.scheme?.lowercased() == "phonedex",
+              url.query == nil,
+              url.fragment == nil,
+              let host = url.host?.lowercased()
+        else { return nil }
+
+        switch host {
+        case "task":
+            let components = url.path.split(separator: "/", omittingEmptySubsequences: true)
+            guard components.count == 1,
+                  let taskID = String(components[0]).removingPercentEncoding,
+                  Self.isValidTaskID(taskID)
+            else { return nil }
+            self = .task(taskID)
+        case "preview" where url.path.isEmpty:
+            self = .preview
+        case "notify-latest" where url.path.isEmpty:
+            self = .notifyLatest
+        case "status" where url.path.isEmpty:
+            self = .status
+        default:
+            return nil
+        }
+    }
+
+    private static func isValidTaskID(_ taskID: String) -> Bool {
+        guard taskID.count <= 128, !taskID.isEmpty else { return false }
+        return taskID.unicodeScalars.allSatisfy {
+            CharacterSet.alphanumerics.contains($0) || "_-.:".unicodeScalars.contains($0)
+        }
+    }
+}
+
+enum PhoneDexPrivacyShieldPolicy {
+    static func shouldShield(_ scenePhase: ScenePhase) -> Bool {
+        scenePhase != .active
+    }
+}
+
+private struct PhoneDexPrivacyShield: View {
+    var body: some View {
+        ZStack {
+            Color(uiColor: .systemBackground)
+                .ignoresSafeArea()
+            VStack(spacing: 12) {
+                Image(systemName: "lock.shield.fill")
+                    .font(.system(size: 36, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+                Text("PhoneDex is protected")
+                    .font(.headline)
+                Text("Task details are hidden while the app is inactive.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(24)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("PhoneDex is protected. Task details are hidden while the app is inactive.")
+        .accessibilityAddTraits(.isModal)
     }
 }
 
