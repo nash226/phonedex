@@ -407,7 +407,7 @@ Outcome: replace the utility screen with a polished, offline-aware native app.
 - [x] Build Chats scopes for Needs You, Running, and Recent with search and
   filters.
 - [x] Add a durable encrypted local cache, cursor sync, and freshness state.
-- [x] Build current-contract task detail with the latest transcript, normalized
+- [x] Build current-contract task detail with a bounded exported transcript, normalized
   lifecycle/capture activity, evidence context, and a keyboard-safe composer.
 - [x] Add completion detail, quick replies, a dictation-ready composer, and
   visible reply success/failure state for the current bridge contract.
@@ -443,6 +443,17 @@ longer groups same-named Mac and Windows agents together, and records without
 either identity are excluded rather than being assigned to every “Unknown
 device”. `PhoneDexDiagnosticsTests` covers same-name collision, identity match,
 and the legacy fallback boundary.
+
+Verification evidence for the bounded transcript slice: `phonedex.task.v1` now
+accepts an optional, sanitized transcript capped at 32 messages and 30,000
+characters. The session watcher preserves multiple assistant messages from a
+supported Mac session, while remote Mac and Windows agents may forward the
+same bounded field through the existing task-ingest contract. Duplicate hook
+and watcher captures merge transcript entries without widening credentials,
+paths, or private Codex API assumptions. `scripts/test-protocol.js` covers
+normalization and total-size bounds, `scripts/test-session-watch.js` covers
+session capture, and `PhoneDexSmokeTests` covers native decode and role
+presentation. Unsupported desktop history remains intentionally unavailable.
 
 ## M4: Supported Codex Control Adapters
 

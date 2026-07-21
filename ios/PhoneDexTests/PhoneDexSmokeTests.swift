@@ -130,6 +130,10 @@ final class PhoneDexSmokeTests: XCTestCase {
               "source": "stop-hook",
               "title": "Smoke test task",
               "text": "The bridge returned a completed task.",
+              "transcript": [
+                {"id":"turn_1","role":"assistant","text":"The first update.","createdAt":"2026-07-15T00:00:01.000Z","source":"codex-session-watch"},
+                {"id":"turn_2","role":"assistant","text":"The final update.","createdAt":"2026-07-15T00:00:02.000Z","source":"codex-session-watch"}
+              ],
               "cwd": "/Users/example/project",
               "machineName": "MacBook Pro",
               "sessionId": "session_smoke"
@@ -143,6 +147,9 @@ final class PhoneDexSmokeTests: XCTestCase {
         XCTAssertEqual(task.title, "Smoke test task")
         XCTAssertEqual(task.machineName, "MacBook Pro")
         XCTAssertEqual(task.sessionId, "session_smoke")
+        XCTAssertEqual(task.transcript.count, 2)
+        XCTAssertEqual(task.transcript.last?.displayRole, "Codex")
+        XCTAssertEqual(task.transcript.last?.text, "The final update.")
     }
 
     func testTaskDecoderRejectsOverlongDisplayText() {

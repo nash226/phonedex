@@ -112,7 +112,7 @@ The repository already proves the core loop, but not the final product.
 - The app schedules a local notification and registers three reply actions.
 - A notification content extension renders a long, scrollable result.
 - Notification actions post canned or typed/dictated replies to the bridge.
-- Task detail shows the latest response, lifecycle summary, capture provenance,
+- Task detail shows a bounded exported transcript, lifecycle summary, capture provenance,
   repository/branch context when supplied, honest evidence availability, and a
   keyboard-safe composer with encrypted draft and logical reading-position
   restoration.
@@ -202,7 +202,7 @@ supported command path on the originating machine.
 | User capability | Product outcome | Status and feasible path |
 | --- | --- | --- |
 | Find recent work | Unified, searchable tasks grouped by workspace and machine | **Current, bounded.** Chats and Workspaces search the locally cached sync projection; richer server-side history remains future work. |
-| Read a completed response | Rich, readable transcript with machine and workspace context | **Current, partial.** Completion text exists; full transcript sync does not. |
+| Read a completed response | Rich, readable transcript with machine and workspace context | **Current, bounded.** Session-capable Mac and Windows agents export up to 32 sanitized messages per task; arbitrary desktop history and unsupported session APIs are not promised. |
 | Reply to a task | Send text or a constrained quick action with delivery state | **Current, partial.** Reply receipts, retries, task-version conflict checks, and structured question responses exist; broader agent commands remain partial. |
 | See live progress | Running state, concise activity, and latest meaningful event | **Current, bounded.** Structured agent events appear in task detail and the Chats list; continuous background delivery remains future work. |
 | Start a task | Choose a machine/workspace, enter a prompt, and create a tracked run | **Current, bounded.** Allowlisted agents expose a versioned create command; arbitrary desktop task creation is not promised. |
