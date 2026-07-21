@@ -76,6 +76,7 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
         timeLabel.adjustsFontForContentSizeCategory = true
         timeLabel.textAlignment = .right
         timeLabel.text = Copy.now
+        timeLabel.accessibilityLabel = Copy.timeAccessibilityLabel
         timeLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
 
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -85,6 +86,7 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
         )
         titleLabel.adjustsFontForContentSizeCategory = true
         titleLabel.numberOfLines = 2
+        titleLabel.accessibilityTraits = [.header, .staticText]
 
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.backgroundColor = .clear
@@ -92,6 +94,7 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
         scrollView.showsVerticalScrollIndicator = true
         scrollView.indicatorStyle = .default
         scrollView.contentInset = UIEdgeInsets(top: 0, left: 0, bottom: 18, right: 0)
+        scrollView.accessibilityHint = Copy.bodyAccessibilityHint
 
         bodyLabel.translatesAutoresizingMaskIntoConstraints = false
         bodyLabel.textColor = .label
@@ -101,6 +104,7 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
         bodyLabel.adjustsFontForContentSizeCategory = true
         bodyLabel.numberOfLines = 0
         bodyLabel.lineBreakMode = .byWordWrapping
+        bodyLabel.accessibilityTraits = .staticText
 
         scrollRail.translatesAutoresizingMaskIntoConstraints = false
         scrollRail.backgroundColor = .quaternaryLabel
@@ -168,6 +172,7 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
         bodyLabel.text = body.isEmpty ? Copy.emptyBody : body
         titleLabel.accessibilityLabel = titleLabel.text
         bodyLabel.accessibilityLabel = bodyLabel.text
+        bodyLabel.accessibilityHint = Copy.bodyAccessibilityHint
         preferredContentSize = CGSize(width: UIScreen.main.bounds.width, height: 500)
         view.setNeedsLayout()
         view.layoutIfNeeded()
@@ -178,5 +183,7 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
         static let fallbackBody = String(localized: "notification.extension.fallbackBody", defaultValue: "Open the expanded PhoneDex notification to read the full Codex result.", comment: "Fallback body shown when the notification extension has no content.")
         static let emptyBody = String(localized: "notification.extension.emptyBody", defaultValue: "No notification body was provided.", comment: "Fallback body shown when a notification body is empty.")
         static let now = String(localized: "notification.extension.now", defaultValue: "now", comment: "Relative time shown in the notification extension header.")
+        static let timeAccessibilityLabel = String(localized: "notification.extension.timeAccessibilityLabel", defaultValue: "Notification time", comment: "Accessible label for the notification time in the extension header.")
+        static let bodyAccessibilityHint = String(localized: "notification.extension.bodyAccessibilityHint", defaultValue: "Swipe up or down to read the full notification.", comment: "Accessible hint for the scrollable notification body.")
     }
 }
