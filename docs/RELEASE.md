@@ -11,6 +11,7 @@ Run the release checks from a clean checkout:
 ```sh
 npm run release:verify
 npm run release:manifest > release-manifest.json
+npm run test:release-signing-preflight
 ```
 
 The manifest uses the current Git revision, reports whether the source tree was
@@ -37,6 +38,15 @@ Apple signing, TestFlight, real-device validation, and final App Store privacy
 decisions remain release-owner work and are not automated by this manifest.
 Use [`docs/REAL_DEVICE_VALIDATION.md`](REAL_DEVICE_VALIDATION.md) to record
 those manual results without weakening the local-first security boundary.
+
+The signing preflight checks that the app and notification extension retain
+their expected bundle identifiers and development team, that the generated
+Xcode project agrees with `ios/project.yml`, and that provisioning profiles,
+entitlement paths, and APNs environment values are not committed. It emits a
+content-free `phonedex.signing-preflight.v1` report with a
+`ready-for-release-owner-signing` status. This is a reproducibility and drift
+guard; it does not sign an archive or replace the human signing/TestFlight
+decision tracked in issue #132.
 
 For a network-reachable hub or agent, configure TLS before release:
 

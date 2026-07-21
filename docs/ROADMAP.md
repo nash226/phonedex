@@ -1339,6 +1339,17 @@ identity cannot drift from the generated Xcode project. `PhoneDexSettingsTests`
 covers the version/build presentation and its safe development fallback. This
 does not provide signing or TestFlight evidence.
 
+Signing preflight verification for the in-progress release-readiness slice:
+`scripts/release-signing-preflight.js` emits the content-free
+`phonedex.signing-preflight.v1` report after checking that the app and
+notification extension bundle identifiers, development team, and generated
+Xcode project remain aligned. It rejects committed provisioning profiles,
+entitlement paths, and APNs environment values before the provider decision.
+`scripts/test-release-signing-preflight.js` covers the report contract. This
+guards reproducibility and configuration drift but does not claim an archive
+was signed or that issue #132's Apple credentials and TestFlight decision are
+complete.
+
 Verification evidence for the completed App Review and support-runbook slice:
 `docs/APP_REVIEW.md` provides a release-owner checklist and truthful App Review
 explanation for local-network use, notification privacy, supported Mac/Windows

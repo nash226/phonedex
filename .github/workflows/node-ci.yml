@@ -38,6 +38,9 @@ jobs:
       - name: Verify release identity and provenance inputs
         run: npm run release:verify
 
+      - name: Verify release signing preflight
+        run: npm run test:release-signing-preflight
+
       - name: Run bridge fixture tests
         run: npm test
 
