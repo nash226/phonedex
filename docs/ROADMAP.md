@@ -1024,6 +1024,12 @@ recovery-safe guidance before a fresh sync. This is a source-level regression
 guard for simulator and CI changes; it does not claim real-device crash or
 launch-cycle coverage, which remains a release-owner gate.
 
+Cache recovery UX verification: `PhoneDexAppModelRecoveryTests` covers a
+complete hub sync clearing the one-time corrupt-cache warning after the local
+projection is rebuilt. Failed, partial, and offline refreshes retain the
+warning so the iPhone does not imply recovery before the Mac or Windows hub has
+provided a complete snapshot.
+
 Observability verification for the completed release-readiness slice:
 `lib/phonedex-observability.js` defines the content-free
 `phonedex.diagnostics.v1` projection with component health, route-level
