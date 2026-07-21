@@ -1478,3 +1478,13 @@ covers the ordered presentation helper, while the view exposes a stable
 accessibility identifier for UI automation. This is a native presentation
 boundary only and does not imply continuous background delivery or private
 Codex Desktop event access.
+
+Refresh-recovery verification for the in-progress release-readiness slice:
+successful native syncs now establish a new automatic-refresh baseline and clear
+failure backoff, including successful compatibility-fallback responses. Manual
+refreshes therefore do not trigger an immediate duplicate foreground request,
+while offline, partial, revoked, and failed states retain bounded exponential
+backoff. `PhoneDexRefreshPolicyTests` covers the online, compatibility, and
+degraded-state reset boundary. This is local refresh reliability evidence;
+crash-free, battery, and real-device outage measurements remain release-owner
+gates.

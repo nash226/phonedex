@@ -40,8 +40,15 @@ final class PhoneDexAppModel: ObservableObject {
         }
 
         var supportsAutomaticRefreshReset: Bool {
-            if case .online = self { return true }
-            return false
+            switch self {
+            case .online, .incompatible:
+                // A compatibility response is still a successful sync. The
+                // UI should keep the honest degraded state, but must not
+                // punish the next automatic refresh with failure backoff.
+                return true
+            default:
+                return false
+            }
         }
     }
 
