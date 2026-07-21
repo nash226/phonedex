@@ -1071,6 +1071,17 @@ boundary. This protects native support recovery from malformed or unexpectedly
 large Mac or Windows hub projections without changing the content-free
 diagnostics contract or claiming real-device performance evidence.
 
+Presentation-metadata retention verification for the in-progress
+release-readiness slice: after a complete sync rebuilds the trusted native
+conversation projection, `PhoneDexAppModel` removes orphaned draft, reading
+position, read, archive, and mute entries before persisting the encrypted cache.
+The same reconciliation runs when restoring a cache, so a relaunch does not
+retain task-derived presentation state for conversations no longer present in
+the local projection. Partial, offline, failed, and compatibility syncs do not
+prune against incomplete data. `PhoneDexLocalCacheTests` covers the bounded
+key-reconciliation policy. This is local metadata retention only: it does not
+delete hub history, revoke credentials, or alter task lifecycle state.
+
 Battery verification for the in-progress release-readiness slice:
 `PhoneDexRefreshPolicy` limits automatic refreshes triggered by app launch and
 returning to the foreground to one request per 30 seconds after a healthy sync,

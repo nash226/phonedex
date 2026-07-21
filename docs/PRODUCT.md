@@ -989,6 +989,8 @@ pass all applicable gates below.
   and content under default settings.
 - Privacy manifest, App Store privacy answers, privacy policy, retention, and
   deletion behavior match the implementation.
+- Encrypted local presentation metadata is reconciled with the trusted cached
+  task projection so removed conversations do not retain drafts or triage state.
 
 ### Engineering gate
 

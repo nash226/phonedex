@@ -2,6 +2,15 @@ import CryptoKit
 import Foundation
 import Security
 
+enum PhoneDexPresentationMetadataPolicy {
+    /// Presentation state is keyed by the task currently shown on iPhone.
+    /// Once a complete sync replaces that projection, orphaned keys should
+    /// not keep task-derived state alive indefinitely in the encrypted cache.
+    static func prune<Value>(_ metadata: [String: Value], keeping taskIDs: Set<String>) -> [String: Value] {
+        metadata.filter { taskIDs.contains($0.key) }
+    }
+}
+
 struct PhoneDexCachedState: Codable, Equatable {
     static let currentSchema = "phonedex.ios-cache.v1"
     static let currentVersion = 1

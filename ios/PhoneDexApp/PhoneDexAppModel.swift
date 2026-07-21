@@ -290,6 +290,9 @@ final class PhoneDexAppModel: ObservableObject {
 
             let now = Date()
             if result.isComplete {
+                if !result.usedCompatibilityFallback {
+                    prunePresentationMetadata(keeping: Set(tasks.map(\.id)))
+                }
                 lastSuccessfulSync = now
                 syncCursor = result.usedCompatibilityFallback ? nil : result.cursor
                 // A complete sync has rebuilt the local projection. Do not
@@ -1014,6 +1017,8 @@ final class PhoneDexAppModel: ObservableObject {
             readAt = cached.readAt
             archivedAt = cached.archivedAt
             mutedAt = cached.mutedAt
+            let cachedPresentationMetadata = (drafts, readingPositions, readAt, archivedAt, mutedAt)
+            prunePresentationMetadata(keeping: Set(tasks.map(\.id)))
             let persistedPendingReplies = PhoneDexPendingReplyPolicy.prune(cached.pendingReplies, now: Date())
             pendingReplies = persistedPendingReplies
             let persistedLifecycleCommands = PhoneDexPendingLifecycleCommandPolicy.prune(cached.pendingLifecycleCommands, now: Date())
@@ -1031,7 +1036,14 @@ final class PhoneDexAppModel: ObservableObject {
             // Retention is a privacy boundary, not just a view concern. Rewrite
             // the encrypted cache during restore so expired artifact bytes do
             // not remain on disk until an unrelated later mutation.
-            if cachedArtifacts != persistedArtifacts || cached.pendingReplies != persistedPendingReplies || cached.pendingLifecycleCommands != persistedLifecycleCommands {
+            if cachedPresentationMetadata.0 != drafts ||
+                cachedPresentationMetadata.1 != readingPositions ||
+                cachedPresentationMetadata.2 != readAt ||
+                cachedPresentationMetadata.3 != archivedAt ||
+                cachedPresentationMetadata.4 != mutedAt ||
+                cachedArtifacts != persistedArtifacts ||
+                cached.pendingReplies != persistedPendingReplies ||
+                cached.pendingLifecycleCommands != persistedLifecycleCommands {
                 if cached.pendingReplies != persistedPendingReplies {
                     cacheRecoveryMessage = "Older offline replies were removed from this iPhone. Fresh replies can be queued when needed."
                 }
@@ -1078,6 +1090,14 @@ final class PhoneDexAppModel: ObservableObject {
                 cachedArtifacts: cachedArtifacts.values.sorted { $0.downloadedAt > $1.downloadedAt }
             )
         )
+    }
+
+    private func prunePresentationMetadata(keeping taskIDs: Set<String>) {
+        drafts = PhoneDexPresentationMetadataPolicy.prune(drafts, keeping: taskIDs)
+        readingPositions = PhoneDexPresentationMetadataPolicy.prune(readingPositions, keeping: taskIDs)
+        readAt = PhoneDexPresentationMetadataPolicy.prune(readAt, keeping: taskIDs)
+        archivedAt = PhoneDexPresentationMetadataPolicy.prune(archivedAt, keeping: taskIDs)
+        mutedAt = PhoneDexPresentationMetadataPolicy.prune(mutedAt, keeping: taskIDs)
     }
 
     private func pruneCachedArtifacts(now: Date) {
