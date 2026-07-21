@@ -25,6 +25,16 @@ final class PhoneDexDiagnosticsTests: XCTestCase {
         XCTAssertFalse(snapshot.recentFailures[0].routeLabel.contains("token"))
     }
 
+    func testDiagnosticsRejectOversizedCollectionsBeforeMaterializingThem() {
+        let components = (0...PhoneDexDiagnosticsSnapshot.maxComponents)
+            .map { "\"component\($0)\":\"healthy\"" }
+            .joined(separator: ",")
+        let payload = #"{"schema":"phonedex.diagnostics.v1","generatedAt":"2026-07-17T00:00:00Z","startedAt":"2026-07-16T00:00:00Z","service":"watchdex","role":"hub","version":"0.1.0","protocolVersion":1,"components":{"# + components + #"},"metrics":{"requests":0,"failures":0,"commands":0,"routes":{}},"recentRequests":[],"capabilities":[]}"#
+        let data = Data(payload.utf8)
+
+        XCTAssertThrowsError(try JSONDecoder().decode(PhoneDexDiagnosticsSnapshot.self, from: data))
+    }
+
     func testDeviceHealthMapsProtocolStatesAndUnknownValues() {
         XCTAssertEqual(PhoneDexDeviceHealth(status: "online"), .online)
         XCTAssertEqual(PhoneDexDeviceHealth(status: "stale"), .stale)
