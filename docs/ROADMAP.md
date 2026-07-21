@@ -1243,6 +1243,18 @@ field families. This hardens malformed hub-projection recovery without
 weakening the existing size limits or claiming crash-free real-device
 behavior.
 
+Native collection materialization verification for the in-progress
+release-readiness slice: task transcripts, structured question choices, capture
+sources, lifecycle capabilities, review evidence, device metadata, sync
+snapshots, and sync changes now inspect the encoded item count before decoding
+any elements. Oversized or count-unknown collections fail closed through the
+same bounded decoding helper used by the encrypted cache, so a malformed Mac
+or Windows projection cannot force the iPhone to materialize unbounded native
+state. `PhoneDexSmokeTests.testNativeModelCollectionsRejectOversizedPayloadsBeforeMaterializing`
+covers transcript, question, and sync-page boundaries; this remains a
+decoding-resilience measure and does not claim to replace hub pagination or
+real-device memory profiling.
+
 The native workspace projection now rejects an empty task group before reading
 its first element. `PhoneDexSmokeTests.testEmptyProjectInputIsRejectedWithoutIndexingACollection`
 covers the malformed/empty projection boundary, while the app model drops any
