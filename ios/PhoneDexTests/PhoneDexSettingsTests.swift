@@ -28,6 +28,38 @@ final class PhoneDexSettingsTests: XCTestCase {
         XCTAssertEqual(identity.displayValue, "Development")
     }
 
+    func testNotificationBadgeCountsOnlyVisibleUnreadTasks() {
+        let makeTask: (String) -> PhoneDexTask = { machine in
+            PhoneDexTask(
+                id: "task-\(machine)", at: "2026-07-15T12:00:00.000Z", source: "codex",
+                title: "Completed task", text: "Done", cwd: nil, workspaceName: "PhoneDex",
+                machineName: machine, sessionId: nil, status: "completed", branch: nil, repository: nil
+            )
+        }
+        let newest = makeTask("Mac")
+        let archived = makeTask("Archived")
+        let muted = makeTask("Muted")
+        let read = makeTask("Read")
+        let markedReadAt = Date(timeIntervalSince1970: 1_800_000_100)
+
+        let count = PhoneDexNotificationBadgePolicy.unreadCount(
+            tasks: [newest, archived, muted, read],
+            readAt: [read.id: markedReadAt],
+            archivedIDs: [archived.id],
+            mutedIDs: [muted.id]
+        )
+
+        XCTAssertEqual(count, 1)
+    }
+
+    func testNotificationBadgeClampsNegativeAndLargeCounts() {
+        XCTAssertEqual(PhoneDexNotificationBadgePolicy.displayCount(-1), 0)
+        XCTAssertEqual(
+            PhoneDexNotificationBadgePolicy.displayCount(PhoneDexNotificationBadgePolicy.maximumDisplayCount + 1),
+            PhoneDexNotificationBadgePolicy.maximumDisplayCount
+        )
+    }
+
     func testLegacyUserDefaultsTokenMigratesToSecureStoreAndIsRemoved() throws {
         let defaults = try makeDefaults()
         defaults.set("legacy-secret", forKey: "phonedex.token")

@@ -98,6 +98,7 @@ final class PhoneDexAppModel: ObservableObject {
     }
 
     @Published private(set) var tasks: [PhoneDexTask] = []
+    @Published private(set) var unreadBadgeCount = 0
     @Published private(set) var devices: [PhoneDexDevice] = []
     @Published private(set) var events: [PhoneDexEvent] = []
     @Published private(set) var drafts: [PhoneDexTask.ID: String] = [:]
@@ -242,6 +243,7 @@ final class PhoneDexAppModel: ObservableObject {
                 tasks = PhoneDexTask.latestPerConversation(syncTasks).sorted { lhs, rhs in
                     (lhs.displayDate ?? .distantPast) > (rhs.displayDate ?? .distantPast)
                 }
+                updateUnreadBadgeCount()
             }
             if let fetchedDevices = result.devices {
                 devices = fetchedDevices.sorted { lhs, rhs in
@@ -389,6 +391,7 @@ final class PhoneDexAppModel: ObservableObject {
         syncTasks = []
         syncCursor = nil
         tasks = []
+        updateUnreadBadgeCount()
         devices = []
         events = []
         drafts = [:]
@@ -760,6 +763,7 @@ final class PhoneDexAppModel: ObservableObject {
         tasks = PhoneDexTask.latestPerConversation(syncTasks).sorted {
             ($0.displayDate ?? .distantPast) > ($1.displayDate ?? .distantPast)
         }
+        updateUnreadBadgeCount()
         selectedTaskID = task.id
         persistCachedState(lastSyncAt: lastSuccessfulSync)
     }
@@ -889,11 +893,13 @@ final class PhoneDexAppModel: ObservableObject {
     func markRead(_ task: PhoneDexTask) {
         guard !isRead(task) else { return }
         readAt[task.id] = Date()
+        updateUnreadBadgeCount()
         persistCachedState(lastSyncAt: lastSuccessfulSync)
     }
 
     func markUnread(_ task: PhoneDexTask) {
         guard readAt.removeValue(forKey: task.id) != nil else { return }
+        updateUnreadBadgeCount()
         persistCachedState(lastSyncAt: lastSuccessfulSync)
     }
 
@@ -907,6 +913,7 @@ final class PhoneDexAppModel: ObservableObject {
         } else {
             archivedAt.removeValue(forKey: task.id)
         }
+        updateUnreadBadgeCount()
         persistCachedState(lastSyncAt: lastSuccessfulSync)
     }
 
@@ -920,6 +927,7 @@ final class PhoneDexAppModel: ObservableObject {
         } else {
             mutedAt.removeValue(forKey: task.id)
         }
+        updateUnreadBadgeCount()
         persistCachedState(lastSyncAt: lastSuccessfulSync)
     }
 
@@ -960,6 +968,7 @@ final class PhoneDexAppModel: ObservableObject {
             tasks = PhoneDexTask.latestPerConversation(syncTasks).sorted { lhs, rhs in
                 (lhs.displayDate ?? .distantPast) > (rhs.displayDate ?? .distantPast)
             }
+            updateUnreadBadgeCount()
             devices = cached.devices
             events = cached.events
             drafts = cached.drafts
@@ -1023,6 +1032,15 @@ final class PhoneDexAppModel: ObservableObject {
                 handledNotificationResponses: (try? cache.load())?.handledNotificationResponses ?? [:],
                 cachedArtifacts: cachedArtifacts.values.sorted { $0.downloadedAt > $1.downloadedAt }
             )
+        )
+    }
+
+    private func updateUnreadBadgeCount() {
+        unreadBadgeCount = PhoneDexNotificationBadgePolicy.unreadCount(
+            tasks: tasks,
+            readAt: readAt,
+            archivedIDs: Set(archivedAt.keys),
+            mutedIDs: Set(mutedAt.keys)
         )
     }
 

@@ -763,6 +763,16 @@ cover the safe default, persistence, and content-free presentation. This is
 local notification privacy only; remote APNs payload policy and real-device
 lock-screen validation remain human-gated release work.
 
+Local actionable badge evidence: the native app-icon badge reflects the count
+of unread, active conversations in the trusted local projection. Archived and
+muted conversations are excluded because they are not currently actionable;
+the count is clamped to a bounded display value and contains no task content.
+The badge is refreshed after cache restore, sync, read-state changes, archive,
+and mute actions through `UNUserNotificationCenter.setBadgeCount`. Pure native
+tests cover visibility filtering and count bounds. This is local presentation
+state only; remote push registration, background delivery, and real-device
+badge validation remain human-gated release work.
+
 ## M7: Mobile Review Experience
 
 Status: **Current**

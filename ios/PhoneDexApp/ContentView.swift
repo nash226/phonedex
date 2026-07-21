@@ -58,6 +58,7 @@ struct ContentView: View {
         }
         .tint(.blue)
         .onAppear { normalizeStoredTab() }
+        .onAppear { updateApplicationBadge() }
         .task { await refreshAutomatically(trigger: .initialLaunch) }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
@@ -81,6 +82,9 @@ struct ContentView: View {
         .onChange(of: model.tasks) { _, _ in
             openPendingTaskIfAvailable()
         }
+        .onChange(of: model.unreadBadgeCount) { _, _ in
+            updateApplicationBadge()
+        }
         .alert("Conversation unavailable", isPresented: $showingUnavailableDeepLink) {
             Button("Refresh") {
                 Task { await model.refresh() }
@@ -90,6 +94,12 @@ struct ContentView: View {
             }
         } message: {
             Text("This conversation is not in the current local cache. Refresh the configured hub and try again.")
+        }
+    }
+
+    private func updateApplicationBadge() {
+        Task {
+            await PhoneDexNotificationScheduler.updateApplicationBadge(model.unreadBadgeCount)
         }
     }
 
