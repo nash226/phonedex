@@ -23,6 +23,16 @@ for (const key of [
 assert.match(source, /UIFontMetrics\(forTextStyle: \.headline\)/);
 assert.match(source, /UIFontMetrics\(forTextStyle: \.title2\)/);
 assert.match(source, /adjustsFontForContentSizeCategory = true/);
+for (const color of [
+  "systemBackground",
+  "label",
+  "secondaryLabel",
+  "quaternaryLabel"
+]) {
+  assert.match(source, new RegExp(`\\.${color}\\b`));
+}
+assert.doesNotMatch(source, /UIColor\(red:/);
+assert.doesNotMatch(source, /UIColor\(white:/);
 assert.match(source, /titleLabel\.accessibilityLabel = titleLabel\.text/);
 assert.match(source, /bodyLabel\.accessibilityLabel = bodyLabel\.text/);
 assert.doesNotMatch(source, /title: "Codex update"/);
