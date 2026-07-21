@@ -1108,11 +1108,25 @@ struct PhoneDexDevice: Codable, Identifiable, Equatable {
         }
     }
 
+    func conversationState(from tasks: [PhoneDexTask], blocksEmptyContent: Bool) -> PhoneDexDeviceConversationState {
+        let conversations = conversations(from: tasks)
+        if !conversations.isEmpty {
+            return .content
+        }
+        return blocksEmptyContent ? .unavailable : .empty
+    }
+
     var isOnline: Bool { status == "online" }
 
     func supportsCapability(_ capability: String) -> Bool {
         capabilityDetails.contains { $0.identity == capability && $0.supported }
     }
+}
+
+enum PhoneDexDeviceConversationState: Equatable {
+    case content
+    case empty
+    case unavailable
 }
 
 struct PhoneDexDeviceHealthSummary: Codable, Equatable {

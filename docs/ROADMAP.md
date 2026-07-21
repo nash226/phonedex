@@ -1550,3 +1550,11 @@ accessibility identifiers. `PhoneDexDiagnosticsTests` covers latest-row
 selection and machine separation. This is local navigation over the trusted
 sync projection; it does not add server-side history, remote control, or
 private Codex Desktop state.
+
+Device conversation empty-state verification: native device detail now
+distinguishes a trusted device with no cached conversations from an empty view
+caused by stale, offline, revoked, incompatible, partial, or failed sync. The
+unavailable state reuses the bounded sync explanation and refresh action, while
+cached conversations remain visible during degraded connectivity. Focused
+`PhoneDexDiagnosticsTests` cover both branches. This is local presentation and
+recovery guidance only; it does not add remote history or background sync.

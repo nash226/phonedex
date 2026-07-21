@@ -192,16 +192,8 @@ struct PhoneDexDeviceDetailView: View {
             Text("Recent conversations")
                 .font(.headline)
 
-            if visibleTasks.isEmpty {
-                Label(
-                    "No conversations from this device are cached yet.",
-                    systemImage: "bubble.left.and.bubble.right"
-                )
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityIdentifier("device-empty-conversations")
-            } else {
+            switch device.conversationState(from: model.tasks, blocksEmptyContent: model.connectionState.blocksEmptyContent) {
+            case .content:
                 ForEach(visibleTasks) { task in
                     NavigationLink {
                         PhoneDexTaskDetailView(task: task, model: model)
@@ -210,6 +202,20 @@ struct PhoneDexDeviceDetailView: View {
                     }
                     .accessibilityIdentifier("device-conversation-\(task.id)")
                 }
+            case .unavailable:
+                PhoneDexSyncUnavailableView(state: model.connectionState) {
+                    Task { await model.refresh() }
+                }
+                .accessibilityIdentifier("device-empty-conversations")
+            case .empty:
+                Label(
+                    "No conversations from this device are cached yet.",
+                    systemImage: "bubble.left.and.bubble.right"
+                )
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("device-empty-conversations")
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
