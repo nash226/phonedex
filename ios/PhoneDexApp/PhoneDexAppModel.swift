@@ -377,6 +377,18 @@ final class PhoneDexAppModel: ObservableObject {
         cachedArtifacts.values.reduce(0) { $0 + $1.byteCount }
     }
 
+    /// The encrypted projection size is intentionally separate from artifact
+    /// bytes so Settings can explain the complete local footprint without
+    /// exposing the cache path or any plaintext content.
+    var localCacheBytes: Int64? {
+        cache.byteCount
+    }
+
+    var localCacheStorageDescription: String {
+        guard let localCacheBytes else { return "Unavailable" }
+        return ByteCountFormatter.string(fromByteCount: localCacheBytes, countStyle: .file)
+    }
+
     func clearCachedArtifacts() {
         cachedArtifacts.removeAll()
         persistCachedState(lastSyncAt: lastSuccessfulSync)
