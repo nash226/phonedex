@@ -29,6 +29,7 @@ correlation ID when available.
 | Privacy | Lock the phone, open the app switcher, and share diagnostics | No task content, paths, or credentials appear |
 | Recovery | Kill and relaunch during sync and an offline reply | No acknowledged state is lost or command duplicated |
 | Accessibility | VoiceOver, largest Dynamic Type, Reduce Motion, dark and light appearance | Controls are labelled, no critical clipping, state changes are announced |
+| Notification extension | Expand a long task notification with VoiceOver at the largest Dynamic Type size | Heading, notification time, and scrollable body are announced in order; the full bounded body remains readable without clipping |
 
 ## Mac and Windows matrix
 

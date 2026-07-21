@@ -15,7 +15,9 @@ for (const key of [
   "notification.extension.fallbackTitle",
   "notification.extension.fallbackBody",
   "notification.extension.emptyBody",
-  "notification.extension.now"
+  "notification.extension.now",
+  "notification.extension.timeAccessibilityLabel",
+  "notification.extension.bodyAccessibilityHint"
 ]) {
   assert.match(source, new RegExp(key.replaceAll(".", "\\.")));
 }
@@ -35,6 +37,10 @@ assert.doesNotMatch(source, /UIColor\(red:/);
 assert.doesNotMatch(source, /UIColor\(white:/);
 assert.match(source, /titleLabel\.accessibilityLabel = titleLabel\.text/);
 assert.match(source, /bodyLabel\.accessibilityLabel = bodyLabel\.text/);
+assert.match(source, /titleLabel\.accessibilityTraits = \[\.header, \.staticText\]/);
+assert.match(source, /bodyLabel\.accessibilityTraits = \.staticText/);
+assert.match(source, /scrollView\.accessibilityHint = Copy\.bodyAccessibilityHint/);
+assert.match(source, /timeLabel\.accessibilityLabel = Copy\.timeAccessibilityLabel/);
 assert.doesNotMatch(source, /title: "Codex update"/);
 assert.doesNotMatch(source, /body: "Open the expanded PhoneDex notification/);
 
