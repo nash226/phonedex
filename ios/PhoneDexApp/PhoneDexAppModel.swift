@@ -124,8 +124,10 @@ final class PhoneDexAppModel: ObservableObject {
             .max { $0.createdAt < $1.createdAt }
     }
 
-    func latestLifecycleReceipt(for taskID: PhoneDexTask.ID) -> PhoneDexLifecycleDeliveryRecord? {
-        lifecycleReceipts.first { $0.taskId == taskID }
+    func latestLifecycleReceipt(for task: PhoneDexTask) -> PhoneDexLifecycleDeliveryRecord? {
+        lifecycleReceipts.first {
+            $0.taskId == task.id && $0.matchesCurrentTaskVersion(task.version)
+        }
     }
 
     /// Removes commands authenticated by the credential being forgotten.

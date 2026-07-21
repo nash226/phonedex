@@ -34,4 +34,30 @@ final class PhoneDexLifecycleStateTests: XCTestCase {
         XCTAssertTrue(record.isSuccessful)
         XCTAssertEqual(record.message, "Delivered to Studio Mac")
     }
+
+    func testLifecycleReceiptOnlyMatchesCurrentTaskVersion() {
+        let receipt = PhoneDexLifecycleDeliveryRecord(
+            receipt: PhoneDexReplyReceipt(
+                schema: "phonedex.command-receipt.v1",
+                protocolVersion: 1,
+                commandId: "command-2",
+                createdAt: "2026-07-20T12:00:00Z",
+                state: "completed",
+                taskId: "task-2",
+                taskVersion: 4,
+                idempotencyKey: "key-2",
+                message: nil,
+                duplicateOf: nil,
+                approvalId: nil,
+                approvalState: nil,
+                approvalExpiresAt: nil
+            ),
+            kind: "retry",
+            taskId: "task-2"
+        )
+
+        XCTAssertTrue(receipt.matchesCurrentTaskVersion(4))
+        XCTAssertFalse(receipt.matchesCurrentTaskVersion(5))
+        XCTAssertFalse(receipt.matchesCurrentTaskVersion(nil))
+    }
 }
