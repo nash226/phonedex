@@ -1511,3 +1511,13 @@ backoff. `PhoneDexRefreshPolicyTests` covers the online, compatibility, and
 degraded-state reset boundary. This is local refresh reliability evidence;
 crash-free, battery, and real-device outage measurements remain release-owner
 gates.
+
+Notification extension appearance verification for the in-progress
+release-readiness slice: `NotificationViewController` uses UIKit semantic colors
+for its background, labels, icon, scroll rail, and indicator, so the expanded
+notification follows the system light or dark appearance without exposing task
+content or maintaining a brittle fixed dark palette. The existing localization,
+Dynamic Type, and accessibility contract test now also rejects hard-coded RGB or
+grayscale colors. This is implementation evidence for appearance adaptation;
+light/dark notification snapshots on real devices remain part of the
+release-owner validation matrix.

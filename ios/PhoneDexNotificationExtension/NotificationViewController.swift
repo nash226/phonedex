@@ -40,17 +40,19 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
 
     private func configureView() {
         preferredContentSize = CGSize(width: UIScreen.main.bounds.width, height: 500)
-        view.backgroundColor = UIColor(red: 0.07, green: 0.08, blue: 0.10, alpha: 1)
+        // Use semantic colors so the extension follows the system appearance
+        // in Notification Center without maintaining a second dark palette.
+        view.backgroundColor = .systemBackground
         view.isOpaque = true
 
         iconView.translatesAutoresizingMaskIntoConstraints = false
-        iconView.backgroundColor = .white
+        iconView.backgroundColor = .label
         iconView.layer.cornerRadius = 11
         iconView.layer.cornerCurve = .continuous
 
         iconImageView.translatesAutoresizingMaskIntoConstraints = false
         iconImageView.image = UIImage(systemName: "bubble.left.and.bubble.right.fill")
-        iconImageView.tintColor = UIColor(red: 0.08, green: 0.09, blue: 0.12, alpha: 1)
+        iconImageView.tintColor = .systemBackground
         iconImageView.contentMode = .scaleAspectFit
 
         headerStack.translatesAutoresizingMaskIntoConstraints = false
@@ -59,7 +61,7 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
         headerStack.spacing = 14
 
         appNameLabel.translatesAutoresizingMaskIntoConstraints = false
-        appNameLabel.textColor = .white
+        appNameLabel.textColor = .label
         appNameLabel.font = UIFontMetrics(forTextStyle: .headline).scaledFont(
             for: .systemFont(ofSize: 20, weight: .semibold)
         )
@@ -67,7 +69,7 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
         appNameLabel.numberOfLines = 1
 
         timeLabel.translatesAutoresizingMaskIntoConstraints = false
-        timeLabel.textColor = UIColor(white: 0.72, alpha: 1)
+        timeLabel.textColor = .secondaryLabel
         timeLabel.font = UIFontMetrics(forTextStyle: .subheadline).scaledFont(
             for: .systemFont(ofSize: 16, weight: .regular)
         )
@@ -77,7 +79,7 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
         timeLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
 
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        titleLabel.textColor = .white
+        titleLabel.textColor = .label
         titleLabel.font = UIFontMetrics(forTextStyle: .title2).scaledFont(
             for: .systemFont(ofSize: 23, weight: .bold)
         )
@@ -88,11 +90,11 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
         scrollView.backgroundColor = .clear
         scrollView.alwaysBounceVertical = true
         scrollView.showsVerticalScrollIndicator = true
-        scrollView.indicatorStyle = .white
+        scrollView.indicatorStyle = .default
         scrollView.contentInset = UIEdgeInsets(top: 0, left: 0, bottom: 18, right: 0)
 
         bodyLabel.translatesAutoresizingMaskIntoConstraints = false
-        bodyLabel.textColor = .white
+        bodyLabel.textColor = .label
         bodyLabel.font = UIFontMetrics(forTextStyle: .body).scaledFont(
             for: .systemFont(ofSize: 19, weight: .regular)
         )
@@ -101,11 +103,11 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
         bodyLabel.lineBreakMode = .byWordWrapping
 
         scrollRail.translatesAutoresizingMaskIntoConstraints = false
-        scrollRail.backgroundColor = UIColor(white: 1, alpha: 0.18)
+        scrollRail.backgroundColor = .quaternaryLabel
         scrollRail.layer.cornerRadius = 2
 
         scrollThumb.translatesAutoresizingMaskIntoConstraints = false
-        scrollThumb.backgroundColor = UIColor(white: 1, alpha: 0.62)
+        scrollThumb.backgroundColor = .secondaryLabel
         scrollThumb.layer.cornerRadius = 2
     }
 
