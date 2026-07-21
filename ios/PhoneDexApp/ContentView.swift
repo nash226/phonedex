@@ -1596,7 +1596,24 @@ struct PhoneDexTaskDetailView: View {
                 .font(.subheadline)
                 .accessibilityElement(children: .combine)
         case .idle:
-            EmptyView()
+            if let receipt = model.latestLifecycleReceipt(for: task.id) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Label("\(receipt.actionLabel): \(receipt.displayState)", systemImage: receipt.isSuccessful ? "checkmark.circle.fill" : "exclamationmark.circle")
+                        .foregroundStyle(receipt.isSuccessful ? .green : .red)
+                        .font(.subheadline)
+                    if let message = receipt.message, !message.isEmpty {
+                        Text(message)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Text("Recorded \(receipt.recordedAt, style: .relative)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .accessibilityElement(children: .combine)
+            } else {
+                EmptyView()
+            }
         }
     }
 

@@ -70,6 +70,26 @@ final class PhoneDexLocalCacheTests: XCTestCase {
                 pending: pendingReply,
                 recordedAt: Date(timeIntervalSince1970: 1_750_000_002)
             )],
+            lifecycleReceipts: [PhoneDexLifecycleDeliveryRecord(
+                receipt: PhoneDexReplyReceipt(
+                    schema: "phonedex.command-receipt.v1",
+                    protocolVersion: 1,
+                    commandId: "lifecycle_123",
+                    createdAt: "2026-07-15T12:00:03.000Z",
+                    state: "accepted",
+                    taskId: "task_123",
+                    taskVersion: 4,
+                    idempotencyKey: "lifecycle_key",
+                    message: "Cancellation requested",
+                    duplicateOf: nil,
+                    approvalId: nil,
+                    approvalState: nil,
+                    approvalExpiresAt: nil
+                ),
+                kind: "cancel",
+                taskId: "task_123",
+                recordedAt: Date(timeIntervalSince1970: 1_750_000_003)
+            )],
             handledNotificationResponses: ["notification-123|PHONEDEX_OKAY_WHATS_NEXT": Date(timeIntervalSince1970: 1_750_000_003)],
             cachedArtifacts: [PhoneDexCachedArtifact(
                 id: "artifact_123",
@@ -89,6 +109,8 @@ final class PhoneDexLocalCacheTests: XCTestCase {
         XCTAssertEqual(try cache.load()?.pendingLifecycleCommands, [pendingLifecycle])
         XCTAssertEqual(try cache.load()?.replyReceipts.first?.displayState, "Delivered to agent")
         XCTAssertEqual(try cache.load()?.replyReceipts.first?.message, "Delivered to Studio Mac")
+        XCTAssertEqual(try cache.load()?.lifecycleReceipts.first?.displayState, "Accepted by hub")
+        XCTAssertEqual(try cache.load()?.lifecycleReceipts.first?.actionLabel, "Cancellation")
         XCTAssertEqual(try cache.load()?.events.first?.type, "progress")
         XCTAssertEqual(try cache.load()?.readAt["task_123"], Date(timeIntervalSince1970: 1_750_000_005))
         XCTAssertEqual(try cache.load()?.archivedAt["archived_task"], Date(timeIntervalSince1970: 1_750_000_006))
@@ -123,6 +145,7 @@ final class PhoneDexLocalCacheTests: XCTestCase {
         XCTAssertTrue(decoded.archivedAt.isEmpty)
         XCTAssertTrue(decoded.mutedAt.isEmpty)
         XCTAssertTrue(decoded.replyReceipts.isEmpty)
+        XCTAssertTrue(decoded.lifecycleReceipts.isEmpty)
         XCTAssertTrue(decoded.handledNotificationResponses.isEmpty)
         XCTAssertTrue(decoded.cachedArtifacts.isEmpty)
     }

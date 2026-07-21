@@ -1393,3 +1393,14 @@ corrupt cache, starts with no untrusted tasks, devices, or events, and remains
 ready for a fresh foreground sync. This complements the source-level
 `scripts/test-ios-crash-recovery.js` contract check; real-device disk failure
 and crash validation remain release-owner work.
+
+Lifecycle receipt persistence verification for the in-progress release-readiness
+slice: supported native cancel, retry, approval, handoff, and task-create
+commands now retain their bounded command receipt in the encrypted local cache.
+Task detail restores the action kind, hub/agent outcome, safe message, and
+recorded time after relaunch, while rejected receipts remain visible and are
+not treated as successful. `PhoneDexLifecycleStateTests` and
+`PhoneDexLocalCacheTests` cover identity, state labels, encrypted round-trip,
+and legacy caches without lifecycle receipts. This preserves command outcome
+visibility without claiming delivery beyond the receipt returned by the
+user-owned hub or adapter.
