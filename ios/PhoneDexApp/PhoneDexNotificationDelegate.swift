@@ -3,9 +3,14 @@ import UserNotifications
 
 final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     private let tokenStore: any PhoneDexTokenStoring
+    private let replyStore: PhoneDexNotificationReplyStore
 
-    init(tokenStore: any PhoneDexTokenStoring = PhoneDexKeychainTokenStore()) {
+    init(
+        tokenStore: any PhoneDexTokenStoring = PhoneDexKeychainTokenStore(),
+        cache: any PhoneDexCacheStoring = PhoneDexEncryptedCache()
+    ) {
         self.tokenStore = tokenStore
+        self.replyStore = PhoneDexNotificationReplyStore(cache: cache)
         super.init()
     }
 
@@ -26,7 +31,7 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
 
         let userInfo = response.notification.request.content.userInfo
         let responseKey = responseKey(for: response)
-        if isHandled(responseKey) {
+        if replyStore.containsHandled(responseKey) {
             NotificationReplyResult.record(.duplicate("This notification action was already handled."))
             return
         }
@@ -71,7 +76,10 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
             machineName: userInfo["machineName"] as? String,
             createdAt: Date()
         )
-        updatePendingReply(pending, remove: false)
+        guard replyStore.enqueue(pending) else {
+            NotificationReplyResult.record(.failed("PhoneDex could not save this reply for retry. Open PhoneDex to try again."))
+            return
+        }
 
         do {
             let receipt = try await client.sendReply(
@@ -85,12 +93,10 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
                 expectedTaskVersion: expectedTaskVersion
             )
             if receipt.isSuccessful {
-                updatePendingReply(pending, remove: true)
-                markHandled(responseKey)
+                _ = replyStore.complete(pending, responseKey: responseKey)
                 NotificationReplyResult.record(.sent(receipt.message ?? prompt))
             } else if receipt.state == "expired" {
-                updatePendingReply(pending, remove: true)
-                markHandled(responseKey)
+                _ = replyStore.complete(pending, responseKey: responseKey)
                 NotificationReplyResult.record(.failed("This notification expired. Open PhoneDex to review the latest task."))
             } else {
                 NotificationReplyResult.record(.failed(receipt.message ?? "The reply remains queued for retry."))
@@ -100,44 +106,8 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
         }
     }
 
-    private func updatePendingReply(_ pending: PhoneDexPendingReply, remove: Bool) {
-        let cache = PhoneDexEncryptedCache()
-        let existing = try? cache.load()
-        var pendingReplies = existing?.pendingReplies ?? []
-        pendingReplies.removeAll { $0.id == pending.id }
-        if !remove { pendingReplies.append(pending) }
-
-        let state = existing ?? PhoneDexCachedState(
-            cursor: nil,
-            tasks: [],
-            devices: [],
-            lastSyncAt: nil
-        )
-        try? cache.save(state.replacingNotificationState(pendingReplies: pendingReplies))
-    }
-
     private func responseKey(for response: UNNotificationResponse) -> String {
         response.notification.request.identifier + "|" + response.actionIdentifier
-    }
-
-    private func isHandled(_ responseKey: String) -> Bool {
-        (try? PhoneDexEncryptedCache().load())?.handledNotificationResponses[responseKey] != nil
-    }
-
-    private func markHandled(_ responseKey: String) {
-        let cache = PhoneDexEncryptedCache()
-        let existing = try? cache.load()
-        var handled = existing?.handledNotificationResponses ?? [:]
-        handled[responseKey] = Date()
-        if handled.count > 100 {
-            let staleKeys = handled
-                .sorted { $0.value < $1.value }
-                .prefix(handled.count - 100)
-                .map(\.key)
-            staleKeys.forEach { handled.removeValue(forKey: $0) }
-        }
-        let state = existing ?? PhoneDexCachedState(cursor: nil, tasks: [], devices: [], lastSyncAt: nil)
-        try? cache.save(state.replacingNotificationState(handledNotificationResponses: handled))
     }
 
     private func bridgeURLFromCurrentSettings() async -> URL? {
@@ -158,6 +128,111 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
             return nil
         }
     }
+}
+
+/// Owns notification-action mutations so a failed cache write cannot be
+/// mistaken for a durable offline outbox operation.
+struct PhoneDexNotificationReplyStore {
+    private let cache: any PhoneDexCacheStoring
+
+    init(cache: any PhoneDexCacheStoring = PhoneDexEncryptedCache()) {
+        self.cache = cache
+    }
+
+    @discardableResult
+    func enqueue(_ pending: PhoneDexPendingReply) -> Bool {
+        let existing: PhoneDexCachedState?
+        do {
+            existing = try cache.load()
+        } catch {
+            return false
+        }
+        var pendingReplies = existing?.pendingReplies ?? []
+        pendingReplies.removeAll { $0.id == pending.id }
+        pendingReplies.append(pending)
+
+        let state = existing ?? PhoneDexCachedState(
+            cursor: nil,
+            tasks: [],
+            devices: [],
+            lastSyncAt: nil
+        )
+        return save(state.replacingNotificationState(pendingReplies: pendingReplies))
+    }
+
+    @discardableResult
+    func remove(_ pending: PhoneDexPendingReply) -> Bool {
+        guard let existing = try? cache.load() else { return false }
+        var pendingReplies = existing.pendingReplies
+        pendingReplies.removeAll { $0.id == pending.id }
+        return save(existing.replacingNotificationState(pendingReplies: pendingReplies))
+    }
+
+    @discardableResult
+    func complete(_ pending: PhoneDexPendingReply, responseKey: String, at date: Date = Date()) -> Bool {
+        let existing: PhoneDexCachedState
+        do {
+            existing = try cache.load() ?? PhoneDexCachedState(
+                cursor: nil,
+                tasks: [],
+                devices: [],
+                lastSyncAt: nil
+            )
+        } catch {
+            return false
+        }
+        var pendingReplies = existing.pendingReplies
+        pendingReplies.removeAll { $0.id == pending.id }
+        var handled = existing.handledNotificationResponses
+        handled[responseKey] = date
+        trimHandled(&handled)
+        return save(existing.replacingNotificationState(
+            pendingReplies: pendingReplies,
+            handledNotificationResponses: handled
+        ))
+    }
+
+    @discardableResult
+    func markHandled(_ responseKey: String, at date: Date = Date()) -> Bool {
+        let existing: PhoneDexCachedState
+        do {
+            existing = try cache.load() ?? PhoneDexCachedState(
+                cursor: nil,
+                tasks: [],
+                devices: [],
+                lastSyncAt: nil
+            )
+        } catch {
+            return false
+        }
+        var handled = existing.handledNotificationResponses
+        handled[responseKey] = date
+        trimHandled(&handled)
+        return save(existing.replacingNotificationState(handledNotificationResponses: handled))
+    }
+
+    func containsHandled(_ responseKey: String) -> Bool {
+        (try? cache.load())?.handledNotificationResponses[responseKey] != nil
+    }
+
+    private func save(_ state: PhoneDexCachedState) -> Bool {
+        do {
+            try cache.save(state)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    private func trimHandled(_ handled: inout [String: Date]) {
+        guard handled.count > 100 else { return }
+        let staleKeys = handled
+            .sorted { $0.value < $1.value }
+            .prefix(handled.count - 100)
+            .map(\.key)
+        staleKeys.forEach { handled.removeValue(forKey: $0) }
+    }
+
 }
 
 enum NotificationReplyResult: Equatable {

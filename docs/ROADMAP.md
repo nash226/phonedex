@@ -1108,6 +1108,17 @@ detection, quarantine, fresh-load behavior, and key preservation. This does not
 claim crash-free real-device behavior; corrupted-cache recovery, notification
 actions, and cold relaunch remain part of the release-owner crash gate.
 
+Notification-action outbox durability verification for the in-progress
+release-readiness slice: `PhoneDexNotificationReplyStore` treats encrypted
+cache load and save errors as a failed local action and refuses to send a
+notification reply without first persisting its retry record. Successful and
+expired responses remove only their pending record and persist the handled
+response marker while preserving synced tasks, events, and review state.
+`PhoneDexLocalCacheTests` covers durable enqueue/cleanup, preservation of the
+local projection, and fail-closed cache-write behavior. This strengthens local
+notification reliability only; APNs delivery, background execution, and
+real-device crash-free validation remain release-owner gates.
+
 Transient transport verification for the in-progress release-readiness slice:
 the native client classifies DNS lookup, host reachability, interrupted
 connections, unavailable network resources, active-call, roaming, and timeout
