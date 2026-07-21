@@ -106,6 +106,28 @@ final class PhoneDexDiagnosticsTests: XCTestCase {
         XCTAssertFalse(state.isInitialLoading)
     }
 
+    func testDeviceInventoryEmptyStateExplainsPairingWhenHubIsHealthy() {
+        let state = PhoneDexAppModel.DeviceInventoryState(
+            devices: [],
+            connectionState: .online(Date(timeIntervalSince1970: 0))
+        )
+
+        XCTAssertEqual(state, .empty)
+        XCTAssertEqual(state.title, "No computers connected")
+        XCTAssertTrue(state.detail.localizedCaseInsensitiveContains("pair"))
+    }
+
+    func testDeviceInventoryEmptyStateRequiresRefreshWhenSyncCannotBeTrusted() {
+        let state = PhoneDexAppModel.DeviceInventoryState(
+            devices: [],
+            connectionState: .offline(nil)
+        )
+
+        XCTAssertEqual(state, .unavailable)
+        XCTAssertEqual(state.title, "Computer list unavailable")
+        XCTAssertTrue(state.detail.localizedCaseInsensitiveContains("refresh"))
+    }
+
     func testDeviceDiagnosticsKeepReachabilitySeparateFromComponentHealth() {
         let device = makeDevice(status: "online")
 
