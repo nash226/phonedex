@@ -16,6 +16,7 @@ const {
   negotiateProtocolVersion,
   normalizeApprovalRequest,
   normalizeCaptureSources,
+  normalizeTaskTranscript,
   normalizeTaskQuestion,
   protocolRecord
 } = require("../lib/phonedex-protocol");
@@ -668,6 +669,11 @@ function mergeTaskCaptures(existing, incoming) {
     seenCaptureSources.add(capture.source);
     return true;
   });
+  const transcript = sanitizeTaskTranscript([
+    ...(Array.isArray(existing.transcript) ? existing.transcript : []),
+    ...(Array.isArray(incoming.transcript) ? incoming.transcript : [])
+  ]);
+  if (transcript.length > 0) merged.transcript = transcript;
 
   if (!merged.question && incoming.question) merged.question = incoming.question;
   for (const field of ["logicalEventId", "messageId", "sessionId", "cwd"]) {
@@ -3719,6 +3725,7 @@ function createTask(fields) {
     hookPayload: fields.hookPayload,
     rawHookInputBytes: fields.rawHookInputBytes,
     ...(fields.evidence ? { evidence: normalizeTaskEvidence(fields.evidence) } : {}),
+    ...(fields.transcript ? { transcript: sanitizeTaskTranscript(fields.transcript) } : {}),
     ...(fields.question ? { question: normalizeTaskQuestion(fields.question) } : {}),
     ...(fields.approvalRequest ? { approvalRequest: normalizeApprovalRequest(fields.approvalRequest) } : {})
   });
@@ -3757,6 +3764,7 @@ function createIngestedTask(fields, cfg, req) {
     messageId: fields.messageId || fields.message_id || "",
     logicalEventId: fields.logicalEventId || fields.logical_event_id || "",
     captureSources: fields.captureSources,
+    transcript: sanitizeTaskTranscript(fields.transcript),
     ...(fields.evidence ? { evidence: normalizeTaskEvidence(fields.evidence) } : {}),
     originTaskId,
     originReplyUrl: fields.replyUrl || fields.reply_url || "",
@@ -5680,6 +5688,13 @@ async function scanSessions({ cfg, notify }) {
         sessionId: item.sessionId,
         status: "completed",
         messageId: item.messageId,
+        transcript: [{
+          id: item.id,
+          role: "assistant",
+          text: normalizeNotificationText(redactSensitiveText(item.text)),
+          createdAt: item.at,
+          source: "codex-session-watch"
+        }],
         lifecycleCapabilities: taskLifecycleCapabilities(cfg.adapter),
         hookPayload: {
           session_file: filePath,
@@ -5706,6 +5721,13 @@ async function scanSessions({ cfg, notify }) {
   );
   writeJsonFile(cfg.dataDir, SESSION_WATCH_STATE, state);
   return notified;
+}
+
+function sanitizeTaskTranscript(value) {
+  return normalizeTaskTranscript(value).map((entry) => ({
+    ...entry,
+    text: redactSensitiveText(entry.text)
+  }));
 }
 
 function sessionTaskId(filePath, sessionId) {

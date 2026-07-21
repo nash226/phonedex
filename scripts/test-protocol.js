@@ -36,7 +36,11 @@ const task = addTaskProtocolFields({
     changedFiles: [{ path: "Sources/App.swift", status: "modified", sourceRef: "Sources/App.swift#L1-L8" }],
     artifacts: [{ id: "build-log", name: "Build log", kind: "log", sourceRef: "artifacts/build.log" }],
     validations: [{ id: "tests", name: "npm test", status: "passed" }]
-  }
+  },
+  transcript: [
+    { id: "turn-1", role: "assistant", text: "The first update.", createdAt: now, source: "codex-session-watch" },
+    { id: "turn-2", role: "assistant", text: "The final update.", createdAt: now, source: "codex-session-watch" }
+  ]
 });
 assert.equal(validateProtocolRecord("task", task).valid, true);
 assert.equal(task.schema, SCHEMAS.task);
@@ -44,6 +48,25 @@ assert.equal(task.origin.deviceId, "macbook-air");
 assert.equal(task.question.choices[0].id, "tests");
 assert.equal(task.evidence.changedFiles[0].sourceRef, "Sources/App.swift#L1-L8");
 assert.equal(task.evidence.validations[0].status, "passed");
+assert.equal(task.transcript.length, 2);
+assert.equal(task.transcript[1].text, "The final update.");
+assert.equal(task.transcript[0].source, "codex-session-watch");
+
+const boundedTranscript = addTaskProtocolFields({
+  id: "task_transcript_bound",
+  at: now,
+  title: "Bounded transcript",
+  text: "Latest",
+  machineName: "MacBook Air",
+  deviceId: "macbook-air",
+  transcript: Array.from({ length: 40 }, (_, index) => ({
+    id: `turn-${index}`,
+    role: "assistant",
+    text: "x".repeat(2000),
+    createdAt: now
+  }))
+});
+assert.equal(boundedTranscript.transcript.length, 15);
 
 const approvalTask = addTaskProtocolFields({
   id: "task_approval",

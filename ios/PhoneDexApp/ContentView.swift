@@ -1223,7 +1223,7 @@ struct PhoneDexTaskDetailView: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.blue)
 
-            if task.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if task.transcript.isEmpty && task.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text("No response text was exported for this task.")
                     .font(.body)
                     .foregroundStyle(.secondary)
@@ -1231,26 +1231,39 @@ struct PhoneDexTaskDetailView: View {
                     .padding(14)
                     .background(Color(uiColor: .secondarySystemBackground))
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            } else if task.transcript.isEmpty {
+                transcriptBubble(PhoneDexTranscriptEntry(id: "latest", role: "assistant", text: task.text))
             } else {
-                VStack(alignment: .leading, spacing: 8) {
-                    Label("Codex", systemImage: "sparkles")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-
-                    Text(task.text)
-                        .font(.body)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(task.transcript) { entry in
+                        transcriptBubble(entry)
+                    }
                 }
-                .padding(14)
-                .background(Color(uiColor: .secondarySystemBackground))
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
 
-            Text("The current bridge provides the latest response. Structured session messages appear when the originating agent exports them.")
+            Text(task.transcript.isEmpty
+                 ? "Only the latest response was exported for this task."
+                 : "This bounded transcript contains messages exported by the originating agent.")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
         }
+    }
+
+    private func transcriptBubble(_ entry: PhoneDexTranscriptEntry) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(entry.displayRole, systemImage: entry.role == "user" ? "person" : "sparkles")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Text(entry.text)
+                .font(.body)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(14)
+        .background(Color(uiColor: .secondarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(entry.displayRole) message")
     }
 
     private var activity: some View {

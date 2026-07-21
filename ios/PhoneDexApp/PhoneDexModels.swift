@@ -4,6 +4,8 @@ enum PhoneDexNativeDecodeBounds {
     static let id = 160
     static let title = 240
     static let taskText = 10_000
+    static let transcriptEntry = 6_000
+    static let transcriptEntries = 32
     static let path = 400
     static let workspaceName = 240
     static let machineName = 160
@@ -77,6 +79,7 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
     let source: String?
     let title: String
     let text: String
+    let transcript: [PhoneDexTranscriptEntry]
     let cwd: String?
     let workspaceName: String?
     let machineName: String?
@@ -93,7 +96,7 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case id, at, createdAt, updatedAt, version, source, title, text, cwd, workspaceName
-        case machineName, deviceId, sessionId, status, branch, repository, captureSources
+        case machineName, deviceId, sessionId, status, branch, repository, transcript, captureSources
         case question, approvalRequest, evidence, lifecycleCapabilities
     }
 
@@ -112,6 +115,8 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
         source = try PhoneDexNativeDecodeBounds.string(container.decodeIfPresent(String.self, forKey: .source), maxLength: PhoneDexNativeDecodeBounds.source, key: "task.source", decoder: decoder)
         title = try PhoneDexNativeDecodeBounds.string(container.decodeIfPresent(String.self, forKey: .title), maxLength: PhoneDexNativeDecodeBounds.title, key: "task.title", decoder: decoder) ?? "Codex task"
         text = try PhoneDexNativeDecodeBounds.string(container.decodeIfPresent(String.self, forKey: .text), maxLength: PhoneDexNativeDecodeBounds.taskText, key: "task.text", decoder: decoder) ?? ""
+        transcript = try container.decodeIfPresent([PhoneDexTranscriptEntry].self, forKey: .transcript) ?? []
+        try PhoneDexNativeDecodeBounds.count(transcript.count, max: PhoneDexNativeDecodeBounds.transcriptEntries, key: "task.transcript", decoder: decoder)
         cwd = try PhoneDexNativeDecodeBounds.string(container.decodeIfPresent(String.self, forKey: .cwd), maxLength: PhoneDexNativeDecodeBounds.path, key: "task.cwd", decoder: decoder)
         workspaceName = try PhoneDexNativeDecodeBounds.string(container.decodeIfPresent(String.self, forKey: .workspaceName), maxLength: PhoneDexNativeDecodeBounds.workspaceName, key: "task.workspaceName", decoder: decoder)
         machineName = try PhoneDexNativeDecodeBounds.string(container.decodeIfPresent(String.self, forKey: .machineName), maxLength: PhoneDexNativeDecodeBounds.machineName, key: "task.machineName", decoder: decoder)
@@ -135,6 +140,7 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
         source: String?,
         title: String,
         text: String,
+        transcript: [PhoneDexTranscriptEntry] = [],
         cwd: String?,
         workspaceName: String?,
         machineName: String?,
@@ -160,6 +166,7 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
         self.source = source
         self.title = title
         self.text = text
+        self.transcript = transcript
         self.cwd = cwd
         self.workspaceName = workspaceName
         self.machineName = machineName
@@ -403,6 +410,41 @@ struct PhoneDexTask: Codable, Identifiable, Equatable {
             }
         }
         return Array(latest.values)
+    }
+}
+
+struct PhoneDexTranscriptEntry: Codable, Equatable, Identifiable {
+    let id: String
+    let role: String
+    let text: String
+    let createdAt: String?
+    let source: String?
+
+    private enum CodingKeys: String, CodingKey { case id, role, text, createdAt, source }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try PhoneDexNativeDecodeBounds.requiredString(container.decode(String.self, forKey: .id), maxLength: PhoneDexNativeDecodeBounds.id, key: "transcript.id", decoder: decoder)
+        role = try PhoneDexNativeDecodeBounds.requiredString(container.decode(String.self, forKey: .role), maxLength: PhoneDexNativeDecodeBounds.status, key: "transcript.role", decoder: decoder)
+        text = try PhoneDexNativeDecodeBounds.requiredString(container.decode(String.self, forKey: .text), maxLength: PhoneDexNativeDecodeBounds.transcriptEntry, key: "transcript.text", decoder: decoder)
+        createdAt = try PhoneDexNativeDecodeBounds.string(container.decodeIfPresent(String.self, forKey: .createdAt), maxLength: PhoneDexNativeDecodeBounds.status, key: "transcript.createdAt", decoder: decoder)
+        source = try PhoneDexNativeDecodeBounds.string(container.decodeIfPresent(String.self, forKey: .source), maxLength: PhoneDexNativeDecodeBounds.source, key: "transcript.source", decoder: decoder)
+    }
+
+    init(id: String, role: String, text: String, createdAt: String? = nil, source: String? = nil) {
+        self.id = id
+        self.role = role
+        self.text = text
+        self.createdAt = createdAt
+        self.source = source
+    }
+
+    var displayRole: String {
+        switch role {
+        case "user": return "You"
+        case "system": return "PhoneDex"
+        default: return "Codex"
+        }
     }
 }
 

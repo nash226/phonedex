@@ -163,6 +163,8 @@ try {
   );
   const hookEvidenceTask = initialStore.tasks.find((candidate) => candidate.text === "Agent message final answer fixture");
   assert.equal(hookEvidenceTask.evidence.changedFiles[0].path, "README.md");
+  assert.equal(hookEvidenceTask.transcript.length, 1);
+  assert.equal(hookEvidenceTask.transcript[0].role, "assistant");
   assertCaptureSources(initialStore.tasks, "Task complete final answer fixture", ["codex-session-watch"]);
   const evidenceTask = initialStore.tasks.find((candidate) => candidate.text === "Task complete final answer fixture");
   assert.ok(evidenceTask?.evidence, "Expected explicit PhoneDex evidence to merge into the task");
