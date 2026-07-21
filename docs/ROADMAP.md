@@ -1017,7 +1017,8 @@ Quality-gate evidence verification for the in-progress release-readiness slice:
 localization, and crash evidence and binds each normalized report to the full
 checked-out source revision. `scripts/quality-gates.js` rejects missing,
 duplicate, stale, future-dated, unsupported, or over-broad platform evidence
-and extra fields, and accepts only bounded gate ids, platform names,
+and extra fields, requires performance coverage on iOS, macOS, and Windows and
+native gate coverage on iOS, and accepts only bounded gate ids, platform names,
 timestamps, statuses, and evidence ids.
 `scripts/test-quality-gates.js` covers complete evidence, missing and failed
 gates, stale timestamps, unsupported platforms, attempts to include task text,

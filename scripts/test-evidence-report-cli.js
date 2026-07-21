@@ -18,7 +18,7 @@ try {
   fs.writeFileSync(qualityInput, JSON.stringify({ gates: REQUIRED_GATES.map((id) => ({
     id,
     status: "pass",
-    platforms: ["ios"],
+    platforms: id === "performance" ? ["ios", "macos", "windows"] : ["ios"],
     validatedAt: "2026-07-16T12:00:00.000Z",
     evidenceId: `fixture-${id}`
   })) }));

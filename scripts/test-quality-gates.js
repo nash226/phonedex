@@ -24,6 +24,20 @@ const missing = evaluateQualityGates({ gates: passing.slice(1), sourceRevision }
 assert.equal(missing.ok, false);
 assert.equal(missing.issues.some((issue) => issue.code === "missing-gate" && issue.id === "performance"), true);
 
+const incompletePlatformCoverage = evaluateQualityGates({
+  gates: passing.map((gate) => gate.id === "performance" ? { ...gate, platforms: ["ios", "macos"] } : gate),
+  sourceRevision
+}, { now });
+assert.equal(incompletePlatformCoverage.ok, false);
+assert.match(incompletePlatformCoverage.issues.map((issue) => issue.message).join(" "), /required platform coverage: windows/);
+
+const nativeGateWithoutIOS = evaluateQualityGates({
+  gates: passing.map((gate) => gate.id === "battery" ? { ...gate, platforms: ["macos", "windows"] } : gate),
+  sourceRevision
+}, { now });
+assert.equal(nativeGateWithoutIOS.ok, false);
+assert.match(nativeGateWithoutIOS.issues.map((issue) => issue.message).join(" "), /required platform coverage: ios/);
+
 const stale = evaluateQualityGates({ gates: [{ ...passing[0], validatedAt: "2026-05-01T12:00:00.000Z" }, ...passing.slice(1)], sourceRevision }, { now });
 assert.equal(stale.ok, false);
 assert.match(stale.issues.map((issue) => issue.message).join(" "), /older than/);
