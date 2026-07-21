@@ -160,6 +160,32 @@ final class PhoneDexSmokeTests: XCTestCase {
         XCTAssertThrowsError(try JSONDecoder().decode(PhoneDexEvent.self, from: eventData))
     }
 
+    func testLiveActivityKeepsLatestEventVisibleUntilExpanded() {
+        let events = (1...3).map { sequence in
+            PhoneDexEvent(
+                id: "event_\(sequence)",
+                taskId: "task_live",
+                createdAt: "2026-07-15T12:0\(sequence):00.000Z",
+                sequence: sequence,
+                type: "progress"
+            )
+        }
+
+        XCTAssertEqual(
+            PhoneDexLiveActivityPresentation.visibleEvents(events, expanded: false).map(\.sequence),
+            [3]
+        )
+        XCTAssertEqual(
+            PhoneDexLiveActivityPresentation.visibleEvents(events, expanded: true).map(\.sequence),
+            [1, 2, 3]
+        )
+        XCTAssertEqual(
+            PhoneDexLiveActivityPresentation.disclosureTitle(eventCount: 3, expanded: false),
+            "Show 2 older events"
+        )
+        XCTAssertNil(PhoneDexLiveActivityPresentation.disclosureTitle(eventCount: 1, expanded: false))
+    }
+
     func testEvidenceDecoderRejectsOversizedPatchAndCollections() throws {
         let oversizedPatch = String(repeating: "+line\n", count: PhoneDexNativeDecodeBounds.patch / 6 + 1)
         let oversizedPatchPayload: [String: Any] = [

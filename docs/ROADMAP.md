@@ -1415,3 +1415,16 @@ not treated as successful. `PhoneDexLifecycleStateTests` and
 and legacy caches without lifecycle receipts. This preserves command outcome
 visibility without claiming delivery beyond the receipt returned by the
 user-owned hub or adapter.
+
+Live-activity density verification for the in-progress native polish slice:
+task detail keeps the latest structured lifecycle event visible while collapsing
+older events behind an accessible, animated disclosure control. Expanding the
+control restores the complete source-ordered event list without changing the
+hub projection, task freshness, or reading-position behavior. The latest event
+remains visible for long-running Mac and Windows tasks, so current progress is
+scannable without pushing the response and evidence sections below the fold;
+`PhoneDexSmokeTests.testLiveActivityKeepsLatestEventVisibleUntilExpanded`
+covers the ordered presentation helper, while the view exposes a stable
+accessibility identifier for UI automation. This is a native presentation
+boundary only and does not imply continuous background delivery or private
+Codex Desktop event access.
