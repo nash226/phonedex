@@ -2471,6 +2471,7 @@ private struct PhoneDexSettingsView: View {
                 }
 
                 Section {
+                    LabeledContent("Encrypted PhoneDex cache", value: model.localCacheStorageDescription)
                     LabeledContent("Saved downloads", value: "\(model.cachedArtifacts.count)")
                     LabeledContent("Storage used", value: ByteCountFormatter.string(fromByteCount: Int64(model.cachedArtifactBytes), countStyle: .file))
                     Button("Clear saved downloads", role: .destructive) {
@@ -2495,7 +2496,7 @@ private struct PhoneDexSettingsView: View {
                 } header: {
                     Text("Review storage")
                 } footer: {
-                    Text("Clear local cache removes conversations, drafts, receipts, and downloaded review data from this iPhone. It keeps the paired credential and does not delete anything from the hub.")
+                    Text("The encrypted cache size includes the local conversation projection, drafts, receipts, offline actions, and downloaded review data. Clear local cache removes that data from this iPhone, keeps the paired credential, and does not delete anything from the hub.")
                 }
 
                 Section("About") {

@@ -428,11 +428,15 @@ protocol PhoneDexCacheStoring {
     func save(_ state: PhoneDexCachedState) throws
     func remove() throws
     func quarantine() throws
+    var byteCount: Int64? { get }
 }
 
 extension PhoneDexCacheStoring {
     /// Test doubles and non-file stores have nothing to quarantine.
     func quarantine() throws {}
+
+    /// A non-file cache cannot safely report its storage footprint.
+    var byteCount: Int64? { nil }
 }
 
 protocol PhoneDexCacheKeyStoring {
@@ -451,6 +455,18 @@ struct PhoneDexEncryptedCache: PhoneDexCacheStoring {
     ) {
         self.fileURL = fileURL
         self.keyStore = keyStore
+    }
+
+    /// Returns only the encrypted container size; plaintext content and the
+    /// cache path never leave this process.
+    var byteCount: Int64? {
+        guard FileManager.default.fileExists(atPath: fileURL.path) else { return 0 }
+        do {
+            let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
+            return attributes[.size] as? Int64
+        } catch {
+            return nil
+        }
     }
 
     func load() throws -> PhoneDexCachedState? {

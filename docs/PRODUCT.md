@@ -138,6 +138,10 @@ The repository already proves the core loop, but not the final product.
   command, diagnostics, and downloaded-artifact projection after confirmation.
   The paired bridge credential remains in the device-only Keychain, and the
   action never deletes hub history or claims that a remote revoke occurred.
+- Settings reports the byte size of the encrypted local projection separately
+  from downloaded artifact bytes. If the operating system cannot read the
+  container metadata, it shows an unavailable state without exposing a cache
+  path or plaintext content.
 - The project targets iOS 17 and includes unit and UI test targets for the
   native shell.
 

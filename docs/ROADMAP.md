@@ -878,6 +878,16 @@ failure-safe retention of the trusted projection. This is a local privacy and
 recovery control; hub deletion, credential revocation, and real-device privacy
 validation remain separate release-owner responsibilities.
 
+Encrypted cache-footprint verification: Settings reports the size of the
+encrypted local projection separately from downloaded artifact bytes. The
+file-backed cache reads only its container metadata, reports zero when no
+projection exists, and fails closed to an unavailable label if metadata cannot
+be read; no cache path, plaintext content, credential, or hub history is
+exposed. `PhoneDexLocalCacheTests` covers the encrypted file size and empty
+cache states. This is a local storage-visibility control and does not claim
+that iOS Settings storage accounting or real-device retention validation has
+been replaced.
+
 Exit gate: the release owner records a go decision with known limitations,
 metrics, rollback plan, and verification evidence.
 

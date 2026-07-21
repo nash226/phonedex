@@ -103,6 +103,7 @@ final class PhoneDexLocalCacheTests: XCTestCase {
         try cache.save(state)
         let encrypted = try Data(contentsOf: fileURL)
         XCTAssertFalse(String(data: encrypted, encoding: .utf8)?.contains("private result") == true)
+        XCTAssertEqual(cache.byteCount, Int64(encrypted.count))
         XCTAssertEqual(try cache.load(), state)
         XCTAssertEqual(try cache.load()?.pendingReplies.first?.questionId, "next-step")
         XCTAssertEqual(try cache.load()?.pendingReplies.first?.questionResponse, .choice("tests"))
@@ -121,6 +122,7 @@ final class PhoneDexLocalCacheTests: XCTestCase {
 
         try cache.remove()
         XCTAssertNil(try cache.load())
+        XCTAssertEqual(cache.byteCount, 0)
         XCTAssertNil(keyStore.key)
     }
 
