@@ -139,6 +139,20 @@ final class PhoneDexDiagnosticsTests: XCTestCase {
         XCTAssertEqual(device.conversations(from: tasks).map(\.id), ["newer", "older"])
     }
 
+    func testDeviceConversationStateDistinguishesTrustedEmptyFromUnavailableData() {
+        let device = makeDevice(status: "online")
+
+        XCTAssertEqual(device.conversationState(from: [], blocksEmptyContent: false), .empty)
+        XCTAssertEqual(device.conversationState(from: [], blocksEmptyContent: true), .unavailable)
+    }
+
+    func testDeviceConversationStateKeepsCachedRowsVisibleWhenSyncDegrades() {
+        let device = makeDevice(status: "online")
+        let task = makeTask(id: "cached", status: "completed", at: "2026-07-15T12:00:00Z")
+
+        XCTAssertEqual(device.conversationState(from: [task], blocksEmptyContent: true), .content)
+    }
+
     func testDeviceCapabilitiesExplainAvailableAndUnavailableActions() {
         let device = PhoneDexDevice(
             deviceId: "windows",
