@@ -364,6 +364,8 @@ Workspaces organize durable context across task runs.
   iPhone.
 - Workspace detail shows task history, current runs, saved prompt drafts, and
   artifacts the agent has explicitly exported.
+- Workspace conversation history presents each latest conversation once and
+  exposes a stable accessibility target for opening its task detail.
 - Starting work begins here when the selected agent advertises that capability.
 
 ### Browser

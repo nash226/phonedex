@@ -64,6 +64,16 @@ final class PhoneDexDiagnosticsTests: XCTestCase {
         XCTAssertEqual(project.latestTask?.id, "done")
     }
 
+    func testWorkspaceConversationProjectionContainsOneRowPerConversation() {
+        let project = PhoneDexProject(tasks: [
+            makeTask(id: "older", status: "running", at: "2026-07-15T12:00:00.000Z"),
+            makeTask(id: "newer", status: "completed", at: "2026-07-15T12:01:00.000Z")
+        ])!
+
+        XCTAssertEqual(project.tasks.map(\.id), ["newer", "older"])
+        XCTAssertEqual(Set(project.tasks.map(\.id)).count, project.tasks.count)
+    }
+
     func testArtifactLibraryItemRetainsTaskAndMachineContext() {
         let artifact = PhoneDexArtifact(
             id: "report",
