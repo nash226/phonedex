@@ -109,8 +109,12 @@ enum PhoneDexNotificationScheduler {
     static func scheduleTaskNotification(
         _ task: PhoneDexTask,
         bridgeURL: URL,
-        privacy: PhoneDexNotificationPrivacy = .safeSummary
+        privacy: PhoneDexNotificationPrivacy = .safeSummary,
+        mutedWorkspaces: Set<String> = []
     ) async throws {
+        guard notificationPolicyDecision(for: task, mutedWorkspaces: mutedWorkspaces) == .allowed else {
+            throw PhoneDexNotificationError.workspaceMuted
+        }
         guard bridgeURL.user == nil,
               bridgeURL.password == nil,
               bridgeURL.query == nil,
@@ -142,6 +146,15 @@ enum PhoneDexNotificationScheduler {
         )
 
         try await center.add(request)
+    }
+
+    static func notificationPolicyDecision(
+        for task: PhoneDexTask,
+        mutedWorkspaces: Set<String>
+    ) -> PhoneDexNotificationPolicyDecision {
+        mutedWorkspaces.contains(task.displayWorkspace)
+            ? .suppressed(workspace: task.displayWorkspace)
+            : .allowed
     }
 
     static func notificationPresentation(
@@ -251,6 +264,11 @@ enum PhoneDexNotificationPrivacy: String, CaseIterable, Identifiable {
     }
 }
 
+enum PhoneDexNotificationPolicyDecision: Equatable {
+    case allowed
+    case suppressed(workspace: String)
+}
+
 struct PhoneDexNotificationPresentation: Equatable {
     let title: String
     let subtitle: String
@@ -271,11 +289,14 @@ enum PhoneDexNotificationCopy {
 
 enum PhoneDexNotificationError: LocalizedError, Equatable {
     case credentialBearingBridgeURL
+    case workspaceMuted
 
     var errorDescription: String? {
         switch self {
         case .credentialBearingBridgeURL:
             return String(localized: "notification.error.credentialBearingBridgeURL", defaultValue: "The bridge URL must not contain credentials or query parameters.", comment: "Error shown when a notification is asked to use an unsafe bridge URL.")
+        case .workspaceMuted:
+            return String(localized: "notification.error.workspaceMuted", defaultValue: "Notifications are muted for this workspace.", comment: "Error shown when a notification is suppressed by the workspace policy.")
         }
     }
 }

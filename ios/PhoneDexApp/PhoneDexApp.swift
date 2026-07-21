@@ -108,10 +108,19 @@ struct PhoneDexApp: App {
                 return
             }
 
+            guard !settings.isNotificationMuted(for: task.displayWorkspace) else {
+                await recordDeepLinkResult(
+                    action: "notify-latest",
+                    error: "Notifications are muted for \(task.displayWorkspace)."
+                )
+                return
+            }
+
             try await PhoneDexNotificationScheduler.scheduleTaskNotification(
                 task,
                 bridgeURL: bridgeURL,
-                privacy: settings.notificationPrivacy
+                privacy: settings.notificationPrivacy,
+                mutedWorkspaces: settings.mutedNotificationWorkspaces
             )
             await recordDeepLinkResult(action: "notify-latest")
         } catch {

@@ -54,6 +54,10 @@ final class PhoneDexSettings: ObservableObject {
         didSet { defaults.set(notificationPrivacy.rawValue, forKey: Keys.notificationPrivacy) }
     }
 
+    @Published var mutedNotificationWorkspaces: Set<String> {
+        didSet { defaults.set(mutedNotificationWorkspaces.sorted(), forKey: Keys.mutedNotificationWorkspaces) }
+    }
+
     private let defaults: UserDefaults
     private let tokenStore: any PhoneDexTokenStoring
     private var suppressTokenPersistence = false
@@ -99,6 +103,11 @@ final class PhoneDexSettings: ObservableObject {
         self.notificationPrivacy = PhoneDexNotificationPrivacy(
             rawValue: defaults.string(forKey: Keys.notificationPrivacy) ?? ""
         ) ?? .safeSummary
+        self.mutedNotificationWorkspaces = Set(
+            (defaults.array(forKey: Keys.mutedNotificationWorkspaces) as? [String] ?? [])
+                .compactMap(Self.normalizedWorkspaceName)
+                .prefix(Self.maxMutedNotificationWorkspaces)
+        )
         self.credentialStorageError = storageError
     }
 
@@ -174,6 +183,30 @@ final class PhoneDexSettings: ObservableObject {
         static let token = "phonedex.token"
         static let requireApprovalAuthentication = "phonedex.requireApprovalAuthentication"
         static let notificationPrivacy = "phonedex.notificationPrivacy"
+        static let mutedNotificationWorkspaces = "phonedex.mutedNotificationWorkspaces"
+    }
+
+    func isNotificationMuted(for workspace: String) -> Bool {
+        mutedNotificationWorkspaces.contains(workspace)
+    }
+
+    func setNotificationMuted(_ muted: Bool, for workspace: String) {
+        guard let normalized = Self.normalizedWorkspaceName(workspace) else { return }
+        if muted {
+            guard mutedNotificationWorkspaces.count < Self.maxMutedNotificationWorkspaces || mutedNotificationWorkspaces.contains(normalized) else { return }
+            mutedNotificationWorkspaces.insert(normalized)
+        } else {
+            mutedNotificationWorkspaces.remove(normalized)
+        }
+    }
+
+    private static let maxMutedNotificationWorkspaces = 100
+    private static let maxWorkspaceNameLength = 240
+
+    private static func normalizedWorkspaceName(_ workspace: String) -> String? {
+        let normalized = workspace.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return nil }
+        return String(normalized.prefix(maxWorkspaceNameLength))
     }
 
     private static let credentialStorageErrorMessage =

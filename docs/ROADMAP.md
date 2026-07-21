@@ -701,8 +701,9 @@ Outcome: deliver timely remote awareness without treating push as durable state.
 - [ ] Use privacy-safe opaque invalidation payloads by default.
 - [ ] Reconcile pushes and notification actions through the durable event and
   command stores.
-- [ ] Add notification classes, grouping, per-workspace policy, and actionable
-  badge counts.
+- [ ] Add notification classes, grouping, and actionable badge counts.
+- [x] Add a local per-workspace notification policy that can suppress manual
+  and deep-link notification scheduling without changing durable task state.
 - [ ] Add duplicate suppression and handled/expired notification behavior.
 - [ ] Validate background opportunities, Focus modes, denied permission, poor
   connectivity, and push outage recovery on real devices.
@@ -728,6 +729,14 @@ permission copy, and is covered by `PhoneDexSettingsTests` for enabled and
 denied-state semantics. This improves local permission recovery only; APNs,
 background execution, and real-device Focus/permission validation remain
 release-owner gates.
+
+Local workspace notification-policy evidence: Settings persists a bounded set
+of muted workspace display names, task detail exposes an accessible mute or
+unmute action, and manual or deep-link notification scheduling fails closed for
+muted workspaces. The policy is local presentation state only; it does not
+delete task history, revoke credentials, or claim APNs/background delivery.
+`PhoneDexSettingsTests` covers persistence, whitespace handling, and allowing
+an unmuted workspace.
 
 Local notification grouping evidence: task alerts now use a bounded,
 deterministic thread identifier derived only from the display workspace and
