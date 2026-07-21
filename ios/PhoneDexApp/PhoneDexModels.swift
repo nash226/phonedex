@@ -441,9 +441,12 @@ struct PhoneDexTranscriptEntry: Codable, Equatable, Identifiable {
 
     var displayRole: String {
         switch role {
-        case "user": return "You"
-        case "system": return "PhoneDex"
-        default: return "Codex"
+        case "user":
+            return String(localized: "transcript.role.user", defaultValue: "You", comment: "Transcript role label for the user's message.")
+        case "system":
+            return String(localized: "transcript.role.system", defaultValue: "PhoneDex", comment: "Transcript role label for a PhoneDex system message.")
+        default:
+            return String(localized: "transcript.role.assistant", defaultValue: "Codex", comment: "Transcript role label for a Codex response.")
         }
     }
 }

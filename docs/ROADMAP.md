@@ -938,6 +938,15 @@ semantics across views. `PhoneDexChatFilteringTests.testTaskAndReviewStatusCopyU
 covers the fallback contract. This is localization readiness only; translated
 catalogs and locale-specific real-device QA remain release gates.
 
+Transcript localization verification for the in-progress release-readiness
+slice: native transcript role labels now use stable localization keys for user,
+PhoneDex, and Codex messages, with an explicit English fallback for unknown
+future roles. `PhoneDexSmokeTests.testTranscriptRoleCopyHasStableEnglishFallbacks`
+covers the role contract. This keeps VoiceOver and visual transcript context
+consistent for future translated catalogs without changing the bounded transcript
+contract; translated catalogs and locale-specific real-device QA remain release
+gates.
+
 Notification localization verification for the in-progress release-readiness
 slice: `PhoneDexNotificationCopy` gives the local preview, quick actions,
 custom-reply placeholder, and unsafe-bridge error stable localization keys with

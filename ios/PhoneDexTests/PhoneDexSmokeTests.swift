@@ -56,6 +56,13 @@ final class PhoneDexSmokeTests: XCTestCase {
         XCTAssertEqual(PhoneDexPrimaryTab.allCases.count, 5)
     }
 
+    func testTranscriptRoleCopyHasStableEnglishFallbacks() {
+        XCTAssertEqual(PhoneDexTranscriptEntry(id: "user", role: "user", text: "Prompt").displayRole, "You")
+        XCTAssertEqual(PhoneDexTranscriptEntry(id: "system", role: "system", text: "Notice").displayRole, "PhoneDex")
+        XCTAssertEqual(PhoneDexTranscriptEntry(id: "assistant", role: "assistant", text: "Response").displayRole, "Codex")
+        XCTAssertEqual(PhoneDexTranscriptEntry(id: "unknown", role: "future-role", text: "Response").displayRole, "Codex")
+    }
+
     func testDuplicateNotificationResultSurvivesPersistenceAsNeutralOutcome() {
         let defaults = UserDefaults.standard
         let keys = [
