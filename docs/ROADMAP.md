@@ -1428,6 +1428,13 @@ and legacy caches without lifecycle receipts. This preserves command outcome
 visibility without claiming delivery beyond the receipt returned by the
 user-owned hub or adapter.
 
+Native lifecycle receipt freshness verification: task detail only presents a
+restored receipt when its task-version evidence matches the currently synced
+task (or both are versionless legacy records). A receipt from an older task
+projection remains retained in the encrypted cache but cannot be mistaken for
+the outcome of a newer task update. `PhoneDexLifecycleStateTests` covers the
+match and fail-closed mismatch cases.
+
 Live-activity density verification for the in-progress native polish slice:
 task detail keeps the latest structured lifecycle event visible while collapsing
 older events behind an accessible, animated disclosure control. Expanding the

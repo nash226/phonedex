@@ -1617,7 +1617,7 @@ struct PhoneDexTaskDetailView: View {
                 .font(.subheadline)
                 .accessibilityElement(children: .combine)
         case .idle:
-            if let receipt = model.latestLifecycleReceipt(for: task.id) {
+            if let receipt = model.latestLifecycleReceipt(for: task) {
                 VStack(alignment: .leading, spacing: 3) {
                     Label("\(receipt.actionLabel): \(receipt.displayState)", systemImage: receipt.isSuccessful ? "checkmark.circle.fill" : "exclamationmark.circle")
                         .foregroundStyle(receipt.isSuccessful ? .green : .red)

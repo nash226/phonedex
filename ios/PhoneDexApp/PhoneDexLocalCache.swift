@@ -205,6 +205,13 @@ struct PhoneDexLifecycleDeliveryRecord: Codable, Equatable, Identifiable {
         }
     }
 
+    /// A receipt is current only when its task-version evidence matches the
+    /// task currently shown. Versioned receipts must never be presented as the
+    /// outcome of a newer task projection.
+    func matchesCurrentTaskVersion(_ currentTaskVersion: Int?) -> Bool {
+        taskVersion == currentTaskVersion
+    }
+
     init(receipt: PhoneDexReplyReceipt, kind: String, taskId: String, recordedAt: Date = Date()) {
         commandId = receipt.commandId
         idempotencyKey = receipt.idempotencyKey
