@@ -856,6 +856,20 @@ struct PhoneDexTaskDetailView: View {
                         }
                         .disabled(model.lifecycleState.isInFlight)
                     }
+                    Divider()
+                    Button(
+                        model.settings.isNotificationMuted(for: task.displayWorkspace)
+                            ? "Unmute workspace notifications"
+                            : "Mute workspace notifications",
+                        systemImage: model.settings.isNotificationMuted(for: task.displayWorkspace)
+                            ? "bell"
+                            : "bell.slash"
+                    ) {
+                        model.settings.setNotificationMuted(
+                            !model.settings.isNotificationMuted(for: task.displayWorkspace),
+                            for: task.displayWorkspace
+                        )
+                    }
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
@@ -2291,6 +2305,23 @@ private struct PhoneDexSettingsView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
 
+                    if !settings.mutedNotificationWorkspaces.isEmpty {
+                        ForEach(settings.mutedNotificationWorkspaces.sorted(), id: \.self) { workspace in
+                            HStack {
+                                Label(workspace, systemImage: "bell.slash")
+                                    .lineLimit(1)
+                                Spacer(minLength: 8)
+                                Button("Unmute", systemImage: "bell") {
+                                    settings.setNotificationMuted(false, for: workspace)
+                                }
+                                .labelStyle(.titleAndIcon)
+                                .font(.subheadline.weight(.semibold))
+                            }
+                            .accessibilityElement(children: .combine)
+                            .accessibilityHint("Removes the workspace notification mute")
+                        }
+                    }
+
                     Label(notificationAuthorization.title, systemImage: notificationAuthorization.isEnabled ? "bell.fill" : "bell.slash")
                         .accessibilityElement(children: .combine)
 
@@ -2447,6 +2478,11 @@ private struct PhoneDexSettingsView: View {
             return
         }
 
+        guard !settings.isNotificationMuted(for: task.displayWorkspace) else {
+            notificationStatus = "Notifications are muted for \(task.displayWorkspace)."
+            return
+        }
+
         do {
             let allowed = try await PhoneDexNotificationScheduler.requestAuthorization()
             guard allowed else {
@@ -2456,7 +2492,8 @@ private struct PhoneDexSettingsView: View {
             try await PhoneDexNotificationScheduler.scheduleTaskNotification(
                 task,
                 bridgeURL: bridgeURL,
-                privacy: settings.notificationPrivacy
+                privacy: settings.notificationPrivacy,
+                mutedWorkspaces: settings.mutedNotificationWorkspaces
             )
             notificationStatus = "Notification scheduled."
         } catch {

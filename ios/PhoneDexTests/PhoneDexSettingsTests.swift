@@ -384,6 +384,47 @@ final class PhoneDexSettingsTests: XCTestCase {
         XCTAssertEqual(defaults.string(forKey: "phonedex.notificationPrivacy"), "fullPreview")
     }
 
+    func testWorkspaceNotificationPolicyPersistsAndIgnoresEmptyNames() throws {
+        let defaults = try makeDefaults()
+        let settings = PhoneDexSettings(defaults: defaults, tokenStore: InMemoryTokenStore())
+
+        settings.setNotificationMuted(true, for: " Project ")
+        settings.setNotificationMuted(true, for: "   ")
+
+        let restored = PhoneDexSettings(defaults: defaults, tokenStore: InMemoryTokenStore())
+        XCTAssertEqual(restored.mutedNotificationWorkspaces, ["Project"])
+        XCTAssertTrue(restored.isNotificationMuted(for: "Project"))
+        restored.setNotificationMuted(false, for: "Project")
+        XCTAssertTrue(restored.mutedNotificationWorkspaces.isEmpty)
+    }
+
+    func testNotificationPolicySuppressesOnlyMutedWorkspace() {
+        let task = PhoneDexTask(
+            id: "task-policy",
+            at: nil,
+            source: "bridge",
+            title: "Private title",
+            text: "Private task text",
+            cwd: "/private/path",
+            workspaceName: "Project",
+            machineName: "Mac",
+            sessionId: "session",
+            status: "completed",
+            branch: nil,
+            repository: nil,
+            deviceId: "device"
+        )
+
+        XCTAssertEqual(
+            PhoneDexNotificationScheduler.notificationPolicyDecision(for: task, mutedWorkspaces: ["Project"]),
+            .suppressed(workspace: "Project")
+        )
+        XCTAssertEqual(
+            PhoneDexNotificationScheduler.notificationPolicyDecision(for: task, mutedWorkspaces: []),
+            .allowed
+        )
+    }
+
     func testNotificationAuthorizationCopyExplainsDeniedRecovery() {
         let denied = PhoneDexNotificationAuthorization.denied
 
