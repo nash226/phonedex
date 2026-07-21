@@ -1264,6 +1264,7 @@ struct PhoneDexTaskDetailView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(entry.displayRole) message")
+        .accessibilityValue(entry.accessibilityText)
     }
 
     private var activity: some View {

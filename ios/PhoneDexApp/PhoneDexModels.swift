@@ -449,6 +449,15 @@ struct PhoneDexTranscriptEntry: Codable, Equatable, Identifiable {
             return String(localized: "transcript.role.assistant", defaultValue: "Codex", comment: "Transcript role label for a Codex response.")
         }
     }
+
+    /// Keep the message body available to VoiceOver without allowing a
+    /// programmatically-created entry to produce an unbounded accessibility
+    /// value. Decoded entries already use the same native display limit.
+    var accessibilityText: String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "No message text exported." }
+        return String(trimmed.prefix(PhoneDexNativeDecodeBounds.transcriptEntry))
+    }
 }
 
 struct PhoneDexTaskControlAvailability: Identifiable, Equatable {

@@ -947,6 +947,17 @@ consistent for future translated catalogs without changing the bounded transcrip
 contract; translated catalogs and locale-specific real-device QA remain release
 gates.
 
+Transcript accessibility verification for the in-progress release-readiness
+slice: native transcript bubbles keep the role as their accessible label and
+expose the bounded, whitespace-normalized message body as the VoiceOver value.
+Empty exports receive explicit recovery-safe copy, and programmatically-created
+entries are capped at the same 6,000-character native transcript limit.
+`PhoneDexSmokeTests.testTranscriptAccessibilityTextPreservesContentAndBoundsProgrammaticEntries`
+covers readable content, empty exports, and the cap. This improves native
+Dynamic Type and VoiceOver reading without changing the local-first bridge
+contract; real-device speech, rotor, and translated-locale QA remain release
+gates.
+
 Notification localization verification for the in-progress release-readiness
 slice: `PhoneDexNotificationCopy` gives the local preview, quick actions,
 custom-reply placeholder, and unsafe-bridge error stable localization keys with
