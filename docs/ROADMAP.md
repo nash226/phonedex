@@ -444,6 +444,16 @@ either identity are excluded rather than being assigned to every “Unknown
 device”. `PhoneDexDiagnosticsTests` covers same-name collision, identity match,
 and the legacy fallback boundary.
 
+Verification evidence for the device freshness presentation slice:
+the native Devices list now shows each computer's last heartbeat using a
+localized relative-time label, while devices without a parseable heartbeat
+explicitly say that no heartbeat is recorded. The row keeps component health
+and reachability separate, remains readable at Dynamic Type sizes, and exposes
+the same freshness context to VoiceOver. `PhoneDexDiagnosticsTests` covers
+valid heartbeat decoding and the fail-closed unknown-timestamp state; the hub
+remains the source of truth for reachability and no client-side status is
+inferred from the timestamp.
+
 ## M4: Supported Codex Control Adapters
 
 Status: **Current**

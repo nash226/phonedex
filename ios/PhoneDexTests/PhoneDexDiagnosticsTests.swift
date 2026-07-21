@@ -105,6 +105,29 @@ final class PhoneDexDiagnosticsTests: XCTestCase {
         XCTAssertTrue(device.adapterHealth.isActionable)
     }
 
+    func testDeviceLastSeenDateSupportsHeartbeatAndUnknownStates() {
+        let expectedDate = ISO8601DateFormatter()
+        expectedDate.formatOptions = [.withInternetDateTime]
+        XCTAssertEqual(
+            makeDevice(status: "online").lastSeenDate,
+            expectedDate.date(from: "2026-07-15T12:00:00Z")
+        )
+
+        let unknownHeartbeat = PhoneDexDevice(
+            deviceId: "new-device",
+            machineName: "New Device",
+            platform: "windows",
+            role: "agent",
+            status: "unknown",
+            lastSeenAt: "not-a-timestamp",
+            version: nil,
+            publicUrl: nil,
+            expected: true
+        )
+
+        XCTAssertNil(unknownHeartbeat.lastSeenDate)
+    }
+
     func testDeviceCapabilitiesExplainAvailableAndUnavailableActions() {
         let device = PhoneDexDevice(
             deviceId: "windows",

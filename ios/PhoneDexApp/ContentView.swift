@@ -2034,6 +2034,7 @@ private struct PhoneDexDevicesView: View {
                             Text(deviceSummary(device))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                            heartbeatSummary(device)
                         }
                         Spacer()
                         Image(systemName: device.health.symbol)
@@ -2063,6 +2064,25 @@ private struct PhoneDexDevicesView: View {
         [device.health.title, device.platform?.capitalized, device.version.map { "v\($0)" }]
             .compactMap { $0 }
             .joined(separator: " · ")
+    }
+
+    @ViewBuilder
+    private func heartbeatSummary(_ device: PhoneDexDevice) -> some View {
+        if let lastSeenDate = device.lastSeenDate {
+            Label {
+                Text("Last heard \(lastSeenDate, style: .relative)")
+            } icon: {
+                Image(systemName: "waveform.path.ecg")
+            }
+            .font(.caption2)
+            .foregroundStyle(.tertiary)
+            .accessibilityLabel("Last heard from \(lastSeenDate, style: .relative)")
+        } else {
+            Label("No heartbeat recorded", systemImage: "questionmark.circle")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .accessibilityLabel("No heartbeat recorded")
+        }
     }
 }
 
