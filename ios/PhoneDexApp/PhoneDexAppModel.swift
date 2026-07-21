@@ -87,6 +87,7 @@ final class PhoneDexAppModel: ObservableObject {
     @Published private(set) var lastSuccessfulSync: Date?
     @Published private(set) var diagnostics: PhoneDexDiagnosticsSnapshot?
     @Published private(set) var cacheRecoveryMessage: String?
+    @Published private(set) var localCacheStatusMessage: String?
 
     static let staleAfter: TimeInterval = 5 * 60
 
@@ -304,6 +305,66 @@ final class PhoneDexAppModel: ObservableObject {
     func clearCachedArtifacts() {
         cachedArtifacts.removeAll()
         persistCachedState(lastSyncAt: lastSuccessfulSync)
+    }
+
+    /// Removes all task, review, command, and diagnostics data stored on this
+    /// iPhone while keeping the paired bridge credential in Keychain. The
+    /// empty state is written before published properties change so a failed
+    /// persistence operation cannot present a reset that did not stick.
+    @discardableResult
+    func clearLocalCache() -> Bool {
+        let emptyState = PhoneDexCachedState(
+            cursor: nil,
+            tasks: [],
+            devices: [],
+            events: [],
+            lastSyncAt: nil,
+            drafts: [:],
+            readingPositions: [:],
+            readAt: [:],
+            archivedAt: [:],
+            mutedAt: [:],
+            pendingReplies: [],
+            pendingLifecycleCommands: [],
+            replyReceipts: [],
+            lifecycleReceipts: [],
+            handledNotificationResponses: [:],
+            cachedArtifacts: []
+        )
+
+        do {
+            try cache.save(emptyState)
+        } catch {
+            localCacheStatusMessage = "Local data could not be cleared. Try again."
+            return false
+        }
+
+        activeRefreshTask?.cancel()
+        _ = refreshCoordinator.begin()
+        syncTasks = []
+        syncCursor = nil
+        tasks = []
+        devices = []
+        events = []
+        drafts = [:]
+        readingPositions = [:]
+        readAt = [:]
+        archivedAt = [:]
+        mutedAt = [:]
+        pendingReplies = []
+        pendingLifecycleCommands = []
+        replyReceipts = []
+        lifecycleReceipts = []
+        cachedArtifacts = [:]
+        lastSuccessfulSync = nil
+        selectedTaskID = nil
+        diagnostics = nil
+        connectionState = .idle
+        replyState = .idle
+        lifecycleState = .idle
+        cacheRecoveryMessage = nil
+        localCacheStatusMessage = "Local task, review, and offline data cleared. Your paired credential was kept."
+        return true
     }
 
     func fetchDiagnostics() async throws -> PhoneDexDiagnosticsSnapshot {

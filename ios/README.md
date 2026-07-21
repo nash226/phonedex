@@ -47,6 +47,10 @@ The iOS app scaffold includes:
   and workspace filters. Unknown legacy task statuses remain visible in Recent.
 - A native WebKit browser for documentation, pull requests, and research
   without leaving PhoneDex.
+- Settings can clear the encrypted local task/review projection, including
+  drafts, receipts, offline commands, diagnostics, and downloaded artifacts,
+  while preserving the paired bridge credential in Keychain. This is a local
+  reset only and does not delete hub history or revoke the pairing.
 
 ## Generate The Xcode Project
 

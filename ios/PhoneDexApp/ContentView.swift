@@ -2128,6 +2128,7 @@ private struct PhoneDexSettingsView: View {
     @State private var diagnosticsStatus = ""
     @State private var isLoadingDiagnostics = false
     @State private var showingClearArtifactConfirmation = false
+    @State private var showingClearLocalCacheConfirmation = false
     @State private var showingForgetCredentialConfirmation = false
     @State private var credentialStatus = ""
 
@@ -2349,10 +2350,25 @@ private struct PhoneDexSettingsView: View {
                         showingClearArtifactConfirmation = true
                     }
                     .disabled(model.cachedArtifacts.isEmpty)
+
+                    Button("Clear local cache", systemImage: "trash", role: .destructive) {
+                        showingClearLocalCacheConfirmation = true
+                    }
+
+                    if let localCacheStatusMessage = model.localCacheStatusMessage {
+                        Label(
+                            localCacheStatusMessage,
+                            systemImage: localCacheStatusMessage.hasPrefix("Local task") ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
+                        )
+                        .font(.footnote)
+                        .foregroundStyle(localCacheStatusMessage.hasPrefix("Local task") ? .green : .red)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityElement(children: .combine)
+                    }
                 } header: {
                     Text("Review storage")
                 } footer: {
-                    Text("Verified artifacts are encrypted with the local cache, retained for up to 30 days, and capped at 20 downloads or 25 MB. The hub remains the source of truth.")
+                    Text("Clear local cache removes conversations, drafts, receipts, and downloaded review data from this iPhone. It keeps the paired credential and does not delete anything from the hub.")
                 }
 
                 Section("About") {
@@ -2368,6 +2384,14 @@ private struct PhoneDexSettingsView: View {
                 Button("Cancel", role: .cancel) { }
             } message: {
                 Text("Downloaded artifacts will be removed from this iPhone. They can be downloaded again while the originating agent retains them.")
+            }
+            .confirmationDialog("Clear local cache?", isPresented: $showingClearLocalCacheConfirmation, titleVisibility: .visible) {
+                Button("Clear local cache", role: .destructive) {
+                    _ = model.clearLocalCache()
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("This removes cached conversations, drafts, receipts, offline actions, and downloaded review data from this iPhone. Your paired credential stays in Keychain, and hub data is not deleted.")
             }
             .confirmationDialog("Forget stored credential?", isPresented: $showingForgetCredentialConfirmation, titleVisibility: .visible) {
                 Button("Forget credential", role: .destructive) {
