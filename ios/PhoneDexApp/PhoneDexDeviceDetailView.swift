@@ -299,6 +299,7 @@ struct PhoneDexWorkspaceDetailView: View {
                     } label: {
                         PhoneDexTaskRow(task: task)
                     }
+                    .accessibilityIdentifier("workspace-conversation-\(task.id)")
                 }
             }
         }

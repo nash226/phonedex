@@ -1532,3 +1532,10 @@ Dynamic Type sizes, and exposes one combined VoiceOver label. This makes
 offline work discoverable after relaunch while preserving non-optimistic
 delivery semantics; it does not claim that a queued action reached a Mac or
 Windows agent.
+
+Workspace conversation presentation verification for the in-progress mobile
+polish slice: native workspace detail rows use the de-duplicated latest
+conversation projection, expose stable accessibility identifiers for task
+navigation, and retain the existing privacy-sensitive task row behavior.
+Focused model coverage confirms stable, unique conversation identities; this
+is a local presentation boundary and does not change hub history or retention.
