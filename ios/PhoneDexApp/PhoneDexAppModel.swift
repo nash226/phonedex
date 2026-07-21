@@ -76,6 +76,7 @@ final class PhoneDexAppModel: ObservableObject {
     @Published private(set) var pendingReplies: [PhoneDexPendingReply] = []
     @Published private(set) var pendingLifecycleCommands: [PhoneDexPendingLifecycleCommand] = []
     @Published private(set) var replyReceipts: [PhoneDexReplyDeliveryRecord] = []
+    @Published private(set) var lifecycleReceipts: [PhoneDexLifecycleDeliveryRecord] = []
     @Published private(set) var cachedArtifacts: [String: PhoneDexCachedArtifact] = [:]
     @Published private(set) var archivedAt: [String: Date] = [:]
     @Published private(set) var mutedAt: [String: Date] = [:]
@@ -120,6 +121,10 @@ final class PhoneDexAppModel: ObservableObject {
         pendingLifecycleCommands
             .filter { $0.taskId == task.id }
             .max { $0.createdAt < $1.createdAt }
+    }
+
+    func latestLifecycleReceipt(for taskID: PhoneDexTask.ID) -> PhoneDexLifecycleDeliveryRecord? {
+        lifecycleReceipts.first { $0.taskId == taskID }
     }
 
     /// Removes commands authenticated by the credential being forgotten.
@@ -469,6 +474,8 @@ final class PhoneDexAppModel: ObservableObject {
                 taskId: task.id,
                 expectedTaskVersion: task.version ?? 1
             )
+            recordLifecycleReceipt(result.receipt, kind: "handoff", taskId: task.id)
+            persistCachedState(lastSyncAt: lastSuccessfulSync)
             if let updatedTask = result.task { upsertLifecycleTask(updatedTask) }
             guard let handoff = result.handoff else {
                 lifecycleState = .failed("The agent accepted the request without returning handoff context.")
@@ -515,8 +522,16 @@ final class PhoneDexAppModel: ObservableObject {
                 workspaceName: workspaceName,
                 prompt: trimmedPrompt
             )
+            recordLifecycleReceipt(
+                result.receipt,
+                kind: "create_task",
+                taskId: result.receipt.taskId ?? result.task?.id ?? ""
+            )
             if let task = result.task { upsertLifecycleTask(task) }
-            lifecycleState = .accepted(result.receipt.message ?? "Task queued.")
+            persistCachedState(lastSyncAt: lastSuccessfulSync)
+            lifecycleState = result.receipt.isSuccessful
+                ? .accepted(result.receipt.message ?? "Task queued.")
+                : .failed(result.receipt.message ?? "The originating agent did not accept this task.")
             return result.receipt.isSuccessful
         } catch {
             lifecycleState = .failed(error.phoneDexSafeMessage)
@@ -576,22 +591,27 @@ final class PhoneDexAppModel: ObservableObject {
             return false
         }
         lifecycleState = .sending
+        let resolvedCommandId = commandId ?? UUID().uuidString
+        let resolvedIdempotencyKey = idempotencyKey ?? "ios-\(UUID().uuidString)"
         do {
             let result = try await client.sendLifecycleCommand(
                 kind: kind,
                 taskId: task.id,
                 approvalId: approvalId,
                 approvalTaskVersion: approvalTaskVersion,
-                commandId: commandId ?? UUID().uuidString,
-                idempotencyKey: idempotencyKey ?? "ios-\(UUID().uuidString)",
+                commandId: resolvedCommandId,
+                idempotencyKey: resolvedIdempotencyKey,
                 expectedTaskVersion: task.version ?? 1
             )
+            recordLifecycleReceipt(result.receipt, kind: kind, taskId: task.id)
             if let updatedTask = result.task { upsertLifecycleTask(updatedTask) }
-            if let commandId, result.receipt.isSuccessful {
-                pendingLifecycleCommands.removeAll { $0.commandId == commandId }
-                persistCachedState(lastSyncAt: lastSuccessfulSync)
+            if result.receipt.isSuccessful {
+                pendingLifecycleCommands.removeAll { $0.commandId == resolvedCommandId }
             }
-            lifecycleState = .accepted(result.receipt.message ?? "Command accepted.")
+            persistCachedState(lastSyncAt: lastSuccessfulSync)
+            lifecycleState = result.receipt.isSuccessful
+                ? .accepted(result.receipt.message ?? "Command accepted.")
+                : .failed(result.receipt.message ?? "The originating agent did not accept this action.")
             return result.receipt.isSuccessful
         } catch {
             if queuesWhenOffline, error.isOffline {
@@ -613,6 +633,15 @@ final class PhoneDexAppModel: ObservableObject {
             }
             lifecycleState = .failed(error.phoneDexSafeMessage)
             return false
+        }
+    }
+
+    private func recordLifecycleReceipt(_ receipt: PhoneDexReplyReceipt, kind: String, taskId: String) {
+        let record = PhoneDexLifecycleDeliveryRecord(receipt: receipt, kind: kind, taskId: taskId)
+        lifecycleReceipts.removeAll { $0.id == record.id }
+        lifecycleReceipts.insert(record, at: 0)
+        if lifecycleReceipts.count > 50 {
+            lifecycleReceipts.removeLast(lifecycleReceipts.count - 50)
         }
     }
 
@@ -837,6 +866,7 @@ final class PhoneDexAppModel: ObservableObject {
             let persistedLifecycleCommands = PhoneDexPendingLifecycleCommandPolicy.prune(cached.pendingLifecycleCommands, now: Date())
             pendingLifecycleCommands = persistedLifecycleCommands
             replyReceipts = cached.replyReceipts
+            lifecycleReceipts = cached.lifecycleReceipts
             let persistedArtifacts = PhoneDexCachedArtifactPolicy.index(cached.cachedArtifacts)
             cachedArtifacts = persistedArtifacts
             pruneCachedArtifacts(now: Date())
@@ -883,6 +913,7 @@ final class PhoneDexAppModel: ObservableObject {
                 pendingReplies: pendingReplies,
                 pendingLifecycleCommands: pendingLifecycleCommands,
                 replyReceipts: replyReceipts,
+                lifecycleReceipts: lifecycleReceipts,
                 handledNotificationResponses: (try? cache.load())?.handledNotificationResponses ?? [:],
                 cachedArtifacts: cachedArtifacts.values.sorted { $0.downloadedAt > $1.downloadedAt }
             )
