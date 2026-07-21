@@ -23,12 +23,26 @@ final class PhoneDexSmokeTests: XCTestCase {
     func testTaskDeepLinkRejectsQueryDataAndUnsafeOrUnboundedIDs() throws {
         let queryURL = try XCTUnwrap(URL(string: "phonedex://task/task_123?token=secret"))
         let unsafeURL = try XCTUnwrap(URL(string: "phonedex://task/task%2F123"))
+        let userInfoURL = try XCTUnwrap(URL(string: "phonedex://secret@task/task_123"))
+        let portURL = try XCTUnwrap(URL(string: "phonedex://task:8443/task_123"))
         let oversizedID = String(repeating: "a", count: 129)
         let oversizedURL = try XCTUnwrap(URL(string: "phonedex://task/\(oversizedID)"))
 
         XCTAssertNil(PhoneDexDeepLinkRoute(url: queryURL))
         XCTAssertNil(PhoneDexDeepLinkRoute(url: unsafeURL))
+        XCTAssertNil(PhoneDexDeepLinkRoute(url: userInfoURL))
+        XCTAssertNil(PhoneDexDeepLinkRoute(url: portURL))
         XCTAssertNil(PhoneDexDeepLinkRoute(url: oversizedURL))
+    }
+
+    func testUtilityDeepLinksRejectURLAuthorityAndEncodedPathAmbiguity() throws {
+        let userInfoURL = try XCTUnwrap(URL(string: "phonedex://secret@preview"))
+        let portURL = try XCTUnwrap(URL(string: "phonedex://preview:443"))
+        let encodedPathURL = try XCTUnwrap(URL(string: "phonedex://status/%2E"))
+
+        XCTAssertNil(PhoneDexDeepLinkRoute(url: userInfoURL))
+        XCTAssertNil(PhoneDexDeepLinkRoute(url: portURL))
+        XCTAssertNil(PhoneDexDeepLinkRoute(url: encodedPathURL))
     }
 
     func testTaskDeepLinkPreservesSupportedUtilityRoutes() throws {

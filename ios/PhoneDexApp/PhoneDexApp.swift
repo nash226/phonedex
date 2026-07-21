@@ -171,8 +171,16 @@ enum PhoneDexDeepLinkRoute: Equatable {
 
     init?(url: URL) {
         guard url.scheme?.lowercased() == "phonedex",
+              // PhoneDex links are app-local commands, not network URLs. An
+              // authority containing user info or a port is ambiguous and
+              // must never be accepted as a trusted route.
+              url.user == nil,
+              url.password == nil,
+              url.port == nil,
               url.query == nil,
               url.fragment == nil,
+              // Decode only after rejecting encoded separators or dot paths.
+              URLComponents(url: url, resolvingAgainstBaseURL: false)?.percentEncodedPath.contains("%") == false,
               let host = url.host?.lowercased()
         else { return nil }
 

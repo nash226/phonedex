@@ -1238,13 +1238,15 @@ gates.
 
 Task deep-link routing verification for the in-progress native-shell slice:
 `phonedex://task/<task-id>` accepts only a bounded opaque path identifier with
-no query or fragment data, selects the matching locally cached conversation,
+no query or fragment data, rejects user-info, ports, and percent-encoded path
+ambiguity, and selects the matching locally cached conversation,
 and returns to Chats without changing lifecycle state or contacting a private
 Codex API. A task absent from the trusted local projection stays pending across
 refresh and shows generic recovery guidance rather than guessing or displaying
 remote task content. `PhoneDexSmokeTests` covers valid, utility-route, query,
-unsafe-identifier, and oversized-identifier cases. Universal-link association,
-remote task discovery, and real-device routing remain release-owner work.
+unsafe-identifier, authority, encoded-path, and oversized-identifier cases.
+Universal-link association, remote task discovery, and real-device routing
+remain release-owner work.
 
 Task freshness verification for the native detail surface: `PhoneDexTask`
 falls back from a malformed capture timestamp to a valid creation timestamp,
