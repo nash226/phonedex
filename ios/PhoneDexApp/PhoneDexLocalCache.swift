@@ -116,6 +116,7 @@ struct PhoneDexCachedState: Codable, Equatable {
     func replacingNotificationState(
         pendingReplies: [PhoneDexPendingReply]? = nil,
         pendingLifecycleCommands: [PhoneDexPendingLifecycleCommand]? = nil,
+        replyReceipts: [PhoneDexReplyDeliveryRecord]? = nil,
         handledNotificationResponses: [String: Date]? = nil
     ) -> PhoneDexCachedState {
         PhoneDexCachedState(
@@ -131,7 +132,7 @@ struct PhoneDexCachedState: Codable, Equatable {
             mutedAt: mutedAt,
             pendingReplies: pendingReplies ?? self.pendingReplies,
             pendingLifecycleCommands: pendingLifecycleCommands ?? self.pendingLifecycleCommands,
-            replyReceipts: replyReceipts,
+            replyReceipts: replyReceipts ?? self.replyReceipts,
             lifecycleReceipts: lifecycleReceipts,
             handledNotificationResponses: handledNotificationResponses ?? self.handledNotificationResponses,
             cachedArtifacts: cachedArtifacts,

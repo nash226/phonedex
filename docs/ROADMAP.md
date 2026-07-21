@@ -728,6 +728,16 @@ cache writes; actions for the same version remain duplicate-safe. These
 guarantees are covered by `PhoneDexLocalCacheTests`; remote push delivery and
 real-device background validation remain human-gated release work.
 
+Local notification reconciliation evidence: notification actions now persist
+the returned command receipt in the encrypted `replyReceipts` projection used
+by native task detail. Terminal accepted, duplicate, and expired responses
+remove the retry entry and mark the response handled; non-terminal rejection
+responses retain the bounded retry entry while preserving the receipt for
+recovery context. `PhoneDexLocalCacheTests` covers receipt persistence without
+dropping retry state. This reconciles local notification actions with the
+durable command projection without claiming APNs registration, background
+delivery, or real-device push correctness.
+
 Local notification permission recovery evidence: Settings now reads the current
 authorization state, distinguishes full, quiet, denied, restricted, and
 not-yet-requested delivery, and sends denied or restricted users to the system
