@@ -1521,3 +1521,14 @@ Dynamic Type, and accessibility contract test now also rejects hard-coded RGB or
 grayscale colors. This is implementation evidence for appearance adaptation;
 light/dark notification snapshots on real devices remain part of the
 release-owner validation matrix.
+
+Constrained-network refresh verification for the in-progress release-readiness
+slice: automatic foreground refreshes now honor both Low Power Mode and Low
+Data Mode through `ProcessInfo`, using the more conservative configured ceiling
+when both are active. Initial launch and explicit user refreshes remain
+available immediately, while re-entry refreshes continue to use failure
+backoff and jitter. `PhoneDexRefreshPolicyTests` covers the separate Low Data
+Mode ceiling and the combined constrained-mode boundary. This reduces
+unnecessary cellular and battery work without claiming background delivery or
+replacing real-device battery/network measurements, which remain release-owner
+gates.

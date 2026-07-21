@@ -22,6 +22,7 @@ enum PhoneDexPrimaryTab: String, CaseIterable, Identifiable {
 
 struct ContentView: View {
     @StateObject private var model: PhoneDexAppModel
+    @StateObject private var networkConstraintMonitor = PhoneDexNetworkConstraintMonitor()
     @ObservedObject private var deepLinkRouter: PhoneDexDeepLinkRouter
     @AppStorage(PhoneDexPrimaryTab.storageKey) private var selectedTabRawValue = PhoneDexPrimaryTab.chats.rawValue
     @State private var lastAutomaticRefreshAt: Date?
@@ -126,7 +127,8 @@ struct ContentView: View {
             lastAutomaticRefreshAt: lastAutomaticRefreshAt,
             consecutiveFailures: consecutiveAutomaticRefreshFailures,
             jitter: Double.random(in: -1...1),
-            lowPowerModeEnabled: ProcessInfo.processInfo.isLowPowerModeEnabled
+            lowPowerModeEnabled: ProcessInfo.processInfo.isLowPowerModeEnabled,
+            lowDataModeEnabled: networkConstraintMonitor.isConstrained
         ) else { return }
 
         await model.refresh()

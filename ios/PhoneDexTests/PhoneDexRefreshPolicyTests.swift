@@ -6,6 +6,7 @@ final class PhoneDexRefreshPolicyTests: XCTestCase {
         automaticMinimumInterval: 30,
         automaticMaximumInterval: 120,
         lowPowerModeMaximumInterval: 300,
+        lowDataModeMaximumInterval: 240,
         jitterFraction: 0.2
     )
     private let baseline = Date(timeIntervalSince1970: 1_000)
@@ -81,6 +82,36 @@ final class PhoneDexRefreshPolicyTests: XCTestCase {
             lastAutomaticRefreshAt: baseline,
             consecutiveFailures: 4,
             lowPowerModeEnabled: true
+        ))
+    }
+
+    func testLowDataModeUsesASeparateAutomaticRefreshCeiling() {
+        XCTAssertEqual(
+            policy.automaticDelay(consecutiveFailures: 4, lowDataModeEnabled: true),
+            240
+        )
+        XCTAssertEqual(
+            policy.automaticDelay(consecutiveFailures: 4, lowDataModeEnabled: false),
+            120
+        )
+    }
+
+    func testConstrainedModesUseTheMoreConservativeCeiling() {
+        XCTAssertEqual(
+            policy.automaticDelay(
+                consecutiveFailures: 4,
+                lowPowerModeEnabled: true,
+                lowDataModeEnabled: true
+            ),
+            300
+        )
+        XCTAssertFalse(policy.shouldRefresh(
+            trigger: .becameActive,
+            now: baseline.addingTimeInterval(299.9),
+            lastAutomaticRefreshAt: baseline,
+            consecutiveFailures: 4,
+            lowPowerModeEnabled: true,
+            lowDataModeEnabled: true
         ))
     }
 
