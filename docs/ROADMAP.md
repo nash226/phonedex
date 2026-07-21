@@ -1539,3 +1539,14 @@ conversation projection, expose stable accessibility identifiers for task
 navigation, and retain the existing privacy-sensitive task row behavior.
 Focused model coverage confirms stable, unique conversation identities; this
 is a local presentation boundary and does not change hub history or retention.
+
+Device conversation navigation verification for the in-progress mobile polish
+slice: native device detail now exposes the latest locally cached conversation
+for each task identity owned by that Mac or Windows device. Device identity is
+authoritative when present, while older records use the existing exact
+machine-name fallback; same-named machines cannot mix tasks. Rows navigate to
+the existing task detail surface, remain privacy-sensitive, and expose stable
+accessibility identifiers. `PhoneDexDiagnosticsTests` covers latest-row
+selection and machine separation. This is local navigation over the trusted
+sync projection; it does not add server-side history, remote control, or
+private Codex Desktop state.

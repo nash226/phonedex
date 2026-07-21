@@ -13,6 +13,7 @@ struct PhoneDexDeviceDetailView: View {
                 capabilityOverview
                 details
                 visibleWork
+                conversationHistory
                 refreshAction
             }
             .padding(16)
@@ -186,6 +187,35 @@ struct PhoneDexDeviceDetailView: View {
         .accessibilityElement(children: .contain)
     }
 
+    private var conversationHistory: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Recent conversations")
+                .font(.headline)
+
+            if visibleTasks.isEmpty {
+                Label(
+                    "No conversations from this device are cached yet.",
+                    systemImage: "bubble.left.and.bubble.right"
+                )
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("device-empty-conversations")
+            } else {
+                ForEach(visibleTasks) { task in
+                    NavigationLink {
+                        PhoneDexTaskDetailView(task: task, model: model)
+                    } label: {
+                        PhoneDexTaskRow(task: task)
+                    }
+                    .accessibilityIdentifier("device-conversation-\(task.id)")
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .contain)
+    }
+
     private var refreshAction: some View {
         Button {
             Task { await model.refresh() }
@@ -198,7 +228,7 @@ struct PhoneDexDeviceDetailView: View {
     }
 
     private var visibleTasks: [PhoneDexTask] {
-        model.tasks.filter(device.owns)
+        device.conversations(from: model.tasks)
     }
 
     private var deviceRoleAndPlatform: String {

@@ -115,6 +115,30 @@ final class PhoneDexDiagnosticsTests: XCTestCase {
         XCTAssertTrue(device.adapterHealth.isActionable)
     }
 
+    func testDeviceConversationProjectionKeepsOwnedLatestRowsAndSeparatesMachines() {
+        let device = makeDevice(status: "online")
+        let tasks = [
+            makeTask(id: "older", status: "running", at: "2026-07-15T12:00:00.000Z"),
+            makeTask(id: "newer", status: "completed", at: "2026-07-15T12:01:00.000Z"),
+            PhoneDexTask(
+                id: "other-machine",
+                at: "2026-07-15T12:02:00.000Z",
+                source: "test",
+                title: "Other machine",
+                text: "Task",
+                cwd: "/workspace/phonedex",
+                workspaceName: "PhoneDex",
+                machineName: "Windows Workstation",
+                sessionId: "other",
+                status: "running",
+                branch: nil,
+                repository: nil
+            )
+        ]
+
+        XCTAssertEqual(device.conversations(from: tasks).map(\.id), ["newer", "older"])
+    }
+
     func testDeviceCapabilitiesExplainAvailableAndUnavailableActions() {
         let device = PhoneDexDevice(
             deviceId: "windows",
