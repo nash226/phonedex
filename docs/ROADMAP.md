@@ -1174,6 +1174,17 @@ detection, quarantine, fresh-load behavior, and key preservation. This does not
 claim crash-free real-device behavior; corrupted-cache recovery, notification
 actions, and cold relaunch remain part of the release-owner crash gate.
 
+Native cache decode-bound verification for the in-progress release-readiness
+slice: `PhoneDexCachedState` checks top-level task, device, event, outbox,
+receipt, notification, artifact, and presentation-metadata collection counts
+before decoding their elements. Oversized encrypted projections fail closed so
+startup can quarantine the cache instead of materializing an unbounded local
+state; valid legacy caches and the existing encrypted credential boundary are
+unchanged. `PhoneDexLocalCacheTests` covers oversized task and presentation
+metadata collections. This is a local corruption-resilience guard and does
+not claim protection from a compromised device or replace real-device crash
+validation.
+
 Notification-action outbox durability verification for the in-progress
 release-readiness slice: `PhoneDexNotificationReplyStore` treats encrypted
 cache load and save errors as a failed local action and refuses to send a

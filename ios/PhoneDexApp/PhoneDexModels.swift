@@ -23,6 +23,16 @@ enum PhoneDexNativeDecodeBounds {
     static let eventData = 32
     static let eventDataValue = 1_000
     static let syncPageItems = 100
+    static let cachedTasks = 500
+    static let cachedDevices = 100
+    static let cachedEvents = 2_000
+    static let cachedPresentationMetadata = 500
+    static let cachedPendingReplies = 20
+    static let cachedPendingLifecycleCommands = 10
+    static let cachedReplyReceipts = 50
+    static let cachedLifecycleReceipts = 50
+    static let cachedNotificationResponses = 200
+    static let cachedArtifacts = 20
 
     static func string(
         _ value: String?,
@@ -67,6 +77,66 @@ enum PhoneDexNativeDecodeBounds {
                 debugDescription: "\(key) exceeds the native display limit of \(max) items"
             ))
         }
+    }
+
+    static func array<Element: Decodable, Key: CodingKey>(
+        _ type: Element.Type,
+        from container: KeyedDecodingContainer<Key>,
+        forKey key: Key,
+        max: Int,
+        name: String,
+        decoder: Decoder
+    ) throws -> [Element] {
+        guard container.contains(key) else { return [] }
+        var nested = try container.nestedUnkeyedContainer(forKey: key)
+        guard let count = nested.count, count <= max else {
+            throw DecodingError.dataCorrupted(.init(
+                codingPath: decoder.codingPath + [key],
+                debugDescription: "\(name) exceeds the native cache limit of \(max) items"
+            ))
+        }
+        var values = [Element]()
+        values.reserveCapacity(count)
+        while !nested.isAtEnd {
+            values.append(try nested.decode(Element.self))
+        }
+        return values
+    }
+
+    static func dictionary<Value: Decodable, Key: CodingKey>(
+        _ type: Value.Type,
+        from container: KeyedDecodingContainer<Key>,
+        forKey key: Key,
+        max: Int,
+        name: String,
+        decoder: Decoder
+    ) throws -> [String: Value] {
+        guard container.contains(key) else { return [:] }
+        let nested = try container.nestedContainer(keyedBy: PhoneDexStringCodingKey.self, forKey: key)
+        guard nested.allKeys.count <= max else {
+            throw DecodingError.dataCorrupted(.init(
+                codingPath: decoder.codingPath + [key],
+                debugDescription: "\(name) exceeds the native cache limit of \(max) entries"
+            ))
+        }
+        var values = [String: Value](minimumCapacity: nested.allKeys.count)
+        for entryKey in nested.allKeys {
+            values[entryKey.stringValue] = try nested.decode(Value.self, forKey: entryKey)
+        }
+        return values
+    }
+}
+
+private struct PhoneDexStringCodingKey: CodingKey {
+    let stringValue: String
+    let intValue: Int? = nil
+
+    init?(stringValue: String) {
+        self.stringValue = stringValue
+    }
+
+    init?(intValue: Int) {
+        return nil
     }
 }
 
