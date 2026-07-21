@@ -84,6 +84,19 @@ final class PhoneDexRefreshPolicyTests: XCTestCase {
         ))
     }
 
+    func testSuccessfulCompatibilitySyncResetsAutomaticRefreshBackoff() {
+        XCTAssertTrue(PhoneDexAppModel.ConnectionState.incompatible(
+            message: "Legacy hub",
+            lastSync: baseline
+        ).supportsAutomaticRefreshReset)
+        XCTAssertTrue(PhoneDexAppModel.ConnectionState.online(baseline).supportsAutomaticRefreshReset)
+        XCTAssertFalse(PhoneDexAppModel.ConnectionState.partial(
+            .tasks,
+            message: "Devices unavailable",
+            lastSync: baseline
+        ).supportsAutomaticRefreshReset)
+    }
+
     func testFailureBackoffDelaysForegroundRefresh() {
         XCTAssertFalse(policy.shouldRefresh(
             trigger: .becameActive,

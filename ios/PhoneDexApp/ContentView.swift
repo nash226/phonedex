@@ -64,6 +64,14 @@ struct ContentView: View {
             model.loadNotificationReplyResult()
             Task { await refreshAutomatically(trigger: .becameActive) }
         }
+        .onChange(of: model.lastSuccessfulSync) { _, successfulSync in
+            guard let successfulSync else { return }
+            // Manual refreshes share the same durable success timestamp as
+            // automatic refreshes. Treating that success as a fresh baseline
+            // prevents an unnecessary retry storm and clears stale backoff.
+            lastAutomaticRefreshAt = successfulSync
+            consecutiveAutomaticRefreshFailures = 0
+        }
         .onReceive(NotificationCenter.default.publisher(for: NotificationReplyResult.didChange)) { _ in
             model.loadNotificationReplyResult()
         }
