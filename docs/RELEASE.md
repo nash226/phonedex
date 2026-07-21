@@ -96,11 +96,14 @@ performance, battery, accessibility, localization, and crash validation:
 npm run quality:verify -- --input ./quality-gates.json --output ./quality-report.json
 ```
 
-Each record contains only a stable gate id, pass/fail/not-run status, supported
+Each report also records the full checked-out source revision. Each record contains only a stable gate id, pass/fail/not-run status, supported
 platform names, a UTC validation timestamp, and a bounded evidence id. The
 validator rejects missing, duplicate, stale, future-dated, unsupported, or
 over-broad platform evidence, along with additional fields, so task content,
 credentials, paths, and screenshots cannot be smuggled into a release report.
+A report without a full source revision, or one supplied to the CLI that does
+not match the checked-out revision, fails closed. This keeps evidence tied to
+the code that produced it without storing task content or credentials.
 A passing report makes evidence reviewable;
 it does not claim that simulator checks replace real-device profiling or
 release-owner approval.
