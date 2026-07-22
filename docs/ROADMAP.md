@@ -1452,8 +1452,10 @@ over-broad-platform, and oversized reports, while
 failure paths. The validator fails closed instead of silently deduplicating or
 truncating platform claims, so a passing report cannot overstate which device
 matrices were validated. The contract is intentionally content-free and
-reports evidence readiness only; real-device execution and release-owner
-decisions remain open M8 gates.
+truncating platform claims, and binds the report to the full checked-out source
+revision so evidence from another build cannot be presented as current. The
+contract is intentionally content-free and reports evidence readiness only;
+real-device execution and release-owner decisions remain open M8 gates.
 
 Verification evidence for the completed native diagnostics export slice:
 `PhoneDexBridgeClient.fetchDiagnostics()` consumes the authenticated
