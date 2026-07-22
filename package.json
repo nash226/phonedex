@@ -92,7 +92,7 @@
     "quality:verify": "node ./scripts/quality-gates.js",
     "release:manifest": "node ./scripts/release-manifest.js",
     "release:verify": "node ./scripts/release-manifest.js --check",
-    "check": "node --check ./bin/codex-watch.js && node --check ./lib/phonedex-store.js && node --check ./lib/phonedex-sync.js && node --check ./lib/phonedex-adapter.js && node --check ./lib/phonedex-artifacts.js && node --check ./lib/phonedex-handoff.js && node --check ./lib/phonedex-lifecycle.js && node --check ./lib/phonedex-security.js && node --check ./lib/phonedex-acceptance.js && node --check ./lib/phonedex-quality-gates.js && node --check ./lib/phonedex-transport.js && node --check ./scripts/release-manifest.js && node --check ./scripts/release-signing-preflight.js && node --check ./scripts/quality-gates.js && node --check ./scripts/test-transport.js && node --check ./scripts/test-ios-crash-recovery.js"
+    "check": "node --check ./bin/codex-watch.js && node --check ./lib/phonedex-store.js && node --check ./lib/phonedex-sync.js && node --check ./lib/phonedex-adapter.js && node --check ./lib/phonedex-artifacts.js && node --check ./lib/phonedex-handoff.js && node --check ./lib/phonedex-lifecycle.js && node --check ./lib/phonedex-security.js && node --check ./lib/phonedex-acceptance.js && node --check ./lib/phonedex-quality-gates.js && node --check ./lib/phonedex-private-report.js && node --check ./lib/phonedex-transport.js && node --check ./scripts/release-manifest.js && node --check ./scripts/release-signing-preflight.js && node --check ./scripts/quality-gates.js && node --check ./scripts/test-transport.js && node --check ./scripts/test-ios-crash-recovery.js"
   },
   "engines": {
     "node": ">=18"

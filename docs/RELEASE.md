@@ -121,10 +121,11 @@ it does not claim that simulator checks replace real-device profiling or
 release-owner approval.
 
 Both validators print the normalized report and, when `--output` is supplied,
-write the same content-free JSON to that path with restrictive local file
-permissions. A failed validation still writes its report before returning a
-non-zero exit code, so CI can preserve actionable evidence without treating a
-failed gate as a release approval.
+write the same content-free JSON atomically with restrictive local file
+permissions. They refuse symbolic-link destinations, so a report cannot be
+redirected into an unintended file through a symlink. A failed validation still
+writes its report before returning a non-zero exit code, so CI can preserve
+actionable evidence without treating a failed gate as a release approval.
 
 The crash gate also has a native runtime regression: the
 `PhoneDexAppModelRecoveryTests` unit test injects a failing encrypted-cache

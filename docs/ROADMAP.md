@@ -1052,8 +1052,10 @@ same normalized, content-free report they print. Passing and failing reports
 are both retained for CI review, with restrictive local file permissions and a
 non-zero exit code preserved for failed validation. `scripts/test-evidence-
 report-cli.js` covers both validators, output parity, and failed-report
-persistence; this improves evidence handoff without marking any real-device or
-release-owner gate complete.
+persistence. Report writes are atomic and reject symbolic-link destinations,
+preventing an evidence handoff from following an unintended local path while
+preserving failed-report output. This improves evidence handoff without
+marking any real-device or release-owner gate complete.
 
 Performance verification for the in-progress release-readiness slice:
 `PhoneDexDiffTests.testFiveThousandLineReviewPathStaysWithinInteractiveOpenBudget`

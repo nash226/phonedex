@@ -50,6 +50,16 @@ try {
   const failed = run("quality-gates.js", failedInput, failedOutput, now);
   assert.equal(failed.status, 1);
   assert.equal(JSON.parse(fs.readFileSync(failedOutput, "utf8")).ok, false);
+
+  const symlinkTarget = path.join(root, "symlink-target.json");
+  const symlinkOutput = path.join(root, "symlink-report.json");
+  fs.writeFileSync(symlinkTarget, "keep this file unchanged\n");
+  fs.symlinkSync(symlinkTarget, symlinkOutput);
+  const symlinked = run("quality-gates.js", qualityInput, symlinkOutput, now);
+  assert.equal(symlinked.status, 2);
+  assert.match(symlinked.stderr, /symbolic link/);
+  assert.equal(fs.readFileSync(symlinkTarget, "utf8"), "keep this file unchanged\n");
+  assert.equal(fs.readlinkSync(symlinkOutput), symlinkTarget);
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
 }

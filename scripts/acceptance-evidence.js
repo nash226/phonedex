@@ -5,6 +5,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { DEFAULT_MAX_AGE_DAYS, evaluateAcceptanceEvidence } = require("../lib/phonedex-acceptance");
+const { writePrivateReport } = require("../lib/phonedex-private-report");
 
 const flags = parseFlags(process.argv.slice(2));
 if (!flags.input) {
@@ -21,9 +22,7 @@ if (!flags.input) {
     const serialized = `${JSON.stringify(report, null, 2)}\n`;
     process.stdout.write(serialized);
     if (flags.output) {
-      const outputPath = path.resolve(flags.output);
-      fs.writeFileSync(outputPath, serialized, { mode: 0o600 });
-      fs.chmodSync(outputPath, 0o600);
+      writePrivateReport(flags.output, serialized);
     }
     if (!report.ok) process.exitCode = 1;
   } catch (error) {
