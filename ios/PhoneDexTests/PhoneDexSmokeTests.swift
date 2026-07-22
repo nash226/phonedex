@@ -63,6 +63,25 @@ final class PhoneDexSmokeTests: XCTestCase {
         XCTAssertEqual(PhoneDexTranscriptEntry(id: "unknown", role: "future-role", text: "Response").displayRole, "Codex")
     }
 
+    func testTranscriptAccessibilityTextPreservesContentAndBoundsProgrammaticEntries() {
+        let entry = PhoneDexTranscriptEntry(
+            id: "assistant",
+            role: "assistant",
+            text: "  The focused tests passed.  "
+        )
+        XCTAssertEqual(entry.accessibilityText, "The focused tests passed.")
+
+        let empty = PhoneDexTranscriptEntry(id: "empty", role: "assistant", text: " \n\t")
+        XCTAssertEqual(empty.accessibilityText, "No message text exported.")
+
+        let oversized = PhoneDexTranscriptEntry(
+            id: "large",
+            role: "assistant",
+            text: String(repeating: "x", count: PhoneDexNativeDecodeBounds.transcriptEntry + 100)
+        )
+        XCTAssertEqual(oversized.accessibilityText.count, PhoneDexNativeDecodeBounds.transcriptEntry)
+    }
+
     func testDuplicateNotificationResultSurvivesPersistenceAsNeutralOutcome() {
         let defaults = UserDefaults.standard
         let keys = [
