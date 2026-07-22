@@ -1112,6 +1112,16 @@ boundary. This protects native support recovery from malformed or unexpectedly
 large Mac or Windows hub projections without changing the content-free
 diagnostics contract or claiming real-device performance evidence.
 
+Diagnostics scalar-bound verification for the in-progress release-readiness
+slice: `PhoneDexDiagnosticsSnapshot` now rejects oversized service, route,
+correlation, error, capability, and component-state strings, as well as
+negative or unbounded request, latency, and aggregate metric values, before
+native support UI or ShareLink presentation. `PhoneDexDiagnosticsTests` covers
+oversized route data and invalid metric ranges. This keeps malformed Mac or
+Windows diagnostics from creating unbounded display work or misleading
+support summaries; it remains a local decode guard and does not claim that
+real-device crash or outage validation is complete.
+
 Battery verification for the in-progress release-readiness slice:
 `PhoneDexRefreshPolicy` limits automatic refreshes triggered by app launch and
 returning to the foreground to one request per 30 seconds after a healthy sync,

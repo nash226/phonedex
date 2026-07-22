@@ -35,6 +35,19 @@ final class PhoneDexDiagnosticsTests: XCTestCase {
         XCTAssertThrowsError(try JSONDecoder().decode(PhoneDexDiagnosticsSnapshot.self, from: data))
     }
 
+    func testDiagnosticsRejectOversizedScalarFieldsBeforeNativePresentation() {
+        let oversizedRoute = String(repeating: "r", count: PhoneDexDiagnosticsSnapshot.maxRouteLength + 1)
+        let payload = #"{"schema":"phonedex.diagnostics.v1","generatedAt":"2026-07-17T00:00:00Z","startedAt":"2026-07-16T00:00:00Z","service":"watchdex","role":"hub","version":"0.1.0","protocolVersion":1,"components":{"hub":"healthy"},"metrics":{"requests":0,"failures":0,"commands":0,"routes":{"# + oversizedRoute + #":{"requests":0,"failures":0,"averageLatencyMs":0}}},"recentRequests":[],"capabilities":[]}"#
+
+        XCTAssertThrowsError(try JSONDecoder().decode(PhoneDexDiagnosticsSnapshot.self, from: Data(payload.utf8)))
+    }
+
+    func testDiagnosticsRejectNegativeOrUnboundedMetricValues() {
+        let payload = #"{"schema":"phonedex.diagnostics.v1","generatedAt":"2026-07-17T00:00:00Z","startedAt":"2026-07-16T00:00:00Z","service":"watchdex","role":"hub","version":"0.1.0","protocolVersion":1,"components":{"hub":"healthy"},"metrics":{"requests":-1,"failures":0,"commands":0,"routes":{}},"recentRequests":[],"capabilities":[]}"#
+
+        XCTAssertThrowsError(try JSONDecoder().decode(PhoneDexDiagnosticsSnapshot.self, from: Data(payload.utf8)))
+    }
+
     func testDeviceHealthMapsProtocolStatesAndUnknownValues() {
         XCTAssertEqual(PhoneDexDeviceHealth(status: "online"), .online)
         XCTAssertEqual(PhoneDexDeviceHealth(status: "stale"), .stale)
