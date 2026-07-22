@@ -1154,6 +1154,15 @@ refresh and parsing work while iOS is protecting device temperature; it does
 not claim background execution, continuous delivery, or real-device thermal
 measurements, which remain release-owner gates.
 
+Refresh-guidance verification for the in-progress release-readiness slice:
+native Settings explains that foreground automatic refreshes are intentionally
+bounded, that Low Power Mode and thermal pressure can defer them, and that
+pull-to-refresh plus Test Connection remain immediate. The copy uses stable
+localization keys with English fallbacks and keeps cached conversations as the
+recovery path; `PhoneDexRefreshPolicyTests` covers the user-facing fallback
+contract. This makes battery behavior discoverable without claiming background
+sync, APNs delivery, or real-device battery measurements.
+
 Network reliability verification for the in-progress release-readiness slice:
 all native bridge operations, including authenticated reply delivery, use the
 same bounded 15-second request timeout. This prevents a stalled Mac or Windows

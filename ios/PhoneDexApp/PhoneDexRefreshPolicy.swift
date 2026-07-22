@@ -1,5 +1,12 @@
 import Foundation
 
+enum PhoneDexRefreshCopy {
+    static let header = String(localized: "refresh.policy.header", defaultValue: "Refresh behavior", comment: "Settings section explaining automatic and manual PhoneDex refresh behavior.")
+    static let summary = String(localized: "refresh.policy.summary", defaultValue: "PhoneDex refreshes when you open the app or return to it. Pull to refresh and Test Connection always run immediately.", comment: "Short explanation of foreground-only refresh behavior and immediate manual refresh.")
+    static let lowPower = String(localized: "refresh.policy.lowPower", defaultValue: "Low Power Mode spaces out automatic refreshes to protect battery.", comment: "Settings explanation for Low Power Mode refresh behavior.")
+    static let thermal = String(localized: "refresh.policy.thermal", defaultValue: "When iPhone is warm, automatic refreshes back off temporarily. Your cached conversations remain available.", comment: "Settings explanation for thermal refresh backoff and local-first cached data.")
+}
+
 /// Controls automatic foreground refreshes without delaying user-requested refreshes.
 struct PhoneDexRefreshPolicy: Equatable {
     enum ThermalState: Equatable {

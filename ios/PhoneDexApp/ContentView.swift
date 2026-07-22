@@ -2371,6 +2371,25 @@ private struct PhoneDexSettingsView: View {
                 }
 
                 Section {
+                    Text(PhoneDexRefreshCopy.summary)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Label(PhoneDexRefreshCopy.lowPower, systemImage: "battery.75")
+                        .font(.footnote)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Label(PhoneDexRefreshCopy.thermal, systemImage: "thermometer.medium")
+                        .font(.footnote)
+                        .fixedSize(horizontal: false, vertical: true)
+                } header: {
+                    Text(PhoneDexRefreshCopy.header)
+                } footer: {
+                    Text("Manual refresh does not wait for the automatic refresh interval.")
+                }
+
+                Section {
                     Toggle("Require Face ID or passcode", isOn: $settings.requireApprovalAuthentication)
                         .accessibilityIdentifier("Require Face ID or passcode")
                         .accessibilityHint("Protects approval and rejection decisions with device authentication before they are sent.")
