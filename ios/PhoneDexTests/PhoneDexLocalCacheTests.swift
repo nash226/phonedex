@@ -2,6 +2,19 @@ import XCTest
 @testable import PhoneDex
 
 final class PhoneDexLocalCacheTests: XCTestCase {
+    func testPresentationMetadataPrunesTaskIDsOutsideTrustedProjection() {
+        let kept = Set(["current"])
+
+        XCTAssertEqual(
+            PhoneDexPresentationMetadataPolicy.prune(["current": "draft", "removed": "old"], keeping: kept),
+            ["current": "draft"]
+        )
+        XCTAssertEqual(
+            PhoneDexPresentationMetadataPolicy.prune(["current": Date(timeIntervalSince1970: 1), "removed": Date(timeIntervalSince1970: 2)], keeping: kept),
+            ["current": Date(timeIntervalSince1970: 1)]
+        )
+    }
+
     func testDefaultCachePathUsesApplicationSupportWhenAvailable() {
         let path = PhoneDexEncryptedCache.defaultFileURL()
 
