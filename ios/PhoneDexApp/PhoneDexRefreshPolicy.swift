@@ -2,6 +2,21 @@ import Foundation
 
 /// Controls automatic foreground refreshes without delaying user-requested refreshes.
 struct PhoneDexRefreshPolicy: Equatable {
+    enum ThermalState: Equatable {
+        case nominal
+        case fair
+        case serious
+        case critical
+
+        var refreshMultiplier: Double {
+            switch self {
+            case .nominal, .fair: return 1
+            case .serious: return 2
+            case .critical: return 4
+            }
+        }
+    }
+
     enum Trigger: Equatable {
         case initialLaunch
         case becameActive
@@ -43,21 +58,24 @@ struct PhoneDexRefreshPolicy: Equatable {
         lastAutomaticRefreshAt: Date?,
         consecutiveFailures: Int = 0,
         jitter: Double = 0,
-        lowPowerModeEnabled: Bool = false
+        lowPowerModeEnabled: Bool = false,
+        thermalState: ThermalState = .nominal
     ) -> Bool {
         if trigger == .initialLaunch { return true }
         guard let lastAutomaticRefreshAt else { return true }
         return now.timeIntervalSince(lastAutomaticRefreshAt) >= automaticDelay(
             consecutiveFailures: consecutiveFailures,
             jitter: jitter,
-            lowPowerModeEnabled: lowPowerModeEnabled
+            lowPowerModeEnabled: lowPowerModeEnabled,
+            thermalState: thermalState
         )
     }
 
     func automaticDelay(
         consecutiveFailures: Int,
         jitter: Double = 0,
-        lowPowerModeEnabled: Bool = false
+        lowPowerModeEnabled: Bool = false,
+        thermalState: ThermalState = .nominal
     ) -> TimeInterval {
         let exponent = min(max(0, consecutiveFailures), 8)
         let exponentialDelay = automaticMinimumInterval * pow(2, Double(exponent))
@@ -65,10 +83,14 @@ struct PhoneDexRefreshPolicy: Equatable {
             ? lowPowerModeMaximumInterval
             : automaticMaximumInterval
         let boundedDelay = min(maximumInterval, exponentialDelay)
+        let thermalDelay = min(
+            lowPowerModeMaximumInterval * 2,
+            boundedDelay * thermalState.refreshMultiplier
+        )
         let boundedJitter = consecutiveFailures > 0
             ? min(max(-1, jitter), 1) * jitterFraction
             : 0
-        return boundedDelay * (1 + boundedJitter)
+        return thermalDelay * (1 + boundedJitter)
     }
 }
 
