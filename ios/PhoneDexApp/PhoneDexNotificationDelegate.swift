@@ -102,12 +102,13 @@ final class PhoneDexNotificationDelegate: NSObject, UNUserNotificationCenterDele
                 expectedTaskVersion: expectedTaskVersion
             )
             if receipt.isSuccessful {
-                _ = replyStore.complete(pending, responseKey: responseKey)
+                _ = replyStore.complete(pending, responseKey: responseKey, receipt: receipt)
                 NotificationReplyResult.record(.sent(receipt.message ?? prompt))
             } else if receipt.state == "expired" {
-                _ = replyStore.complete(pending, responseKey: responseKey)
+                _ = replyStore.complete(pending, responseKey: responseKey, receipt: receipt)
                 NotificationReplyResult.record(.failed("This notification expired. Open PhoneDex to review the latest task."))
             } else {
+                _ = replyStore.record(receipt: receipt, for: pending)
                 NotificationReplyResult.record(.failed(receipt.message ?? "The reply remains queued for retry."))
             }
         } catch {
@@ -191,7 +192,12 @@ struct PhoneDexNotificationReplyStore {
     }
 
     @discardableResult
-    func complete(_ pending: PhoneDexPendingReply, responseKey: String, at date: Date = Date()) -> Bool {
+    func complete(
+        _ pending: PhoneDexPendingReply,
+        responseKey: String,
+        receipt: PhoneDexReplyReceipt? = nil,
+        at date: Date = Date()
+    ) -> Bool {
         let existing: PhoneDexCachedState
         do {
             existing = try cache.load() ?? PhoneDexCachedState(
@@ -208,10 +214,33 @@ struct PhoneDexNotificationReplyStore {
         var handled = existing.handledNotificationResponses
         handled[responseKey] = date
         trimHandled(&handled, now: date)
+        var receipts = existing.replyReceipts
+        if let receipt {
+            let record = PhoneDexReplyDeliveryRecord(receipt: receipt, pending: pending, recordedAt: date)
+            receipts.removeAll { $0.id == record.id }
+            receipts.insert(record, at: 0)
+            if receipts.count > 50 {
+                receipts.removeLast(receipts.count - 50)
+            }
+        }
         return save(existing.replacingNotificationState(
             pendingReplies: pendingReplies,
+            replyReceipts: receipts,
             handledNotificationResponses: handled
         ))
+    }
+
+    @discardableResult
+    func record(receipt: PhoneDexReplyReceipt, for pending: PhoneDexPendingReply, at date: Date = Date()) -> Bool {
+        guard let existing = try? cache.load() else { return false }
+        let record = PhoneDexReplyDeliveryRecord(receipt: receipt, pending: pending, recordedAt: date)
+        var receipts = existing.replyReceipts
+        receipts.removeAll { $0.id == record.id }
+        receipts.insert(record, at: 0)
+        if receipts.count > 50 {
+            receipts.removeLast(receipts.count - 50)
+        }
+        return save(existing.replacingNotificationState(replyReceipts: receipts))
     }
 
     @discardableResult

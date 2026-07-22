@@ -443,6 +443,41 @@ final class PhoneDexLocalCacheTests: XCTestCase {
         XCTAssertTrue(store.remove(pending))
     }
 
+    func testNotificationReplyStoreReconcilesNonTerminalReceiptWithoutDroppingRetry() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("PhoneDexNotificationReceiptTests-\(UUID().uuidString)", isDirectory: true)
+        let cache = PhoneDexEncryptedCache(
+            fileURL: root.appendingPathComponent("cache.bin"),
+            keyStore: InMemoryCacheKeyStore()
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let pending = pendingReply(id: "notification", prompt: "Continue", createdAt: Date(timeIntervalSince1970: 2))
+        try cache.save(PhoneDexCachedState(cursor: "cursor", tasks: [], devices: [], lastSyncAt: nil, pendingReplies: [pending]))
+        let receipt = PhoneDexReplyReceipt(
+            schema: "phonedex.command-receipt.v1",
+            protocolVersion: 1,
+            commandId: pending.commandId,
+            createdAt: "2026-07-21T12:00:00.000Z",
+            state: "rejected",
+            taskId: pending.taskId,
+            taskVersion: pending.expectedTaskVersion,
+            idempotencyKey: pending.idempotencyKey,
+            message: "The agent rejected this reply.",
+            duplicateOf: nil,
+            approvalId: nil,
+            approvalState: nil,
+            approvalExpiresAt: nil
+        )
+
+        let store = PhoneDexNotificationReplyStore(cache: cache)
+        XCTAssertTrue(store.record(receipt: receipt, for: pending, at: Date(timeIntervalSince1970: 4)))
+        let restored = try XCTUnwrap(cache.load())
+        XCTAssertEqual(restored.pendingReplies, [pending])
+        XCTAssertEqual(restored.replyReceipts.first?.state, "rejected")
+        XCTAssertEqual(restored.replyReceipts.first?.taskId, pending.taskId)
+    }
+
     func testNotificationActionIdentityChangesWithTaskVersion() {
         let firstResponse = PhoneDexNotificationDelegate.notificationResponseKey(
             notificationID: "task-1",
