@@ -126,7 +126,8 @@ struct ContentView: View {
             lastAutomaticRefreshAt: lastAutomaticRefreshAt,
             consecutiveFailures: consecutiveAutomaticRefreshFailures,
             jitter: Double.random(in: -1...1),
-            lowPowerModeEnabled: ProcessInfo.processInfo.isLowPowerModeEnabled
+            lowPowerModeEnabled: ProcessInfo.processInfo.isLowPowerModeEnabled,
+            thermalState: PhoneDexRefreshPolicy.ThermalState(processInfo: ProcessInfo.processInfo.thermalState)
         ) else { return }
 
         await model.refresh()
@@ -135,6 +136,18 @@ struct ContentView: View {
             consecutiveAutomaticRefreshFailures = 0
         } else {
             consecutiveAutomaticRefreshFailures += 1
+        }
+    }
+}
+
+private extension PhoneDexRefreshPolicy.ThermalState {
+    init(processInfo state: ProcessInfo.ThermalState) {
+        switch state {
+        case .nominal: self = .nominal
+        case .fair: self = .fair
+        case .serious: self = .serious
+        case .critical: self = .critical
+        @unknown default: self = .serious
         }
     }
 }

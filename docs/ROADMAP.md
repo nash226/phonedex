@@ -1124,6 +1124,15 @@ foreground network and parsing work without pretending that a background
 refresh or APNs provider exists; real-device battery profiling remains required
 before the M8 battery gate can be checked off.
 
+Thermal-pressure verification for the in-progress release-readiness slice:
+automatic foreground refreshes now apply a bounded two-times delay under
+serious thermal pressure and a four-times delay under critical pressure, while
+initial launch and explicit user refreshes remain immediate. Unknown future
+thermal states fail toward the conservative serious policy. This reduces
+refresh and parsing work while iOS is protecting device temperature; it does
+not claim background execution, continuous delivery, or real-device thermal
+measurements, which remain release-owner gates.
+
 Network reliability verification for the in-progress release-readiness slice:
 all native bridge operations, including authenticated reply delivery, use the
 same bounded 15-second request timeout. This prevents a stalled Mac or Windows

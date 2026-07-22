@@ -84,6 +84,33 @@ final class PhoneDexRefreshPolicyTests: XCTestCase {
         ))
     }
 
+    func testThermalPressureBacksOffAutomaticRefreshesWithoutChangingInitialRefreshes() {
+        XCTAssertEqual(
+            policy.automaticDelay(consecutiveFailures: 0, thermalState: .serious),
+            60,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            policy.automaticDelay(consecutiveFailures: 0, thermalState: .critical),
+            120,
+            accuracy: 0.001
+        )
+        XCTAssertTrue(policy.shouldRefresh(
+            trigger: .initialLaunch,
+            now: baseline,
+            lastAutomaticRefreshAt: baseline.addingTimeInterval(1),
+            thermalState: .critical
+        ))
+    }
+
+    func testFairThermalStateKeepsNormalRefreshCadence() {
+        XCTAssertEqual(
+            policy.automaticDelay(consecutiveFailures: 0, thermalState: .fair),
+            policy.automaticMinimumInterval,
+            accuracy: 0.001
+        )
+    }
+
     func testSuccessfulCompatibilitySyncResetsAutomaticRefreshBackoff() {
         XCTAssertTrue(PhoneDexAppModel.ConnectionState.incompatible(
             message: "Legacy hub",
