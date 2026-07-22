@@ -84,7 +84,7 @@ final class PhoneDexChatFilteringTests: XCTestCase {
 
         XCTAssertEqual(
             PhoneDexTaskFilter(scope: .needsYou).filteredTasks(tasks).map(\.id),
-            ["question", "approval"]
+            ["approval", "question"]
         )
         XCTAssertEqual(
             PhoneDexTaskFilter(scope: .running).filteredTasks(tasks).map(\.id),
@@ -93,6 +93,33 @@ final class PhoneDexChatFilteringTests: XCTestCase {
         XCTAssertEqual(
             PhoneDexTaskFilter(scope: .recent).filteredTasks(tasks).map(\.id),
             ["complete", "legacy"]
+        )
+    }
+
+    func testNeedsYouPrioritizesConsequentialStatesThenFreshness() {
+        let tasks = [
+            task("old-failure", status: "failed", at: "2026-07-15T12:05:00.000Z"),
+            task("new-review", status: "needs_review", at: "2026-07-15T12:04:00.000Z"),
+            task("old-approval", status: "awaiting_approval", at: "2026-07-15T12:01:00.000Z"),
+            task("new-input", status: "needs_input", at: "2026-07-15T12:03:00.000Z"),
+            task("new-approval", status: "awaiting_approval", at: "2026-07-15T12:02:00.000Z")
+        ]
+
+        XCTAssertEqual(
+            PhoneDexTaskFilter(scope: .needsYou).filteredTasks(tasks).map(\.id),
+            ["new-approval", "old-approval", "new-input", "new-review", "old-failure"]
+        )
+    }
+
+    func testNeedsYouUsesTaskIDToBreakMalformedOrEqualDateTies() {
+        let tasks = [
+            task("z-failure", status: "failed", at: "not-a-date"),
+            task("a-failure", status: "failed", at: "not-a-date")
+        ]
+
+        XCTAssertEqual(
+            PhoneDexTaskFilter(scope: .needsYou).filteredTasks(tasks).map(\.id),
+            ["a-failure", "z-failure"]
         )
     }
 

@@ -1452,6 +1452,14 @@ This keeps Needs You focused on actionable lifecycle state while giving users
 the triage affordance required by TASK-05; cross-device read synchronization
 remains intentionally out of scope.
 
+Needs You ordering verification: the native Chats projection now puts pending
+approval decisions first, followed by direct questions, review-ready work, and
+failures. Each group is ordered by its latest known update, with a stable task
+identifier tie-breaker for malformed or equal timestamps. This is local
+presentation ordering only: it does not change task state, command behavior,
+sync order, or notification delivery. `PhoneDexChatFilteringTests` covers the
+priority order, freshness, and deterministic tie-breaker.
+
 Local archive and mute verification: Chats now persists per-task archive and
 mute timestamps in the encrypted local cache, excludes both states from the
 default Active presentation, and offers explicit Archived and Muted recovery
