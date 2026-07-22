@@ -93,11 +93,14 @@ npm run acceptance:verify -- --input ./acceptance-evidence.json --output ./accep
 ```
 
 Each scenario record contains only its stable id, pass/fail/not-run status,
-supported platform names, and a recent UTC validation timestamp. The validator
-rejects missing, duplicate, unknown, stale, future-dated, unsupported-platform,
-and oversized reports. A passing report proves only that the evidence is
-complete and current enough to review; it does not replace real-device
-execution, signing, TestFlight, APNs, privacy, or release-owner approval.
+supported platform names, and a recent UTC validation timestamp. The report is
+also bound to the full checked-out source revision; the CLI fills that value
+from GitHub or the local checkout and rejects a supplied value that does not
+match. The validator rejects missing, duplicate, unknown, stale, future-dated,
+unsupported-platform, and oversized reports. A passing report proves only that
+the evidence is complete, current enough to review, and tied to the checked-out
+source; it does not replace real-device execution, signing, TestFlight, APNs,
+privacy, or release-owner approval.
 
 The combined M8 quality gate has a separate content-free evidence contract for
 performance, battery, accessibility, localization, and crash validation:

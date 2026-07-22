@@ -31,7 +31,7 @@ try {
 
   const acceptanceInput = path.join(root, "acceptance-input.json");
   const acceptanceOutput = path.join(root, "acceptance-report.json");
-  fs.writeFileSync(acceptanceInput, JSON.stringify({ scenarios: REQUIRED_SCENARIOS.map((id) => ({
+  fs.writeFileSync(acceptanceInput, JSON.stringify({ sourceRevision: process.env.GITHUB_SHA, scenarios: REQUIRED_SCENARIOS.map((id) => ({
     id,
     status: "pass",
     platforms: ["ios"],
@@ -43,6 +43,14 @@ try {
   assert.deepEqual(JSON.parse(fs.readFileSync(acceptanceOutput, "utf8")), JSON.parse(acceptance.stdout));
   assert.equal(JSON.parse(fs.readFileSync(acceptanceOutput, "utf8")).ok, true);
   assert.equal(fs.statSync(acceptanceOutput).mode & 0o777, 0o600);
+  assert.match(JSON.parse(fs.readFileSync(acceptanceOutput, "utf8")).sourceRevision, /^[0-9a-f]{40,64}$/);
+
+  const mismatchedAcceptanceInput = path.join(root, "mismatched-acceptance-input.json");
+  const mismatchedAcceptanceOutput = path.join(root, "mismatched-acceptance-report.json");
+  fs.writeFileSync(mismatchedAcceptanceInput, JSON.stringify({ sourceRevision: "0000000000000000000000000000000000000000", scenarios: [] }));
+  const mismatchedAcceptance = run("acceptance-evidence.js", mismatchedAcceptanceInput, mismatchedAcceptanceOutput, now);
+  assert.equal(mismatchedAcceptance.status, 2);
+  assert.match(mismatchedAcceptance.stderr, /does not match the checked-out revision/);
 
   const failedInput = path.join(root, "failed-quality-input.json");
   const failedOutput = path.join(root, "failed-quality-report.json");
