@@ -292,6 +292,11 @@ private struct PhoneDexMetric: View {
 struct PhoneDexWorkspaceDetailView: View {
     let project: PhoneDexProject
     @ObservedObject var model: PhoneDexAppModel
+    @State private var showingCreateTask = false
+
+    private var createTaskDevices: [PhoneDexDevice] {
+        PhoneDexWorkspaceTaskTarget.availableDevices(for: project, devices: model.devices)
+    }
 
     var body: some View {
         List {
@@ -324,6 +329,31 @@ struct PhoneDexWorkspaceDetailView: View {
                         }
                     }
                 }
+
+                if createTaskDevices.isEmpty {
+                    Label {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Starting work is unavailable")
+                                .font(.subheadline.weight(.medium))
+                            Text("An online Mac or Windows agent must advertise this workspace and task creation.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    } icon: {
+                        Image(systemName: "pause.circle")
+                            .foregroundStyle(.secondary)
+                    }
+                    .accessibilityElement(children: .combine)
+                } else {
+                    Button {
+                        showingCreateTask = true
+                    } label: {
+                        Label("Start a task here", systemImage: "plus.circle.fill")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityHint("Choose an advertised machine and enter a prompt")
+                }
             } header: {
                 PhoneDexConnectionHeader(state: model.connectionState)
             }
@@ -351,6 +381,103 @@ struct PhoneDexWorkspaceDetailView: View {
                 }
                 .accessibilityLabel("Refresh workspace")
                 .disabled(model.connectionState == .syncing)
+            }
+        }
+        .sheet(isPresented: $showingCreateTask) {
+            PhoneDexWorkspaceCreateTaskView(project: project, devices: createTaskDevices, model: model)
+        }
+    }
+}
+
+enum PhoneDexWorkspaceTaskTarget {
+    static func availableDevices(for project: PhoneDexProject, devices: [PhoneDexDevice]) -> [PhoneDexDevice] {
+        devices
+            .filter { device in
+                device.isOnline &&
+                    device.supportsCapability("task.create.v1") &&
+                    device.workspaces.contains(project.name) &&
+                    project.machineNames.contains(device.displayName)
+            }
+            .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
+    }
+}
+
+private struct PhoneDexWorkspaceCreateTaskView: View {
+    @Environment(\.dismiss) private var dismiss
+    let project: PhoneDexProject
+    let devices: [PhoneDexDevice]
+    @ObservedObject var model: PhoneDexAppModel
+    @State private var selectedDeviceID: String
+    @State private var prompt = ""
+
+    init(project: PhoneDexProject, devices: [PhoneDexDevice], model: PhoneDexAppModel) {
+        self.project = project
+        self.devices = devices
+        self.model = model
+        _selectedDeviceID = State(initialValue: devices.first?.deviceId ?? "")
+    }
+
+    private var selectedDevice: PhoneDexDevice? {
+        devices.first { $0.deviceId == selectedDeviceID } ?? devices.first
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Picker("Machine", selection: $selectedDeviceID) {
+                        ForEach(devices) { device in
+                            Text(device.displayName).tag(device.deviceId)
+                        }
+                    }
+                    LabeledContent("Workspace", value: project.name)
+                } header: {
+                    Text("Where should this run?")
+                } footer: {
+                    Text("PhoneDex only offers this workspace on agents that advertise it.")
+                }
+
+                Section("Prompt") {
+                    TextField("Ask Codex to…", text: $prompt, axis: .vertical)
+                        .lineLimit(4...10)
+                        .textInputAutocapitalization(.sentences)
+                        .accessibilityLabel("Task prompt")
+                }
+
+                if case .failed(let message) = model.lifecycleState {
+                    Label(message, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                        .accessibilityElement(children: .combine)
+                }
+            }
+            .navigationTitle("Start in \(project.name)")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button {
+                        Task {
+                            guard let selectedDevice else { return }
+                            if await model.createTask(
+                                deviceId: selectedDevice.deviceId,
+                                workspaceName: project.name,
+                                prompt: prompt
+                            ) {
+                                dismiss()
+                            }
+                        }
+                    } label: {
+                        if case .sending = model.lifecycleState {
+                            ProgressView()
+                        } else {
+                            Text("Start")
+                        }
+                    }
+                    .disabled(selectedDevice == nil || prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.lifecycleState == .sending)
+                    .accessibilityLabel("Start task")
+                }
             }
         }
     }

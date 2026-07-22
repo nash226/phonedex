@@ -322,6 +322,44 @@ final class PhoneDexSmokeTests: XCTestCase {
         XCTAssertNotEqual(first.projectID, second.projectID)
     }
 
+    func testWorkspaceTaskTargetsRequireAdvertisedOnlineCapabilityAndMachineIdentity() throws {
+        let task = try decodeTask(
+            id: "task_workspace",
+            cwd: "/Users/example/PhoneDex",
+            machineName: "MacBook Pro"
+        )
+        let project = PhoneDexProject(tasks: [task])
+        let capability = PhoneDexCapability(
+            capabilityId: "task.create",
+            version: "1",
+            scope: "agent",
+            supported: true
+        )
+        let eligible = PhoneDexDevice(
+            deviceId: "mac-1", machineName: "MacBook Pro", platform: "macos",
+            role: "agent", status: "online", lastSeenAt: nil, version: "1",
+            publicUrl: nil, expected: true, capabilityDetails: [capability],
+            workspaces: ["PhoneDex"]
+        )
+        let offline = PhoneDexDevice(
+            deviceId: "mac-2", machineName: "MacBook Pro", platform: "macos",
+            role: "agent", status: "offline", lastSeenAt: nil, version: "1",
+            publicUrl: nil, expected: true, capabilityDetails: [capability],
+            workspaces: ["PhoneDex"]
+        )
+        let otherWorkspace = PhoneDexDevice(
+            deviceId: "mac-3", machineName: "MacBook Pro", platform: "macos",
+            role: "agent", status: "online", lastSeenAt: nil, version: "1",
+            publicUrl: nil, expected: true, capabilityDetails: [capability],
+            workspaces: ["Other"]
+        )
+
+        XCTAssertEqual(
+            PhoneDexWorkspaceTaskTarget.availableDevices(for: project, devices: [offline, otherWorkspace, eligible]).map(\.deviceId),
+            ["mac-1"]
+        )
+    }
+
     func testWindowsPathsProduceTheExpectedProjectName() throws {
         let task = try decodeTask(
             id: "task_windows",
