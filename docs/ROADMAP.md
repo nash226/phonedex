@@ -895,6 +895,17 @@ surfaces from regression. This is implementation evidence only; the release
 owner still must approve the final privacy policy, disclosures, and real-device
 validation gates.
 
+Localization-readiness verification for the in-progress release-readiness
+slice: `scripts/test-ios-localization-contract.js` scans the native app and
+notification extension production sources, rejects legacy `NSLocalizedString`
+usage, and requires every explicit `String(localized:)` key to have a bounded
+namespaced key, an English fallback, and translator context. SwiftUI's native
+`Text`, `Label`, and control initializers remain extractable localization keys;
+dynamic task content continues to use verbatim/display values and is not
+treated as translatable copy. This is a source-contract gate, not evidence that
+PhoneDex has shipped translated catalogs or passed real-device layout checks;
+those remain part of the release-owner localization gate.
+
 Local cache-reset verification: Settings provides a confirmation-gated local
 cache reset that atomically writes an empty encrypted projection before
 clearing the in-memory tasks, drafts, receipts, offline commands, diagnostics,
