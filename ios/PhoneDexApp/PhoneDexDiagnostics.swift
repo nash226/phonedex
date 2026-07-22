@@ -5,11 +5,49 @@ struct PhoneDexDiagnosticsSnapshot: Codable, Equatable {
     static let maxRouteMetrics = 64
     static let maxRecentRequests = 50
     static let maxCapabilities = 64
+    static let maxSchemaLength = 80
+    static let maxTimestampLength = 64
+    static let maxServiceLength = 80
+    static let maxRoleLength = 80
+    static let maxVersionLength = 80
+    static let maxComponentKeyLength = 80
+    static let maxComponentStateLength = 40
+    static let maxRouteLength = 120
+    static let maxCorrelationIDLength = 160
+    static let maxErrorClassLength = 160
+    static let maxCapabilityIDLength = 120
+    static let maxMetricValue = 1_000_000_000
 
     struct RouteMetric: Codable, Equatable {
         let requests: Int
         let failures: Int
         let averageLatencyMs: Int
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            requests = try Self.decodeMetric(.requests, from: container, decoder: decoder)
+            failures = try Self.decodeMetric(.failures, from: container, decoder: decoder)
+            averageLatencyMs = try Self.decodeMetric(.averageLatencyMs, from: container, decoder: decoder)
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requests, failures, averageLatencyMs
+        }
+
+        private static func decodeMetric(
+            _ key: CodingKeys,
+            from container: KeyedDecodingContainer<CodingKeys>,
+            decoder: Decoder
+        ) throws -> Int {
+            let value = try container.decode(Int.self, forKey: key)
+            guard (0...PhoneDexDiagnosticsSnapshot.maxMetricValue).contains(value) else {
+                throw DecodingError.dataCorrupted(.init(
+                    codingPath: decoder.codingPath,
+                    debugDescription: "Diagnostics metric \(key.stringValue) is outside its supported range."
+                ))
+            }
+            return value
+        }
     }
 
     struct Request: Codable, Equatable, Identifiable {
@@ -19,6 +57,58 @@ struct PhoneDexDiagnosticsSnapshot: Codable, Equatable {
         let status: Int
         let latencyMs: Int
         let errorClass: String?
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            at = try Self.decodeString(.at, from: container, decoder: decoder, maxLength: PhoneDexDiagnosticsSnapshot.maxTimestampLength)
+            correlationId = try Self.decodeString(.correlationId, from: container, decoder: decoder, maxLength: PhoneDexDiagnosticsSnapshot.maxCorrelationIDLength)
+            route = try Self.decodeString(.route, from: container, decoder: decoder, maxLength: PhoneDexDiagnosticsSnapshot.maxRouteLength)
+            status = try Self.decodeMetric(.status, from: container, decoder: decoder)
+            latencyMs = try Self.decodeMetric(.latencyMs, from: container, decoder: decoder)
+            errorClass = try Self.decodeOptionalString(.errorClass, from: container, decoder: decoder, maxLength: PhoneDexDiagnosticsSnapshot.maxErrorClassLength)
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case at, correlationId, route, status, latencyMs, errorClass
+        }
+
+        private static func decodeString(
+            _ key: CodingKeys,
+            from container: KeyedDecodingContainer<CodingKeys>,
+            decoder: Decoder,
+            maxLength: Int
+        ) throws -> String {
+            let value = try container.decode(String.self, forKey: key)
+            guard value.count <= maxLength else {
+                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Diagnostics field \(key.stringValue) exceeds its native display limit."))
+            }
+            return value
+        }
+
+        private static func decodeOptionalString(
+            _ key: CodingKeys,
+            from container: KeyedDecodingContainer<CodingKeys>,
+            decoder: Decoder,
+            maxLength: Int
+        ) throws -> String? {
+            guard let value = try container.decodeIfPresent(String.self, forKey: key) else { return nil }
+            guard value.count <= maxLength else {
+                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Diagnostics field \(key.stringValue) exceeds its native display limit."))
+            }
+            return value
+        }
+
+        private static func decodeMetric(
+            _ key: CodingKeys,
+            from container: KeyedDecodingContainer<CodingKeys>,
+            decoder: Decoder
+        ) throws -> Int {
+            let value = try container.decode(Int.self, forKey: key)
+            guard (0...PhoneDexDiagnosticsSnapshot.maxMetricValue).contains(value) else {
+                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Diagnostics metric \(key.stringValue) is outside its supported range."))
+            }
+            return value
+        }
 
         var id: String { "\(at)-\(correlationId)" }
 
@@ -34,6 +124,17 @@ struct PhoneDexDiagnosticsSnapshot: Codable, Equatable {
     struct Capability: Codable, Equatable, Identifiable {
         let id: String
         let supported: Bool
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            id = try container.decode(String.self, forKey: .id)
+            guard id.count <= PhoneDexDiagnosticsSnapshot.maxCapabilityIDLength else {
+                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Diagnostic capability id exceeds its native display limit."))
+            }
+            supported = try container.decode(Bool.self, forKey: .supported)
+        }
+
+        private enum CodingKeys: String, CodingKey { case id, supported }
     }
 
     struct Metrics: Codable, Equatable {
@@ -77,27 +178,40 @@ struct PhoneDexDiagnosticsSnapshot: Codable, Equatable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        schema = try container.decode(String.self, forKey: .schema)
-        generatedAt = try container.decode(String.self, forKey: .generatedAt)
-        startedAt = try container.decode(String.self, forKey: .startedAt)
-        service = try container.decode(String.self, forKey: .service)
-        role = try container.decode(String.self, forKey: .role)
-        version = try container.decode(String.self, forKey: .version)
+        schema = try Self.decodeString(.schema, from: container, decoder: decoder, maxLength: Self.maxSchemaLength)
+        generatedAt = try Self.decodeString(.generatedAt, from: container, decoder: decoder, maxLength: Self.maxTimestampLength)
+        startedAt = try Self.decodeString(.startedAt, from: container, decoder: decoder, maxLength: Self.maxTimestampLength)
+        service = try Self.decodeString(.service, from: container, decoder: decoder, maxLength: Self.maxServiceLength)
+        role = try Self.decodeString(.role, from: container, decoder: decoder, maxLength: Self.maxRoleLength)
+        version = try Self.decodeString(.version, from: container, decoder: decoder, maxLength: Self.maxVersionLength)
         protocolVersion = try container.decode(Int.self, forKey: .protocolVersion)
-        components = try Self.decodeBoundedMap(String.self, from: container, forKey: .components, limit: Self.maxComponents)
+        components = try Self.decodeBoundedMap(String.self, from: container, forKey: .components, limit: Self.maxComponents, keyLimit: Self.maxComponentKeyLength, valueLimit: Self.maxComponentStateLength, decoder: decoder)
         metrics = try Self.decodeMetrics(from: container)
         recentRequests = try Self.decodeBoundedArray(Request.self, from: container, forKey: .recentRequests, limit: Self.maxRecentRequests)
         capabilities = try Self.decodeBoundedArray(Capability.self, from: container, forKey: .capabilities, limit: Self.maxCapabilities)
+    }
+
+    private static func decodeString<Key: CodingKey>(
+        _ key: Key,
+        from container: KeyedDecodingContainer<Key>,
+        decoder: Decoder,
+        maxLength: Int
+    ) throws -> String {
+        let value = try container.decode(String.self, forKey: key)
+        guard value.count <= maxLength else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Diagnostics field \(key.stringValue) exceeds its native display limit."))
+        }
+        return value
     }
 
     private static func decodeMetrics(from container: KeyedDecodingContainer<CodingKeys>) throws -> Metrics {
         let decoder = try container.superDecoder(forKey: .metrics)
         let metricsContainer = try decoder.container(keyedBy: MetricsCodingKeys.self)
         return Metrics(
-            requests: try metricsContainer.decode(Int.self, forKey: .requests),
-            failures: try metricsContainer.decode(Int.self, forKey: .failures),
-            commands: try metricsContainer.decode(Int.self, forKey: .commands),
-            routes: try decodeBoundedMap(RouteMetric.self, from: metricsContainer, forKey: .routes, limit: Self.maxRouteMetrics)
+            requests: try decodeMetric(.requests, from: metricsContainer, decoder: decoder),
+            failures: try decodeMetric(.failures, from: metricsContainer, decoder: decoder),
+            commands: try decodeMetric(.commands, from: metricsContainer, decoder: decoder),
+            routes: try decodeBoundedMap(RouteMetric.self, from: metricsContainer, forKey: .routes, limit: Self.maxRouteMetrics, keyLimit: Self.maxRouteLength, decoder: decoder)
         )
     }
 
@@ -109,7 +223,10 @@ struct PhoneDexDiagnosticsSnapshot: Codable, Equatable {
         _ type: Value.Type,
         from container: KeyedDecodingContainer<Key>,
         forKey key: Key,
-        limit: Int
+        limit: Int,
+        keyLimit: Int,
+        valueLimit: Int? = nil,
+        decoder: Decoder
     ) throws -> [String: Value] {
         let nested = try container.nestedContainer(keyedBy: AnyCodingKey.self, forKey: key)
         guard nested.allKeys.count <= limit else {
@@ -122,9 +239,28 @@ struct PhoneDexDiagnosticsSnapshot: Codable, Equatable {
 
         var result = [String: Value](minimumCapacity: nested.allKeys.count)
         for entryKey in nested.allKeys {
-            result[entryKey.stringValue] = try nested.decode(Value.self, forKey: entryKey)
+            guard entryKey.stringValue.count <= keyLimit else {
+                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Diagnostics key exceeds its native display limit."))
+            }
+            let value = try nested.decode(Value.self, forKey: entryKey)
+            if let valueLimit, let stringValue = value as? String, stringValue.count > valueLimit {
+                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Diagnostics component state exceeds its native display limit."))
+            }
+            result[entryKey.stringValue] = value
         }
         return result
+    }
+
+    private static func decodeMetric<Key: CodingKey>(
+        _ key: Key,
+        from container: KeyedDecodingContainer<Key>,
+        decoder: Decoder
+    ) throws -> Int {
+        let value = try container.decode(Int.self, forKey: key)
+        guard (0...Self.maxMetricValue).contains(value) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Diagnostics metric \(key.stringValue) is outside its supported range."))
+        }
+        return value
     }
 
     private static func decodeBoundedArray<Value: Decodable, Key: CodingKey>(
