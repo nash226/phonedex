@@ -2,6 +2,22 @@ import XCTest
 @testable import PhoneDex
 
 final class PhoneDexRefreshPolicyTests: XCTestCase {
+    func testRefreshGuidanceUsesStableLocalizedFallbacks() {
+        XCTAssertEqual(PhoneDexRefreshCopy.header, "Refresh behavior")
+        XCTAssertEqual(
+            PhoneDexRefreshCopy.summary,
+            "PhoneDex refreshes when you open the app or return to it. Pull to refresh and Test Connection always run immediately."
+        )
+        XCTAssertEqual(
+            PhoneDexRefreshCopy.lowPower,
+            "Low Power Mode spaces out automatic refreshes to protect battery."
+        )
+        XCTAssertEqual(
+            PhoneDexRefreshCopy.thermal,
+            "When iPhone is warm, automatic refreshes back off temporarily. Your cached conversations remain available."
+        )
+    }
+
     private let policy = PhoneDexRefreshPolicy(
         automaticMinimumInterval: 30,
         automaticMaximumInterval: 120,
