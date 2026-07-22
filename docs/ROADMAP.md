@@ -523,16 +523,6 @@ capabilities advertised by the foreground fallback. Focused adapter tests cover
 each invariant so future capability changes cannot imply private Codex Desktop
 API or UI-automation parity.
 
-Verification evidence for the completed experimental foreground-fallback slice:
-`createCodexAdapter` keeps the macOS foreground path reply-only and marks it
-experimental, while Windows and unknown platforms remain unavailable. The
-foreground command boundary requires an explicit task identity and bounded
-prompt, records content-free lifecycle diagnostics, and fails closed when the
-adapter cannot accept `task.reply.v1`; it never claims lifecycle control,
-desktop handoff, or private Codex Desktop API parity. `scripts/test-adapter.js`
-and `scripts/test-foreground-submit.js` cover the platform, capability, input,
-and failure boundaries.
-
 Verification evidence for the completed Windows adapter-matrix slice:
 `scripts/test-windows-adapter.js` exercises both `win32` and canonical
 `windows` platform inputs across CLI and app-server modes, with and without
