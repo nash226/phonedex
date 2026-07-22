@@ -110,6 +110,8 @@ The repository already proves the core loop, but not the final product.
   revoke the hub credential or other paired devices and directs the user back
   through pairing.
 - The app schedules a local notification and registers three reply actions.
+  It also keeps a bounded app-icon badge for unread active conversations;
+  archived and muted local triage items do not contribute to the count.
 - A notification content extension renders a long, scrollable result.
 - Notification actions post canned or typed/dictated replies to the bridge.
 - Task detail shows a bounded exported transcript, lifecycle summary, capture provenance,

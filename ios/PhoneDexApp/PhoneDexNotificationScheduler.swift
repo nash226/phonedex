@@ -54,6 +54,12 @@ enum PhoneDexNotificationScheduler {
     static let categoryIdentifier = "PHONEDEX_TASK"
     private static let maxPreviewBodyLength = 500
 
+    static func updateApplicationBadge(_ count: Int) async {
+        try? await UNUserNotificationCenter.current().setBadgeCount(
+            PhoneDexNotificationBadgePolicy.displayCount(count)
+        )
+    }
+
     static let previewBody = """
     Completed: PR #16 merged to main. README now shows PhoneDex as the iPhone-first notification bridge, with Watch support kept as a fallback. Next: start the native iOS app.
 
@@ -236,6 +242,32 @@ enum PhoneDexNotificationScheduler {
         )
 
         UNUserNotificationCenter.current().setNotificationCategories([category])
+    }
+}
+
+enum PhoneDexNotificationBadgePolicy {
+    static let maximumDisplayCount = 99
+
+    static func displayCount(_ count: Int) -> Int {
+        min(max(count, 0), maximumDisplayCount)
+    }
+
+    static func unreadCount(
+        tasks: [PhoneDexTask],
+        readAt: [String: Date],
+        archivedIDs: Set<String>,
+        mutedIDs: Set<String>
+    ) -> Int {
+        tasks.reduce(into: 0) { count, task in
+            guard !archivedIDs.contains(task.id), !mutedIDs.contains(task.id) else { return }
+            let isRead: Bool
+            if let markedReadAt = readAt[task.id] {
+                isRead = task.lastUpdatedDate.map { markedReadAt >= $0 } ?? true
+            } else {
+                isRead = false
+            }
+            if !isRead { count += 1 }
+        }
     }
 }
 
