@@ -315,6 +315,14 @@ shows an actionable Settings message when the configured URL is invalid.
 and loopback HTTP compatibility. Hub and agent TLS termination, certificate
 deployment, and legacy query-token removal remain separate release work.
 
+Bridge URL persistence hardening for secure native setup: `PhoneDexSettings`
+now writes only a validated, normalized bridge URL to `UserDefaults`. Invalid
+input containing credentials, query tokens, fragments, unsupported schemes, or
+non-loopback HTTP remains available only for the immediate validation message;
+it is removed from persisted settings. `PhoneDexSettingsTests` covers both the
+credential/query rejection boundary and normalized HTTPS persistence, so a
+mistyped legacy URL cannot become a local credential leak.
+
 Verification evidence for the legacy query-token boundary: URL query-token
 authentication is now disabled by default across the shared Mac/Windows hub
 routes, task pages, and standard agent-bootstrap URLs. Header-authenticated
